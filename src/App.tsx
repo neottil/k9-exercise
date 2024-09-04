@@ -3,11 +3,14 @@ import { Authenticator } from "@aws-amplify/ui-react";
 import type { Schema } from "../amplify/data/resource";
 import { generateClient } from "aws-amplify/data";
 import { v4 as uuidv4 } from 'uuid';
+
+import TypeSelect from "./filters/TypeSelect";
+
 import "@aws-amplify/ui-react/styles.css";
 
 const client = generateClient<Schema>();
 
-function App() {
+const App = () => {
   const [exercises, setExercises] = useState<Array<Schema["Exercise"]["type"]>>([]);
 
   useEffect(() => {
@@ -15,6 +18,7 @@ function App() {
       next: (data) => setExercises([...data.items]),
     });
   }, []);
+  
 
   const workingArea = {
     mental: 5,
@@ -24,7 +28,7 @@ function App() {
     cardio: 0
   }
 
-  function createExercise() {
+  const createExercise = () => {
     client.models.Exercise.create({ id: uuidv4(), description: window.prompt("Description"), type: window.prompt("Type"), workingArea });
   }
 
@@ -32,7 +36,7 @@ function App() {
     <Authenticator>
       {({ signOut, user }) => (
         <main>
-          <h1>{user?.signInDetails?.loginId}'s todos</h1>
+          <TypeSelect />
           <div>{JSON.stringify(user)}</div>
           <button onClick={createExercise}>+ new</button>
           <ul>
