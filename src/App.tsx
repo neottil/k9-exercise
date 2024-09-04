@@ -2,48 +2,46 @@ import { useEffect, useState } from "react";
 import { Authenticator } from "@aws-amplify/ui-react";
 import type { Schema } from "../amplify/data/resource";
 import { generateClient } from "aws-amplify/data";
+import { v4 as uuidv4 } from 'uuid';
 import "@aws-amplify/ui-react/styles.css";
 
 const client = generateClient<Schema>();
 
 function App() {
-  const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
+  const [exercises, setExercises] = useState<Array<Schema["Exercise"]["type"]>>([]);
 
   useEffect(() => {
-    client.models.Todo.observeQuery().subscribe({
-      next: (data) => setTodos([...data.items]),
+    client.models.Exercise.observeQuery().subscribe({
+      next: (data) => setExercises([...data.items]),
     });
   }, []);
 
-  function createTodo() {
-    client.models.Todo.create({ content: window.prompt("Todo content") });
+  const workingArea = {
+    mental: 5,
+    flexibility: 3,
+    strength: 1,
+    balance: 1,
+    cardio: 0
   }
 
-  function deleteTodo(id: string) {
-    client.models.Todo.delete({ id });
+  function createExercise() {
+    client.models.Exercise.create({ id: uuidv4(), description: window.prompt("Description"), type: window.prompt("Type"), workingArea });
   }
 
   return (
     <Authenticator>
       {({ signOut, user }) => (
         <main>
-          <h1>My todos</h1>
-          <h3>{JSON.stringify(user)}</h3>
-          <button onClick={createTodo}>+ new</button>
+          <h1>{user?.signInDetails?.loginId}'s todos</h1>
+          <div>{JSON.stringify(user)}</div>
+          <button onClick={createExercise}>+ new</button>
           <ul>
-            {todos.map((todo) => (
-              <li onClick={() => deleteTodo(todo.id)} key={todo.id}>
-                {todo.content}
+            {exercises.map((exercise) => (
+              <li key={exercise.id}>
+                {JSON.stringify(exercise)}
               </li>
             ))}
           </ul>
-          <div>
-            🥳 App successfully hosted. Try creating a new todo.
-            <br />
-            <a href="https://docs.amplify.aws/react/start/quickstart/#make-frontend-updates">
-              Review next step of this tutorial.
-            </a>
-          </div>
           <button onClick={signOut}>Sign out</button>
         </main>
       )}

@@ -10,3 +10,8 @@ From Amplify console, select the application and the deployed branch. Yuo will s
 Insert the downloaded file in root of project.
 
 [Guide section](https://docs.amplify.aws/react/start/quickstart/#4-set-up-local-environment)
+
+Run sandbok aws amplifi env before run application locally:
+```
+npx ampx sandbox
+```
