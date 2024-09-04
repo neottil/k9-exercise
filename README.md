@@ -1,25 +1,12 @@
-## AWS Amplify React+Vite Starter Template
+# K9-EXERCISE-APP
 
-This repository provides a starter template for creating applications using React+Vite and AWS Amplify, emphasizing easy setup for authentication, API, and database capabilities.
+## Starting from aws amplify template
 
-## Overview
+For detailed instructions refer to the [guide section](https://docs.amplify.aws/react/start/quickstart/#deploy-a-fullstack-app-to-aws).
 
-This template equips you with a foundational React application integrated with AWS Amplify, streamlined for scalability and performance. It is ideal for developers looking to jumpstart their project with pre-configured AWS services like Cognito, AppSync, and DynamoDB.
+## Set up local env
 
-## Features
+From Amplify console, select the application and the deployed branch. Yuo will see the deployment history and deployment backend resources. At the bottom of the page you will see a tab for Deployed backend resources. Click on the tab and then click the Download amplify_outputs.json file button.
+Insert the downloaded file in root of project.
 
-- **Authentication**: Setup with Amazon Cognito for secure user authentication.
-- **API**: Ready-to-use GraphQL endpoint with AWS AppSync.
-- **Database**: Real-time database powered by Amazon DynamoDB.
-
-## Deploying to AWS
-
-For detailed instructions on deploying your application, refer to the [deployment section](https://docs.amplify.aws/react/start/quickstart/#deploy-a-fullstack-app-to-aws) of our documentation.
-
-## Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## License
-
-This library is licensed under the MIT-0 License. See the LICENSE file.
+[Guide section](https://docs.amplify.aws/react/start/quickstart/#4-set-up-local-environment)
