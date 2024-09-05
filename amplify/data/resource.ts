@@ -13,6 +13,7 @@ const schema = a.schema({
         balance: a.integer(),
         cardio: a.integer()
       }),
+      user: a.email(),
     })
     .authorization((allow) => [allow.publicApiKey()]),
 });

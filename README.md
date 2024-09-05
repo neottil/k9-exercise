@@ -15,3 +15,14 @@ Run sandbok aws amplifi env before run application locally:
 ```
 npx ampx sandbox
 ```
+
+
+const filters = {type: "stand2", area: {mental: 2}};
+const data = [{type: "stand2", desc: "this is stand 2", area: {mental:2, flex:1}},{type: "stand2", desc: "this is stand 3", area: {mental:5, flex:1}},{type: "kickback", desc: "this is kickback", area: {mental:2, flex:4}}];
+
+const typeFilter = (exercise) => !filters.type || exercise.type == filters.type;
+const areaMentalFilter = (exercise) => !filters?.area?.mental || exercise.area.mental == filters.area.mental;
+
+const filtered = data.filter(typeFilter).filter(areaMentalFilter);
+
+console.log(filtered);

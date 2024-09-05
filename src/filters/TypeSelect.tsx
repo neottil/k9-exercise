@@ -4,16 +4,19 @@ import { generateClient } from "aws-amplify/data";
 import {
   FormControl,
   FormHelperText,
+  IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Select,
   SelectChangeEvent,
 } from "@mui/material";
+import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
 const client = generateClient<Schema>();
 
 interface Props {
-  onChangeCallback?: (event: SelectChangeEvent) => void;
+  onChangeCallback?: (name: string, value: string) => void;
 }
 
 const TypeSelect = ({ onChangeCallback }: Props) => {
@@ -21,35 +24,53 @@ const TypeSelect = ({ onChangeCallback }: Props) => {
   const [types, setTypes] = useState<Array<string>>();
   const [selected, setSelected] = useState<string>("");
 
-  const setTypesAndError = (data: Array<string>, error: boolean) => {
-    setTypes(data);
-    setError(error);
-  };
-
   useEffect(() => {
     const fetchData = async () => {
       const { data, errors } = await client.models.Exercise.list({
         selectionSet: ["type"],
       });
       const types: Array<string> = data.map(({ type }) => type);
-      errors ? setError(true) : !!data && setTypesAndError(types, false);
+      const uniqTypes: Array<string> = [...new Set(types)];
+      errors ? setError(true) : !!data && setTypesAndError(uniqTypes, false);
     };
     fetchData();
   }, []);
+  
+  const setTypesAndError = (data: Array<string>, error: boolean) => {
+    setTypes(data);
+    setError(error);
+  };
 
   const handleChange = (event: SelectChangeEvent) => {
     setSelected(event.target.value);
-    onChangeCallback && onChangeCallback(event);
+    onChangeCallback && onChangeCallback(event.target.name, event.target.value);
+  };
+
+  const resetSelection = () => {
+    setSelected("");
+    onChangeCallback && onChangeCallback("type", "");
   };
 
   return (
     <FormControl sx={{ m: 1, minWidth: 150 }} error={error}>
-      <InputLabel>type</InputLabel>
-      <Select name="type" value={selected} label="type" onChange={handleChange}>
+      <InputLabel>Tipologia</InputLabel>
+      <Select
+        name="type"
+        value={selected}
+        label="Tipologia"
+        onChange={handleChange}
+        startAdornment={
+          selected && <InputAdornment position="start">
+            <IconButton onClick={resetSelection}>
+              <HighlightOffIcon fontSize="small"/>
+            </IconButton>
+          </InputAdornment>
+        }
+      >
         {error ? (
           <MenuItem disabled>Error loading items</MenuItem>
         ) : types ? (
-          types.map((type) => (
+          types.map((type: string) => (
             <MenuItem key={type} value={type}>
               {type}
             </MenuItem>
