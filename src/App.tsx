@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
-import { Authenticator } from "@aws-amplify/ui-react";
-import type { Schema } from "../amplify/data/resource";
+import {
+  withAuthenticator,
+  WithAuthenticatorProps,
+} from "@aws-amplify/ui-react";
 import { generateClient } from "aws-amplify/data";
-import { v4 as uuidv4 } from 'uuid';
-
-import TypeSelect from "./filters/TypeSelect";
-import ExerciseTable from "./table/ExerciseTable";
-
-import "@aws-amplify/ui-react/styles.css";
 import { AuthUser } from "aws-amplify/auth";
+import { v4 as uuidv4 } from 'uuid';
+import { blue } from "@mui/material/colors";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+
+import type { Schema } from "../amplify/data/resource";
+import AppBar from "./components/AppBar";
+import TypeSelect from "./components/filters/TypeSelect";
+import ExerciseTable from "./components/ExerciseTable";
+import "@aws-amplify/ui-react/styles.css";
 
 const client = generateClient<Schema>();
 
@@ -16,11 +21,35 @@ interface Filters {
   type?: string;
 }
 
-const App = () => {
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: blue[500],
+      dark: blue[800],
+    },
+    secondary: {
+      main: blue[50],
+    },
+    contrastThreshold: 3,
+    tonalOffset: 0.2,
+  },
+  typography: {
+    fontFamily: [
+      "Roboto",
+      '"Helvetica Neue"',
+      "Arial",
+      "sans-serif",
+      '"Segoe UI Emoji"',
+      '"Segoe UI Symbol"',
+    ].join(","),
+  },
+});
+
+const App = ({ user, signOut }: WithAuthenticatorProps) => {
   const [exercises, setExercises] = useState<Array<Schema["Exercise"]["type"]>>(
     []
   );
-  const [FilteredExercises, setFilteredExercises] = useState<
+  const [filteredExercises, setFilteredExercises] = useState<
     Array<Schema["Exercise"]["type"]>
   >([]);
   const [filters, setFilters] = useState<Filters>({});
@@ -34,11 +63,11 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    const typeFilter = (exercise: Schema["Exercise"]["type"]) => 
+    const typeFilter = (exercise: Schema["Exercise"]["type"]) =>
       !filters.type || exercise.type == filters.type;
 
-        const filteredData = exercises.filter(typeFilter);
-        setFilteredExercises(filteredData);
+    const filteredData = exercises.filter(typeFilter);
+    setFilteredExercises(filteredData);
   }, [exercises, filters]);
 
   const workingArea = {
@@ -46,37 +75,33 @@ const App = () => {
     flexibility: 3,
     strength: 1,
     balance: 1,
-    cardio: 0
-  }
+    cardio: 0,
+  };
 
   const createExercise = (user: AuthUser | undefined) => {
-    client.models.Exercise.create({ id: uuidv4(), description: window.prompt("Description"), type: window.prompt("Type") || "default", workingArea, user: user?.signInDetails?.loginId });
-  }
+    client.models.Exercise.create({
+      id: uuidv4(),
+      description: window.prompt("Description"),
+      type: window.prompt("Type") || "default",
+      workingArea,
+      user: user?.signInDetails?.loginId,
+    });
+  };
 
   const onChangeFilter = (name: string, value: string) => {
     setFilters({ ...filters, [name]: value });
   };
 
   return (
-    <Authenticator>
-      {({ signOut, user }) => (
-        <main>
-          <TypeSelect onChangeCallback={onChangeFilter} />
-          <div>{JSON.stringify(filters)}</div>
-
-          <ul>
-            {FilteredExercises.map((exercise) => (
-              <li key={exercise.id}>{JSON.stringify(exercise)}</li>
-            ))}
-          </ul>
-          <ExerciseTable rows={exercises} />
-
-          <button onClick={signOut}>Sign out</button>
-          <button onClick={() => createExercise(user)}>Create</button>
-        </main>
-      )}
-    </Authenticator>
+    <ThemeProvider theme={theme}>
+      <AppBar user={user} signOut={signOut} />
+      <TypeSelect onChangeCallback={onChangeFilter} />
+      <ExerciseTable rows={exercises} />
+      <button onClick={() => createExercise(user)}>Create</button>
+    </ThemeProvider>
   );
 };
 
-export default App;
+const withAuthApp = withAuthenticator(App);
+
+export default withAuthApp;
