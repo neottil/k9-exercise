@@ -5,7 +5,7 @@ const schema = a.schema({
     .model({
       id: a.id().required(),
       type: a.string().required(),
-      description: a.string(),
+      description: a.string().required(),
       workingArea: a.customType({
         mental: a.integer(),
         flexibility: a.integer(),
@@ -13,6 +13,16 @@ const schema = a.schema({
         balance: a.integer(),
         cardio: a.integer()
       }),
+      bodyTarget: a.customType({
+        ant: a.integer(),
+        post: a.integer(),
+        core: a.integer(),
+        backbone: a.integer(),
+        fullBody: a.integer()
+      }),
+      movementPlan: a.string().array(),
+      tools: a.string().array(),
+      setup: a.string(),
       user: a.email(),
     })
     .authorization((allow) => [allow.publicApiKey()]),
