@@ -3,22 +3,24 @@ import {
   withAuthenticator,
   WithAuthenticatorProps,
 } from "@aws-amplify/ui-react";
+import "@aws-amplify/ui-react/styles.css";
 import { generateClient } from "aws-amplify/data";
-import { AuthUser } from "aws-amplify/auth";
-import { v4 as uuidv4 } from 'uuid';
 import { blue } from "@mui/material/colors";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 import type { Schema } from "../amplify/data/resource";
 import AppBar from "./components/AppBar";
-import TypeSelect from "./components/filters/TypeSelect";
+import WorkingAreaFilters from "./components/filters/WorkingAreaFilters";
 import ExerciseTable from "./components/ExerciseTable";
-import "@aws-amplify/ui-react/styles.css";
 
 const client = generateClient<Schema>();
 
 interface Filters {
-  type?: string;
+  workingAreaMental?: number;
+  workingAreaFlex?: number;
+  workingAreaStrength?: number;
+  workingAreaBalance?: number;
+  workingAreaCardio?: number;
 }
 
 const theme = createTheme({
@@ -62,22 +64,35 @@ const App = ({ user, signOut }: WithAuthenticatorProps) => {
     });
   }, []);
 
+    const workingAreaMentalFilter = (exercise: Schema["Exercise"]["type"]) =>
+      !filters.workingAreaMental ||
+      exercise?.workingArea?.mental == filters.workingAreaMental;
+    const workingAreaFlexFilter = (exercise: Schema["Exercise"]["type"]) =>
+      !filters.workingAreaFlex ||
+      exercise?.workingArea?.flexibility == filters.workingAreaFlex;
+    const workingAreaStrengthFilter = (exercise: Schema["Exercise"]["type"]) =>
+      !filters.workingAreaStrength ||
+      exercise?.workingArea?.strength == filters.workingAreaStrength;
+    const workingAreaBalanceFilter = (exercise: Schema["Exercise"]["type"]) =>
+      !filters.workingAreaBalance ||
+      exercise?.workingArea?.balance == filters.workingAreaBalance;
+    const workingAreaCardioFilter = (exercise: Schema["Exercise"]["type"]) =>
+      !filters.workingAreaCardio ||
+    exercise?.workingArea?.cardio == filters.workingAreaCardio;
+  
   useEffect(() => {
-    const typeFilter = (exercise: Schema["Exercise"]["type"]) =>
-      !filters.type || exercise.type == filters.type;
 
-    const filteredData = exercises.filter(typeFilter);
+    const filteredData = exercises
+      .filter(workingAreaMentalFilter)
+      .filter(workingAreaFlexFilter)
+      .filter(workingAreaStrengthFilter)
+      .filter(workingAreaBalanceFilter)
+      .filter(workingAreaCardioFilter);
+    
     setFilteredExercises(filteredData);
   }, [exercises, filters]);
 
-  const workingArea = {
-    mental: 5,
-    flexibility: 3,
-    strength: 1,
-    balance: 1,
-    cardio: 0,
-  };
-
+  /*
   const createExercise = (user: AuthUser | undefined) => {
     client.models.Exercise.create({
       id: uuidv4(),
@@ -87,6 +102,7 @@ const App = ({ user, signOut }: WithAuthenticatorProps) => {
       user: user?.signInDetails?.loginId,
     });
   };
+  */
 
   const onChangeFilter = (name: string, value: string) => {
     setFilters({ ...filters, [name]: value });
@@ -95,9 +111,10 @@ const App = ({ user, signOut }: WithAuthenticatorProps) => {
   return (
     <ThemeProvider theme={theme}>
       <AppBar user={user} signOut={signOut} />
-      <TypeSelect onChangeCallback={onChangeFilter} />
-      <ExerciseTable rows={exercises} />
-      <button onClick={() => createExercise(user)}>Create</button>
+      <WorkingAreaFilters
+        onChangeCallback={onChangeFilter}
+      />
+      <ExerciseTable rows={filteredExercises} />
     </ThemeProvider>
   );
 };
