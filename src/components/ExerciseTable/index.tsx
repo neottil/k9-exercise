@@ -1,19 +1,26 @@
+import {
+  DataGrid,
+  GridColDef,
+  GridAutosizeOptions,
+} from "@mui/x-data-grid";
 import Box from "@mui/material/Box";
-import { DataGrid, GridColDef, GridAutosizeOptions } from "@mui/x-data-grid";
+
 import type { Schema } from "../../../amplify/data/resource";
+import WorkingAreaTable from "./WorkingAreaTable";
 
 interface ExerciseTableProps {
   rows: Array<Schema["Exercise"]["type"]>;
 }
 
 const columnsDef: GridColDef[] = [
-  { field: "type", headerName: "Tipologia" },
+  { field: "type", headerName: "Tipologia", minWidth: 200 },
   { field: "description", headerName: "Descrizione", minWidth: 300, flex: 1.5 },
   {
     field: "workingAreas",
-    headerName: "Area",
-    minWidth: 300, flex: 1,
-    valueGetter: (_value, row) => JSON.stringify(row.workingArea),
+    headerName: "Aree",
+    minWidth: 300,
+    flex: 0.8,
+    renderCell: WorkingAreaTable,
   },
 ];
 
