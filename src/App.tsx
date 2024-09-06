@@ -5,6 +5,7 @@ import { generateClient } from "aws-amplify/data";
 import { v4 as uuidv4 } from 'uuid';
 
 import TypeSelect from "./filters/TypeSelect";
+import ExerciseTable from "./table/ExerciseTable";
 
 import "@aws-amplify/ui-react/styles.css";
 import { AuthUser } from "aws-amplify/auth";
@@ -62,11 +63,14 @@ const App = () => {
         <main>
           <TypeSelect onChangeCallback={onChangeFilter} />
           <div>{JSON.stringify(filters)}</div>
+
           <ul>
             {FilteredExercises.map((exercise) => (
               <li key={exercise.id}>{JSON.stringify(exercise)}</li>
             ))}
           </ul>
+          <ExerciseTable rows={exercises} />
+
           <button onClick={signOut}>Sign out</button>
           <button onClick={() => createExercise(user)}>Create</button>
         </main>

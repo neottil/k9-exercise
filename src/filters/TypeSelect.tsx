@@ -15,11 +15,11 @@ import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
 const client = generateClient<Schema>();
 
-interface Props {
+interface TypeSelectProps {
   onChangeCallback?: (name: string, value: string) => void;
 }
 
-const TypeSelect = ({ onChangeCallback }: Props) => {
+const TypeSelect = ({ onChangeCallback }: TypeSelectProps) => {
   const [error, setError] = useState<boolean>();
   const [types, setTypes] = useState<Array<string>>();
   const [selected, setSelected] = useState<string>("");
@@ -35,7 +35,7 @@ const TypeSelect = ({ onChangeCallback }: Props) => {
     };
     fetchData();
   }, []);
-  
+
   const setTypesAndError = (data: Array<string>, error: boolean) => {
     setTypes(data);
     setError(error);
@@ -60,11 +60,13 @@ const TypeSelect = ({ onChangeCallback }: Props) => {
         label="Tipologia"
         onChange={handleChange}
         startAdornment={
-          selected && <InputAdornment position="start">
-            <IconButton onClick={resetSelection}>
-              <HighlightOffIcon fontSize="small"/>
-            </IconButton>
-          </InputAdornment>
+          selected && (
+            <InputAdornment position="start">
+              <IconButton onClick={resetSelection}>
+                <HighlightOffIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          )
         }
       >
         {error ? (
