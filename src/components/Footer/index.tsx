@@ -9,7 +9,7 @@ const Footer = () => (
     sx={{
       bottom: 0,
       m: "0.5em",
-      position: "fixed"
+      position: "fixed",
     }}
     component="footer"
   >
@@ -24,13 +24,13 @@ const Footer = () => (
       <Box sx={{ flexGrow: 1 }}>
         <Typography sx={{ display: "inline" }}>Designed with&nbsp;</Typography>
         <Link
-          href="https://reactjs.org/"
+          href="https://vitejs.dev/"
           target="_blank"
           rel="noreferrer"
           underline="none"
           sx={{ display: "inline" }}
         >
-          React
+          Vitejs
         </Link>
         <Typography sx={{ display: "inline" }}>, powered with&nbsp;</Typography>
         <Tooltip title="Deployed by Amplify and routed by Route53">
@@ -54,9 +54,7 @@ const Footer = () => (
           <Typography sx={{ display: "inline" }}>&nbsp;Luca Neotti</Typography>
         </Link>
       </Box>
-      <Typography>
-        Copyright ©2024
-      </Typography>
+      <Typography>Copyright ©2024</Typography>
     </Box>
   </Box>
 );
