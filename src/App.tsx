@@ -7,9 +7,11 @@ import "@aws-amplify/ui-react/styles.css";
 import { generateClient } from "aws-amplify/data";
 import { blue } from "@mui/material/colors";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import Box from "@mui/material/Box";
 
 import type { Schema } from "../amplify/data/resource";
 import AppBar from "./components/AppBar";
+import Footer from "./components/Footer";
 import WorkingAreaFilters from "./components/filters/WorkingAreaFilters";
 import ExerciseTable from "./components/ExerciseTable";
 
@@ -26,6 +28,7 @@ interface Filters {
 const theme = createTheme({
   palette: {
     primary: {
+      light: blue["A100"],
       main: blue[500],
       dark: blue[800],
     },
@@ -111,10 +114,11 @@ const App = ({ user, signOut }: WithAuthenticatorProps) => {
   return (
     <ThemeProvider theme={theme}>
       <AppBar user={user} signOut={signOut} />
-      <WorkingAreaFilters
-        onChangeCallback={onChangeFilter}
-      />
-      <ExerciseTable rows={filteredExercises} />
+      <Box sx={{m: "0.7em"}}>
+        <WorkingAreaFilters onChangeCallback={onChangeFilter} />
+        <ExerciseTable rows={filteredExercises} />
+      </Box>
+      <Footer />
     </ThemeProvider>
   );
 };

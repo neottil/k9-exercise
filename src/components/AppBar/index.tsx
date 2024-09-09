@@ -9,7 +9,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 const SiteAppBar = ({ signOut }: WithAuthenticatorProps) => {
   return (
     <AppBar position="sticky">
-      <Toolbar>
+      <Toolbar sx={{width: "100%"}}>
         <IconButton
           size="large"
           edge="start"

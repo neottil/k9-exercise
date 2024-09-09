@@ -26,3 +26,82 @@ const areaMentalFilter = (exercise) => !filters?.area?.mental || exercise.area.m
 const filtered = data.filter(typeFilter).filter(areaMentalFilter);
 
 console.log(filtered);
+
+## Dynamo table structure
+
+```json
+{
+  "id": {
+    "S": "fe90563c-ef2e-4961-8c92-f37945cb6430"
+  },
+  "bodyTarget": {
+    "M": {
+      "ant": {
+        "N": "3"
+      },
+      "backbone": {
+        "N": "0"
+      },
+      "core": {
+        "N": "1"
+      },
+      "fullBody": {
+        "N": "0"
+      },
+      "post": {
+        "N": "3"
+      }
+    }
+  },
+  "createdAt": {
+    "S": "2024-09-05T16:27:36.609Z"
+  },
+  "description": {
+    "S": "Il cane posiziona le zampe anteriori sull'attrezzo e successivamente le posteriori"
+  },
+  "movementPlan": {
+    "SS": [
+      "Mediano"
+    ]
+  },
+  "setup": {
+    "S": "Balance disc posto a terra"
+  },
+  "tools": {
+    "SS": [
+      "Balance disc"
+    ]
+  },
+  "type": {
+    "S": "Stand 2 stazioni"
+  },
+  "updatedAt": {
+    "S": "2024-09-05T16:27:36.609Z"
+  },
+  "user": {
+    "S": "neot.luka.89@gmail.com"
+  },
+  "workingArea": {
+    "M": {
+      "balance": {
+        "N": "3"
+      },
+      "cardio": {
+        "N": "0"
+      },
+      "flexibility": {
+        "N": "0"
+      },
+      "mental": {
+        "N": "1"
+      },
+      "strength": {
+        "N": "1"
+      }
+    }
+  },
+  "__typename": {
+    "S": "Exercise"
+  }
+}
+```
