@@ -32,30 +32,31 @@ const LevelSelect = ({ name, label, onChangeCallback }: LevelSelectProps) => {
     };
 
     return (
-        <FormControl sx={{ m: 1, minWidth: 150 }}>
-            <InputLabel>{capitalize(label)}</InputLabel>
-            <Select
-                name={name}
-                value={selected}
-                label={label}
-                onChange={handleChange}
-                startAdornment={
-                    selected && (
-                        <InputAdornment position="start">
-                            <IconButton onClick={resetSelection}>
-                                <HighlightOffIcon fontSize="small" />
-                            </IconButton>
-                        </InputAdornment>
-                    )
-                }
-            >
-                <MenuItem value={1}>1</MenuItem>
-                <MenuItem value={2}>2</MenuItem>
-                <MenuItem value={3}>3</MenuItem>
-                <MenuItem value={4}>4</MenuItem>
-                <MenuItem value={5}>5</MenuItem>
-            </Select>
-        </FormControl>
+      <FormControl sx={{ m: 1, minWidth: 150 }}>
+        <InputLabel>{capitalize(label)}</InputLabel>
+        <Select
+          name={name}
+          value={selected}
+          label={label}
+          onChange={handleChange}
+          startAdornment={
+            selected && (
+              <InputAdornment position="start">
+                <IconButton onClick={resetSelection}>
+                  <HighlightOffIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            )
+          }
+        >
+          <MenuItem value={"0"}>0</MenuItem>
+          <MenuItem value={"1"}>1</MenuItem>
+          <MenuItem value={"2"}>2</MenuItem>
+          <MenuItem value={"3"}>3</MenuItem>
+          <MenuItem value={"4"}>4</MenuItem>
+          <MenuItem value={"5"}>5</MenuItem>
+        </Select>
+      </FormControl>
     );
 };
 
