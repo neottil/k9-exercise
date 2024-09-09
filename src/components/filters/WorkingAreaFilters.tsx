@@ -20,7 +20,7 @@ const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
   };
 
   return (
-    <Container sx={{ mt: 4 }} maxWidth={false} disableGutters>
+    <Container sx={{ py: "0.8em" }} maxWidth={false} disableGutters>
       <Button onClick={toggleFilters} variant="contained" fullWidth>
         <SearchIcon sx={{ mr: "0.5em" }} />
         <Typography variant="h6" sx={{ mr: "0.5em" }}>
