@@ -9,7 +9,6 @@ const Footer = () => (
     sx={{
       bottom: 0,
       m: "0.5em",
-      position: "fixed",
     }}
     component="footer"
   >

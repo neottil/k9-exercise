@@ -7,12 +7,12 @@ import {
 import { Collapse, Container, Button, Typography } from "@mui/material";
 import LevelSelect from "./LevelSelect";
 
-interface WorkingAreaFiltersProps {
+interface BodyTargetFiltersProps {
   onChangeCallback?: (name: string, value: string) => void;
 }
 
 
-const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
+const BodyTargetFilters = ({ onChangeCallback }: BodyTargetFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
   const toggleFilters = () => {
@@ -24,7 +24,7 @@ const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
       <Button onClick={toggleFilters} variant="contained" fullWidth>
         <SearchIcon sx={{ mr: "0.5em" }} />
         <Typography variant="h6" sx={{ mr: "0.5em" }}>
-          Area
+          Body Target
         </Typography>
         {isFiltersVisible ? (
           <ExpandLess onClick={toggleFilters} />
@@ -34,28 +34,28 @@ const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
       </Button>
       <Collapse in={isFiltersVisible}>
         <LevelSelect
-          name="workingAreaMental"
-          label="Mentale"
+          name="bodyTargetAnt"
+          label="Anteriore"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="workingAreaFlex"
-          label="Flessibilità"
+          name="bodyTargetPost"
+          label="Posteriore"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="workingAreaStrength"
-          label="Forza"
+          name="bodyTargetCore"
+          label="Core"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="workingAreaBalance"
-          label="Equilibrio"
+          name="bodyTargetBackbone"
+          label="Colonna"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="workingAreaCardio"
-          label="Cardio"
+          name="bodyTargetFullbody"
+          label="Fullbody"
           onChangeCallback={onChangeCallback}
         />
       </Collapse>
@@ -63,4 +63,4 @@ const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
   );
 };
 
-export default WorkingAreaFilters;
+export default BodyTargetFilters;

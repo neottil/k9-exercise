@@ -11,8 +11,6 @@ import Box from "@mui/material/Box";
 import type { Schema } from "../../../amplify/data/resource";
 import WorkingAreaTable from "./WorkingAreaTable";
 import BodyTargetTable from "./BodyTargetTable";
-import MovementPlan from "./MovementPlan";
-import Tools from "./Tools";
 
 interface ExerciseTableProps {
   rows: Array<Schema["Exercise"]["type"]>;
@@ -40,53 +38,60 @@ const columnsDef: GridColDef[] = [
   },
   {
     field: "description",
+    sortable: false,
     headerName: "Descrizione",
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 300,
-    flex: 0.5
+    flex: 0.5,
   },
   {
     field: "tools",
+    sortable: false,
     headerName: "Attrezzi",
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 150,
-    renderCell: Tools,
   },
   {
     field: "setup",
+    sortable: false,
     headerName: "Setup",
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 120,
-    flex: 0.4
+    flex: 0.4,
   },
   {
     field: "workingAreas",
+    filterable: false,
+    sortable: false,
     headerName: "Aree Di Lavoro",
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 300,
     renderCell: WorkingAreaTable,
-    flex: 1
+    flex: 1,
   },
   {
     field: "bodyTargets",
+    filterable: false,
+    sortable: false,
     headerName: "Body Target",
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 300,
     renderCell: BodyTargetTable,
-    flex: 1
+    flex: 1,
   },
   {
-    field: "movementPlans",
+    field: "movementPlan",
+    sortable: false,
     headerName: "Piano di Movimento",
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 130,
-    renderCell: MovementPlan,
+    flex: 0.4,
   },
 ];
 
