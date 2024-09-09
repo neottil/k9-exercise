@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import {
   DataGrid,
   GridColDef,
@@ -9,13 +10,16 @@ import Box from "@mui/material/Box";
 
 import type { Schema } from "../../../amplify/data/resource";
 import WorkingAreaTable from "./WorkingAreaTable";
+import BodyTargetTable from "./BodyTargetTable";
+import MovementPlan from "./MovementPlan";
+import Tools from "./Tools";
 
 interface ExerciseTableProps {
   rows: Array<Schema["Exercise"]["type"]>;
 }
 
 const renderHeader = (params: GridColumnHeaderParams) => (
-  <strong>
+  <strong style={{ whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>
     {params.colDef.headerName}
   </strong>
 );
@@ -32,7 +36,7 @@ const columnsDef: GridColDef[] = [
     headerName: "Tipologia",
     headerClassName: "super-app-theme--header",
     renderHeader,
-    minWidth: 200,
+    minWidth: 150,
   },
   {
     field: "description",
@@ -40,16 +44,49 @@ const columnsDef: GridColDef[] = [
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 300,
-    flex: 1.5,
+    flex: 0.5
+  },
+  {
+    field: "tools",
+    headerName: "Attrezzi",
+    headerClassName: "super-app-theme--header",
+    renderHeader,
+    minWidth: 150,
+    renderCell: Tools,
+  },
+  {
+    field: "setup",
+    headerName: "Setup",
+    headerClassName: "super-app-theme--header",
+    renderHeader,
+    minWidth: 120,
+    flex: 0.4
   },
   {
     field: "workingAreas",
-    headerName: "Aree",
+    headerName: "Aree Di Lavoro",
     headerClassName: "super-app-theme--header",
     renderHeader,
     minWidth: 300,
-    flex: 0.8,
     renderCell: WorkingAreaTable,
+    flex: 1
+  },
+  {
+    field: "bodyTargets",
+    headerName: "Body Target",
+    headerClassName: "super-app-theme--header",
+    renderHeader,
+    minWidth: 300,
+    renderCell: BodyTargetTable,
+    flex: 1
+  },
+  {
+    field: "movementPlans",
+    headerName: "Piano di Movimento",
+    headerClassName: "super-app-theme--header",
+    renderHeader,
+    minWidth: 130,
+    renderCell: MovementPlan,
   },
 ];
 
@@ -57,15 +94,24 @@ const autosizeOptions: GridAutosizeOptions = {
   includeOutliers: true,
 };
 
-const ExerciseTable = ({ rows }: ExerciseTableProps) => (
-  <StyledTableHeader>
-    <DataGrid
-      rows={rows}
-      columns={columnsDef}
-      getRowHeight={() => "auto"}
-      autosizeOptions={autosizeOptions}
-    />
-  </StyledTableHeader>
-);
+const ExerciseTable = ({ rows }: ExerciseTableProps) => {
+  const getRowSpacing = useCallback(() => {
+    return {
+      top: 3,
+      bottom: 3,
+    };
+  }, []);
+  
+  return (
+    <StyledTableHeader>
+      <DataGrid
+        rows={rows}
+        columns={columnsDef}
+        getRowHeight={() => "auto"}
+        autosizeOptions={autosizeOptions}
+        getRowSpacing={getRowSpacing}
+      />
+    </StyledTableHeader>
+  );};
 
 export default ExerciseTable;
