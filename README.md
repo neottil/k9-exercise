@@ -105,3 +105,11 @@ console.log(filtered);
   }
 }
 ```
+
+## TODO'S
+
+- filtri intelligenti
+- user session limit
+- user groups
+- new item always for admin
+- user nickname/username
