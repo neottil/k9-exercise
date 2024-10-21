@@ -29,16 +29,16 @@ npm run dev
   "bodyTarget": {
     "M": {
       "ant": {
-        "N": "3"
+        "N": "2"
       },
       "backbone": {
-        "N": "0"
+        "N": "3"
       },
       "core": {
         "N": "1"
       },
       "fullBody": {
-        "N": "0"
+        "N": "4"
       },
       "post": {
         "N": "3"
@@ -52,23 +52,36 @@ npm run dev
     "S": "Il cane posiziona le zampe anteriori sull'attrezzo e successivamente le posteriori"
   },
   "movementPlan": {
-    "SS": [
-      "Mediano"
+    "L": [
+      {
+        "S": "Mediano"
+      },
+      {
+        "S": "Sagittale"
+      }
     ]
   },
   "setup": {
     "S": "Balance disc posto a terra"
   },
   "tools": {
-    "SS": [
-      "Balance disc"
+    "L": [
+      {
+        "S": "Attrezzo 1"
+      },
+      {
+        "S": "AttrezzoTest"
+      },
+      {
+        "S": "Balance disc"
+      }
     ]
   },
   "type": {
-    "S": "Stand 2 stazioni"
+    "S": "Stand 2 stazioni X"
   },
   "updatedAt": {
-    "S": "2024-09-05T16:27:36.609Z"
+    "S": "2024-10-18T14:43:57.893Z"
   },
   "user": {
     "S": "neot.luka.89@gmail.com"
