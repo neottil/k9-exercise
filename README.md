@@ -102,5 +102,5 @@ npm run dev
 
 - user session limit
 - user groups
-- new item always for admin
+- new item only for admin
 - user nickname/username
