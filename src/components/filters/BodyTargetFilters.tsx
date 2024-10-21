@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableFiltersProps } from "./interface";
 import {
   ExpandLess,
   ExpandMore,
@@ -7,12 +8,7 @@ import {
 import { Collapse, Container, Button, Typography } from "@mui/material";
 import LevelSelect from "./LevelSelect";
 
-interface BodyTargetFiltersProps {
-  onChangeCallback?: (name: string, value: string) => void;
-}
-
-
-const BodyTargetFilters = ({ onChangeCallback }: BodyTargetFiltersProps) => {
+const BodyTargetFilters = ({ onChangeCallback }: TableFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
   const toggleFilters = () => {
@@ -34,27 +30,27 @@ const BodyTargetFilters = ({ onChangeCallback }: BodyTargetFiltersProps) => {
       </Button>
       <Collapse in={isFiltersVisible}>
         <LevelSelect
-          name="bodyTargetAnt"
+          name="ant"
           label="Anteriore"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="bodyTargetPost"
+          name="post"
           label="Posteriore"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="bodyTargetCore"
+          name="core"
           label="Core"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="bodyTargetBackbone"
+          name="backbone"
           label="Colonna"
           onChangeCallback={onChangeCallback}
         />
         <LevelSelect
-          name="bodyTargetFullbody"
+          name="fullbody"
           label="Fullbody"
           onChangeCallback={onChangeCallback}
         />

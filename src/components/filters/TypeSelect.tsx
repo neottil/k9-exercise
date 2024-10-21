@@ -51,6 +51,21 @@ const TypeSelect = ({ onChangeCallback }: TypeSelectProps) => {
     onChangeCallback && onChangeCallback("type", "");
   };
 
+  const renderMenuItems = (error: boolean|undefined, types: string[]|undefined) => {
+    if (error) {
+      return <MenuItem disabled>Error loading items</MenuItem>;
+    }
+    return types ? (
+      types.map((type: string) => (
+        <MenuItem key={type} value={type}>
+          {type}
+        </MenuItem>
+      ))
+    ) : (
+      <MenuItem disabled>Loading items...</MenuItem>
+    );
+  }
+
   return (
     <FormControl sx={{ m: 1, minWidth: 150 }} error={error}>
       <InputLabel>Tipologia</InputLabel>
@@ -69,17 +84,7 @@ const TypeSelect = ({ onChangeCallback }: TypeSelectProps) => {
           )
         }
       >
-        {error ? (
-          <MenuItem disabled>Error loading items</MenuItem>
-        ) : types ? (
-          types.map((type: string) => (
-            <MenuItem key={type} value={type}>
-              {type}
-            </MenuItem>
-          ))
-        ) : (
-          <MenuItem disabled>Loading items...</MenuItem>
-        )}
+        {renderMenuItems(error, types)}
       </Select>
       {!!error && <FormHelperText>Error on loading data</FormHelperText>}
     </FormControl>

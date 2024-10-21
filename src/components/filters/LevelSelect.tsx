@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { OnChangeCallback } from "./interface";
 import {
-  FormControl,
+  Box,
   IconButton,
   InputAdornment,
   InputLabel,
@@ -11,28 +12,42 @@ import {
 import { capitalize } from "../../functions/stringUtils";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
+const DEFAULT_SELECTED = "";
+const DEFAULT_OPERATION = "eq";
+
 interface LevelSelectProps {
-    name: string;
-    label: string; 
-  onChangeCallback?: (name: string, value: string) => void;
+  name: string;
+  label: string;
+  onChangeCallback?: OnChangeCallback;
 }
 
 const LevelSelect = ({ name, label, onChangeCallback }: LevelSelectProps) => {
-    const [selected, setSelected] = useState<string>("");
+  const [selected, setSelected] = useState<string>(DEFAULT_SELECTED);
+  const [selectedOp, setSelectedOp] = useState<string>(DEFAULT_OPERATION);
 
-    const handleChange = (event: SelectChangeEvent) => {
-      setSelected(event.target.value);
-      onChangeCallback &&
-        onChangeCallback(event.target.name, event.target.value);
-    };
+  useEffect(
+    () => onChangeCallback && onChangeCallback(name, selected, selectedOp),
+    [name, onChangeCallback, selected, selectedOp]
+  );
 
-    const resetSelection = () => {
-      setSelected("");
-      onChangeCallback && onChangeCallback(name, "");
-    };
+  const handleChange = (event: SelectChangeEvent) => {
+    setSelected(event.target.value);
+  };
 
-    return (
-      <FormControl sx={{ m: 1, minWidth: 150 }}>
+  const handleChangeOp = (event: SelectChangeEvent) => {
+    setSelectedOp(event.target.value);
+  };
+
+  const resetSelection = () => {
+    setSelected(DEFAULT_SELECTED);
+    setSelectedOp(DEFAULT_OPERATION);
+    onChangeCallback &&
+      onChangeCallback(name, DEFAULT_SELECTED, DEFAULT_OPERATION);
+  };
+
+  return (
+    <Box display="inline-flex" sx={{ m: 1 }}>
+      <Box display="block">
         <InputLabel>{capitalize(label)}</InputLabel>
         <Select
           name={name}
@@ -48,6 +63,7 @@ const LevelSelect = ({ name, label, onChangeCallback }: LevelSelectProps) => {
               </InputAdornment>
             )
           }
+          sx={{ minWidth: 90 }}
         >
           <MenuItem value={"0"}>0</MenuItem>
           <MenuItem value={"1"}>1</MenuItem>
@@ -56,8 +72,13 @@ const LevelSelect = ({ name, label, onChangeCallback }: LevelSelectProps) => {
           <MenuItem value={"4"}>4</MenuItem>
           <MenuItem value={"5"}>5</MenuItem>
         </Select>
-      </FormControl>
-    );
+        <Select name="operation" value={selectedOp} onChange={handleChangeOp}>
+          <MenuItem value="eq">{"="}</MenuItem>
+          <MenuItem value="gt">{">="}</MenuItem>
+        </Select>
+      </Box>
+    </Box>
+  );
 };
 
 export default LevelSelect;
