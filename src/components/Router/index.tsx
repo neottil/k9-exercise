@@ -1,6 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 
-import App from "./index"
+import App from "../App"
 import View from "../View"
 import Insert from "../Insert"
 
