@@ -1,16 +1,14 @@
-import {
-  WithAuthenticatorProps,
-} from "@aws-amplify/ui-react";
+import { WithAuthenticatorProps } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import { ThemeProvider } from "@mui/material/styles";
+import { Outlet } from "react-router-dom";
 
+import "./index.css";
 import theme from "./theme";
 import AppBar from "../AppBar";
 import Footer from "../Footer";
-import View from "../View";
 
 const App = ({ user, signOut }: WithAuthenticatorProps) => {
-
   /*
   const createExercise = (user: AuthUser | undefined) => {
     client.models.Exercise.create({
@@ -26,7 +24,7 @@ const App = ({ user, signOut }: WithAuthenticatorProps) => {
   return (
     <ThemeProvider theme={theme}>
       <AppBar user={user} signOut={signOut} />
-      <View />
+      <Outlet />
       <Footer />
     </ThemeProvider>
   );
