@@ -17,6 +17,8 @@ Run sandbok aws amplify env before run application locally:
 npx ampx sandbox
 
 npm run dev
+
+npx ampx sandbox delete
 ```
 
 ## Dynamo table structure

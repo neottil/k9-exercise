@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { OnChangeCallback, Filters, NumFilter } from "../filters/interface";
+import {
+  OnChangeCallback,
+  Filters,
+  NumFilterWithOp,
+} from "../../interfaces/filterInterfaces";
 import { generateClient } from "aws-amplify/data";
 import Box from "@mui/material/Box";
 
@@ -28,7 +32,7 @@ const View = () => {
   }, []);
 
   const applyNumericFilter = (
-    filter: undefined | NumFilter,
+    filter: undefined | NumFilterWithOp,
     exerciseValue: undefined | null | number
   ) =>
     !filter?.value || // if value is undefined return true (not apply filter) to data

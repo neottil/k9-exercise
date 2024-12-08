@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { OnChangeCallback } from "./interface";
+import React, { useEffect, useState } from "react";
+import { SelectFieldProps } from "../../interfaces/filterInterfaces";
 import {
   Box,
   IconButton,
@@ -8,6 +8,7 @@ import {
   MenuItem,
   Select,
   SelectChangeEvent,
+  FormControl,
 } from "@mui/material";
 import { capitalize } from "../../functions/stringUtils";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
@@ -15,13 +16,11 @@ import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 const DEFAULT_SELECTED = "";
 const DEFAULT_OPERATION = "eq";
 
-interface LevelSelectProps {
-  name: string;
-  label: string;
-  onChangeCallback?: OnChangeCallback;
-}
-
-const LevelSelect = ({ name, label, onChangeCallback }: LevelSelectProps) => {
+const LevelSelect = ({
+  name,
+  label,
+  onChangeCallback,
+}: SelectFieldProps): React.ReactNode => {
   const [selected, setSelected] = useState<string>(DEFAULT_SELECTED);
   const [selectedOp, setSelectedOp] = useState<string>(DEFAULT_OPERATION);
 
@@ -30,15 +29,15 @@ const LevelSelect = ({ name, label, onChangeCallback }: LevelSelectProps) => {
     [name, onChangeCallback, selected, selectedOp]
   );
 
-  const handleChange = (event: SelectChangeEvent) => {
+  const handleChange = (event: SelectChangeEvent): void => {
     setSelected(event.target.value);
   };
 
-  const handleChangeOp = (event: SelectChangeEvent) => {
+  const handleChangeOp = (event: SelectChangeEvent): void => {
     setSelectedOp(event.target.value);
   };
 
-  const resetSelection = () => {
+  const resetSelection = (): void => {
     setSelected(DEFAULT_SELECTED);
     setSelectedOp(DEFAULT_OPERATION);
     onChangeCallback &&
@@ -48,30 +47,32 @@ const LevelSelect = ({ name, label, onChangeCallback }: LevelSelectProps) => {
   return (
     <Box display="inline-flex" sx={{ m: 1 }}>
       <Box display="block">
-        <InputLabel>{capitalize(label)}</InputLabel>
-        <Select
-          name={name}
-          value={selected}
-          label={label}
-          onChange={handleChange}
-          startAdornment={
-            selected && (
-              <InputAdornment position="start">
-                <IconButton onClick={resetSelection}>
-                  <HighlightOffIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            )
-          }
-          sx={{ minWidth: 90 }}
-        >
-          <MenuItem value={"0"}>0</MenuItem>
-          <MenuItem value={"1"}>1</MenuItem>
-          <MenuItem value={"2"}>2</MenuItem>
-          <MenuItem value={"3"}>3</MenuItem>
-          <MenuItem value={"4"}>4</MenuItem>
-          <MenuItem value={"5"}>5</MenuItem>
-        </Select>
+        <FormControl sx={{ minWidth: 150 }}>
+          <InputLabel>{capitalize(label)}</InputLabel>
+          <Select
+            name={name}
+            value={selected}
+            label={label}
+            onChange={handleChange}
+            startAdornment={
+              selected && (
+                <InputAdornment position="start">
+                  <IconButton onClick={resetSelection}>
+                    <HighlightOffIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }
+            sx={{ minWidth: 90 }}
+          >
+            <MenuItem value={"0"}>0</MenuItem>
+            <MenuItem value={"1"}>1</MenuItem>
+            <MenuItem value={"2"}>2</MenuItem>
+            <MenuItem value={"3"}>3</MenuItem>
+            <MenuItem value={"4"}>4</MenuItem>
+            <MenuItem value={"5"}>5</MenuItem>
+          </Select>
+        </FormControl>
         <Select name="operation" value={selectedOp} onChange={handleChangeOp}>
           <MenuItem value="eq">{"="}</MenuItem>
           <MenuItem value="gt">{">="}</MenuItem>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TableFiltersProps } from "./interface";
+import { SimpleFiltersProps } from "../../interfaces/filterInterfaces";
 import {
   ExpandLess,
   ExpandMore,
@@ -8,7 +8,7 @@ import {
 import { Collapse, Container, Button, Typography } from "@mui/material";
 import LevelSelect from "./LevelSelect";
 
-const BodyTargetFilters = ({ onChangeCallback }: TableFiltersProps) => {
+const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
   const toggleFilters = () => {

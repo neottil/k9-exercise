@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Schema } from "../../../amplify/data/resource";
 import { generateClient } from "aws-amplify/data";
+import { SelectTypeProps } from "../../interfaces/filterInterfaces";
 import {
   FormControl,
   FormHelperText,
@@ -15,15 +16,19 @@ import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
 const client = generateClient<Schema>();
 
-interface TypeSelectProps {
-  onChangeCallback?: (name: string, value: string) => void;
-}
+const LABEL = "Tipologia";
+const NAME = "type";
+export const DEFAULT = "";
 
-const TypeSelect = ({ onChangeCallback }: TypeSelectProps) => {
+const TypeSelect = ({
+  onChangeCallback,
+  disabled,
+  value
+}: SelectTypeProps): React.ReactNode => {
   const [error, setError] = useState<boolean>();
   const [types, setTypes] = useState<Array<string>>();
-  const [selected, setSelected] = useState<string>("");
 
+  // create useEffect to call onChangeCallback with state value (as LevelSelect)
   useEffect(() => {
     const fetchData = async () => {
       const { data, errors } = await client.models.Exercise.list({
@@ -36,22 +41,23 @@ const TypeSelect = ({ onChangeCallback }: TypeSelectProps) => {
     fetchData();
   }, []);
 
-  const setTypesAndError = (data: Array<string>, error: boolean) => {
+  const setTypesAndError = (data: Array<string>, error: boolean): void => {
     setTypes(data);
     setError(error);
   };
 
-  const handleChange = (event: SelectChangeEvent) => {
-    setSelected(event.target.value);
-    onChangeCallback && onChangeCallback(event.target.name, event.target.value);
+  const handleChange = (event: SelectChangeEvent): void => {
+    onChangeCallback && onChangeCallback(NAME, event.target.value);
   };
 
-  const resetSelection = () => {
-    setSelected("");
-    onChangeCallback && onChangeCallback("type", "");
+  const resetSelection = (): void => {
+    onChangeCallback && onChangeCallback(NAME, DEFAULT);
   };
 
-  const renderMenuItems = (error: boolean|undefined, types: string[]|undefined) => {
+  const renderMenuItems = (
+    error: boolean | undefined,
+    types: string[] | undefined
+  ): React.ReactNode => {
     if (error) {
       return <MenuItem disabled>Error loading items</MenuItem>;
     }
@@ -64,18 +70,19 @@ const TypeSelect = ({ onChangeCallback }: TypeSelectProps) => {
     ) : (
       <MenuItem disabled>Loading items...</MenuItem>
     );
-  }
+  };
 
   return (
     <FormControl sx={{ m: 1, minWidth: 150 }} error={error}>
       <InputLabel>Tipologia</InputLabel>
       <Select
-        name="type"
-        value={selected}
-        label="Tipologia"
+        name={NAME}
+        value={value}
+        label={LABEL}
         onChange={handleChange}
+        disabled={disabled}
         startAdornment={
-          selected && (
+          value && (
             <InputAdornment position="start">
               <IconButton onClick={resetSelection}>
                 <HighlightOffIcon fontSize="small" />
