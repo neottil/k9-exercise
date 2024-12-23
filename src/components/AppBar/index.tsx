@@ -10,7 +10,7 @@ const SiteAppBar = ({ signOut }: WithAuthenticatorProps) => {
     <AppBar position="sticky">
       <Toolbar sx={{width: "100%"}}>
         <MainMenu />
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        <Typography variant="h5" component="div" sx={{ flexGrow: 1, justifyContent: "center", display: "flex", fontWeight: "bold" }}>
           K9 Cross Training Exercise Database
         </Typography>
         <Button onClick={signOut} color="secondary">
