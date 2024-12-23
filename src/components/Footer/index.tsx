@@ -4,6 +4,8 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
 
+import { version } from '../../../package.json';
+
 const Footer = () => (
   <Box
     sx={{
@@ -53,7 +55,8 @@ const Footer = () => (
           <Typography sx={{ display: "inline" }}>&nbsp;Luca Neotti</Typography>
         </Link>
       </Box>
-      <Typography>Copyright ©2024</Typography>
+      <Typography color="primary">version: {version}</Typography>
+      <Typography sx={{ display: "inline" }}>Copyright ©2024</Typography>
     </Box>
   </Box>
 );
