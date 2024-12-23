@@ -3,22 +3,13 @@ import AppBar from "@mui/material/AppBar";
 import Button from "@mui/material/Button";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import MenuIcon from "@mui/icons-material/Menu";
+import MainMenu from "./menu";
 
 const SiteAppBar = ({ signOut }: WithAuthenticatorProps) => {
   return (
     <AppBar position="sticky">
       <Toolbar sx={{width: "100%"}}>
-        <IconButton
-          size="large"
-          edge="start"
-          color="inherit"
-          aria-label="menu"
-          sx={{ mr: 2 }}
-        >
-          <MenuIcon />
-        </IconButton>
+        <MainMenu />
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
           K9 Cross Training Exercise Database
         </Typography>
