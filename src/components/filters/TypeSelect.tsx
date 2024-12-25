@@ -73,7 +73,7 @@ const TypeSelect = ({
   };
 
   return (
-    <FormControl sx={{ m: 1, minWidth: 150 }} error={error}>
+    <FormControl sx={{ minWidth: 150 }} error={error} fullWidth>
       <InputLabel>Tipologia</InputLabel>
       <Select
         name={NAME}

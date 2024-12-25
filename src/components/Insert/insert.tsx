@@ -7,7 +7,7 @@ import {
   FormControlLabel,
   Switch,
   TextField,
-  Snackbar,
+  Snackbar
 } from "@mui/material";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { Exercise, defaultExercise } from "../../interfaces/exerciseInterfaces";
@@ -41,7 +41,7 @@ const Insert = (): React.ReactNode => {
     }
     return error;
   }, [exerciseToSave]);
-  
+
   const validateForm = useCallback((): boolean => {
     const error: Error[] = validateRequiredFields();
     setFormError(error);
@@ -97,7 +97,7 @@ const Insert = (): React.ReactNode => {
   };
 
   return (
-    <Box>
+    <Box sx={{ m: 1 }}>
       {formError.length > 0 &&
         formError.map((error) => (
           <Snackbar
@@ -110,33 +110,42 @@ const Insert = (): React.ReactNode => {
             <Alert
               onClose={() => handleCloseSnackbar(error.id)}
               severity="error"
-              //variant="filled"
-              //sx={{ width: "100%" }}
+            //variant="filled"
+            //sx={{ width: "100%" }}
             >
               {error.message}
             </Alert>
           </Snackbar>
         ))}
-      <TypeSelect
-        onChangeCallback={updateExerciseToSave}
-        disabled={newType}
-        value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
-      />
-      <FormControlLabel
-        sx={{ my: 2 }}
-        label="Nuova"
-        control={<Switch checked={newType} onChange={onChangeIsNewSwitch} />}
-      />
-      <FormControl sx={{ m: 1, minWidth: 150 }}>
-        <TextField
-          label="Nuova Tipologia"
-          name="type"
-          value={(newType && exerciseToSave?.type) || TypeSelectDefaultValue}
-          disabled={!newType}
-          onChange={updateExerciseToSaveWithTarget}
-        ></TextField>
-      </FormControl>
-      <Box sx={{ m: 1.5 }}>
+      <Box display="flex" flexDirection="row">
+        {!newType && (
+          <TypeSelect
+            onChangeCallback={updateExerciseToSave}
+            disabled={newType}
+            value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
+          />
+        )}
+        <FormControlLabel
+          label="Nuova"
+          control={
+            <Switch checked={newType} onChange={onChangeIsNewSwitch} />
+          }
+          sx={{ mx: 1 }}
+        />
+
+        {newType && (
+          <FormControl fullWidth>
+            <TextField
+              label="Nuova Tipologia"
+              name="type"
+              value={(newType && exerciseToSave?.type) || TypeSelectDefaultValue}
+              disabled={!newType}
+              onChange={updateExerciseToSaveWithTarget}
+            />
+          </FormControl>
+        )}
+      </Box>
+      <Box sx={{my: 2}}>
         <Button
           variant="contained"
           onClick={OnClickSave}

@@ -14,6 +14,7 @@ Insert the downloaded file in root of project.
 Run sandbok aws amplify env before run application locally:
 
 ```shell
+export AWS_PROFILE=k9-exercise
 npx ampx sandbox
 
 npm run dev
@@ -119,3 +120,8 @@ npx ampx sandbox delete
 - user groups
 - new item only for admin
 - user nickname/username
+
+
+### Cloudformation sandbox stack
+arn:aws:cloudformation:eu-central-1:453224543995:stack/amplify-k9exercises-lucaneotti-sandbox-14ce632080/fdb5e3b0-c2e5-11ef-b1ba-02d58e3ab6bb
+amplify-k9exercises-lucaneotti-sandbox-14ce632080
