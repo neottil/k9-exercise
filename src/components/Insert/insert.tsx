@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  AlertTitle,
   Box,
   Button,
   FormControlLabel,
@@ -34,19 +35,37 @@ const Insert = (): React.ReactNode => {
     setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
     errors.length !== 0 && console.error("Validation errors:\n", errors.reduce((acc, { name, message }) => {
-      const errorLine = `Error ${name}: ${message}`;
+      const errorLine = `${name}: ${message}`;
       return acc ? `${acc}\n${errorLine}` : errorLine;
     }, ""));
 
     return errors.length == 0;
   }, [exerciseToSave]);
 
+  // Manage automatic closure after 5 seconds for each alert
+  useEffect(() => {
+    const timers: NodeJS.Timeout[] = [];
+
+    formAlert.forEach((alert) => {
+      const timer = setTimeout(() => {
+        handleCloseSnackbar(alert.name);
+      }, 4000);
+      timers.push(timer);
+    });
+
+    // Clean the timers when the component disassembles or when the alert array changes
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+    };
+  }, [formAlert]);
+
+
   useEffect(() => {
     if (saveAction) {
       const valid: boolean = validateForm();
       if (valid) {
         console.info("saving: ", exerciseToSave);
-        setFormAlert([{ name: "saved", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
+        setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
         setExerciseToSave(defaultExercise)
       }
       setSaveAction(false);
@@ -134,18 +153,20 @@ const Insert = (): React.ReactNode => {
   return (
     <Box sx={{ m: 1 }}>
       {formAlert.length > 0 &&
-        formAlert.map((alert) => (
+        formAlert.map((alert, index) => (
           <Snackbar
-            autoHideDuration={5000}
             anchorOrigin={{ vertical: "top", horizontal: "left" }}
             open
-            onClose={() => handleCloseSnackbar(alert.name)}
             key={alert.name}
+            sx={{
+              marginTop: index * 10, // Aggiunge un margine verticale tra i messaggi
+            }}
           >
             <Alert
               onClose={() => handleCloseSnackbar(alert.name)}
               severity={alert.severity}
             >
+              <AlertTitle>{alert.name}</AlertTitle>
               {alert.message}
             </Alert>
           </Snackbar>
