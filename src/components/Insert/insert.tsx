@@ -6,7 +6,6 @@ import {
   FormControlLabel,
   Switch,
   TextField,
-  TextareaAutosize,
   Snackbar
 } from "@mui/material";
 import { v4 as uuid } from "uuid";
@@ -17,17 +16,22 @@ import TypeSelect, {
 } from "../filters/TypeSelect";
 import { validate } from "./validationFunction";
 
+enum ALERT_TYPE { ERROR = "error", INFO = "info" }
+interface FormAlert extends Error {
+  severity: ALERT_TYPE
+}
+
 // user.loginId
 const Insert = (): React.ReactNode => {
   const [exerciseToSave, setExerciseToSave] =
     useState<Exercise>(defaultExercise);
   const [newType, setNewType] = useState<boolean>(false);
   const [saveAction, setSaveAction] = useState<boolean>(false);
-  const [formError, setFormError] = useState<Error[]>([]);
+  const [formAlert, setFormAlert] = useState<FormAlert[]>([]);
 
   const validateForm = useCallback((): boolean => {
-    const errors: Error[] = validate(exerciseToSave);
-    setFormError(errors);
+    var errors: Error[] = validate(exerciseToSave);
+    setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
     errors.length !== 0 && console.error("Validation errors:\n", errors.reduce((acc, { name, message }) => {
       const errorLine = `Error ${name}: ${message}`;
@@ -42,6 +46,8 @@ const Insert = (): React.ReactNode => {
       const valid: boolean = validateForm();
       if (valid) {
         console.info("saving: ", exerciseToSave);
+        setFormAlert([{ name: "saved", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
+        setExerciseToSave(defaultExercise)
       }
       setSaveAction(false);
     }
@@ -78,7 +84,7 @@ const Insert = (): React.ReactNode => {
   };
 
   const handleCloseSnackbar = (name: string) => {
-    setFormError((prev) => prev.filter((error) => error.name !== name));
+    setFormAlert((prev) => prev.filter((error) => error.name !== name));
   };
 
   const renderType = (
@@ -127,20 +133,20 @@ const Insert = (): React.ReactNode => {
 
   return (
     <Box sx={{ m: 1 }}>
-      {formError.length > 0 &&
-        formError.map((error) => (
+      {formAlert.length > 0 &&
+        formAlert.map((alert) => (
           <Snackbar
             autoHideDuration={5000}
             anchorOrigin={{ vertical: "top", horizontal: "left" }}
             open
-            onClose={() => handleCloseSnackbar(error.name)}
-            key={error.name}
+            onClose={() => handleCloseSnackbar(alert.name)}
+            key={alert.name}
           >
             <Alert
-              onClose={() => handleCloseSnackbar(error.name)}
-              severity="error"
+              onClose={() => handleCloseSnackbar(alert.name)}
+              severity={alert.severity}
             >
-              {error.message}
+              {alert.message}
             </Alert>
           </Snackbar>
         ))}

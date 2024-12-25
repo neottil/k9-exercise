@@ -121,6 +121,7 @@ npx ampx sandbox delete
 - new item only for admin
 - user nickname/username
 - dabounce on text fields (lodash.debounce)
+- alert title in insert page (to translate)
 
 
 ### Cloudformation sandbox stack
