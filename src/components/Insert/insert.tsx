@@ -15,12 +15,7 @@ import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
 } from "../filters/TypeSelect";
 import { v4 as uuid } from "uuid";
-import { isEmpty } from "../../functions/stringUtils";
-
-interface Error {
-  id: string;
-  message: string;
-}
+import { validate } from "./validationFunction";
 
 // user.loginId
 const Insert = (): React.ReactNode => {
@@ -30,34 +25,22 @@ const Insert = (): React.ReactNode => {
   const [saveAction, setSaveAction] = useState<boolean>(false);
   const [formError, setFormError] = useState<Error[]>([]);
 
-  const validateRequiredFields = useCallback((): Error[] => {
-    const error: Error[] = [];
-    // type
-    if (isEmpty(exerciseToSave.type)) {
-      error.push({
-        id: uuid(),
-        message: "La tipologia di esercizio è obbligatoria.",
-      });
-    }
-    return error;
-  }, [exerciseToSave]);
-
   const validateForm = useCallback((): boolean => {
-    const error: Error[] = validateRequiredFields();
+    const error: Error[] = validate(exerciseToSave);
     setFormError(error);
     console.log("Validation error: " + error);
     return error.length == 0;
-  }, [validateRequiredFields]);
+  }, [exerciseToSave]);
 
   useEffect(() => {
     if (saveAction) {
       const valid: boolean = validateForm();
       if (valid) {
         console.log("saving: ", exerciseToSave);
-        setSaveAction(false);
       }
+      setSaveAction(false);
     }
-  }, [saveAction, exerciseToSave, validateForm, validateRequiredFields]);
+  }, [saveAction, exerciseToSave, validateForm]);
 
   const OnClickSave = () => {
     setExerciseToSave({ ...exerciseToSave, id: uuid() });
@@ -92,8 +75,8 @@ const Insert = (): React.ReactNode => {
     });
   };
 
-  const handleCloseSnackbar = (id: string) => {
-    setFormError((prev) => prev.filter((error) => error.id !== id));
+  const handleCloseSnackbar = (name: string) => {
+    setFormError((prev) => prev.filter((error) => error.name !== name));
   };
 
   return (
@@ -104,11 +87,11 @@ const Insert = (): React.ReactNode => {
             autoHideDuration={5000}
             anchorOrigin={{ vertical: "top", horizontal: "left" }}
             open
-            onClose={() => handleCloseSnackbar(error.id)}
-            key={error.id}
+            onClose={() => handleCloseSnackbar(error.name)}
+            key={error.name}
           >
             <Alert
-              onClose={() => handleCloseSnackbar(error.id)}
+              onClose={() => handleCloseSnackbar(error.name)}
               severity="error"
             //variant="filled"
             //sx={{ width: "100%" }}
