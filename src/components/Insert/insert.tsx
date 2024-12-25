@@ -3,18 +3,18 @@ import {
   Alert,
   Box,
   Button,
-  FormControl,
   FormControlLabel,
   Switch,
   TextField,
+  TextareaAutosize,
   Snackbar
 } from "@mui/material";
+import { v4 as uuid } from "uuid";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { Exercise, defaultExercise } from "../../interfaces/exerciseInterfaces";
 import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
 } from "../filters/TypeSelect";
-import { v4 as uuid } from "uuid";
 import { validate } from "./validationFunction";
 
 // user.loginId
@@ -26,17 +26,22 @@ const Insert = (): React.ReactNode => {
   const [formError, setFormError] = useState<Error[]>([]);
 
   const validateForm = useCallback((): boolean => {
-    const error: Error[] = validate(exerciseToSave);
-    setFormError(error);
-    console.log("Validation error: " + error);
-    return error.length == 0;
+    const errors: Error[] = validate(exerciseToSave);
+    setFormError(errors);
+
+    errors.length !== 0 && console.error("Validation errors:\n", errors.reduce((acc, { name, message }) => {
+      const errorLine = `Error ${name}: ${message}`;
+      return acc ? `${acc}\n${errorLine}` : errorLine;
+    }, ""));
+
+    return errors.length == 0;
   }, [exerciseToSave]);
 
   useEffect(() => {
     if (saveAction) {
       const valid: boolean = validateForm();
       if (valid) {
-        console.log("saving: ", exerciseToSave);
+        console.info("saving: ", exerciseToSave);
       }
       setSaveAction(false);
     }
@@ -47,23 +52,20 @@ const Insert = (): React.ReactNode => {
     setSaveAction(true);
   };
 
-  const updateExerciseToSaveWithTarget = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ): void => {
-    console.log("updateExerciseToSaveWithTarget");
-    updateExerciseToSave(event.target.name, event.target.value);
-  };
-
   const updateExerciseToSave: OnChangeCallback = (
     name: string,
     value: string
-  ): void => {
+  ) => {
     console.log("updateExerciseToSave -> " + name + ":" + value);
     setExerciseToSave({
       ...exerciseToSave,
       [name]: value,
     });
   };
+
+  const updateExerciseToSaveWithEvent = (
+    event: React.ChangeEvent<any>
+  ): any => updateExerciseToSave(event.target.name, event.target.value);
 
   const onChangeIsNewSwitch = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -79,6 +81,50 @@ const Insert = (): React.ReactNode => {
     setFormError((prev) => prev.filter((error) => error.name !== name));
   };
 
+  const renderType = (
+    <Box display="flex" flexDirection="row" sx={{ my: 1 }}>
+      {!newType && (
+        <TypeSelect
+          onChangeCallback={updateExerciseToSave}
+          disabled={newType}
+          value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
+        />
+      )}
+      <FormControlLabel
+        label="Nuova"
+        control={
+          <Switch checked={newType} onChange={onChangeIsNewSwitch} />
+        }
+        sx={{ mx: 1 }}
+      />
+
+      {newType && (
+        <TextField
+          fullWidth
+          label="Nuova Tipologia"
+          name="type"
+          value={(newType && exerciseToSave?.type)}
+          disabled={!newType}
+          onChange={updateExerciseToSaveWithEvent}
+        />
+      )}
+    </Box>
+  );
+
+  const renderDescription = (
+    <Box sx={{ my: 1 }}>
+      <TextField
+        fullWidth
+        label="Descrizione"
+        name="description"
+        value={exerciseToSave?.description}
+        onChange={updateExerciseToSaveWithEvent}
+        multiline
+        rows={2}
+      />
+    </Box>
+  );
+
   return (
     <Box sx={{ m: 1 }}>
       {formError.length > 0 &&
@@ -93,42 +139,14 @@ const Insert = (): React.ReactNode => {
             <Alert
               onClose={() => handleCloseSnackbar(error.name)}
               severity="error"
-            //variant="filled"
-            //sx={{ width: "100%" }}
             >
               {error.message}
             </Alert>
           </Snackbar>
         ))}
-      <Box display="flex" flexDirection="row">
-        {!newType && (
-          <TypeSelect
-            onChangeCallback={updateExerciseToSave}
-            disabled={newType}
-            value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
-          />
-        )}
-        <FormControlLabel
-          label="Nuova"
-          control={
-            <Switch checked={newType} onChange={onChangeIsNewSwitch} />
-          }
-          sx={{ mx: 1 }}
-        />
-
-        {newType && (
-          <FormControl fullWidth>
-            <TextField
-              label="Nuova Tipologia"
-              name="type"
-              value={(newType && exerciseToSave?.type) || TypeSelectDefaultValue}
-              disabled={!newType}
-              onChange={updateExerciseToSaveWithTarget}
-            />
-          </FormControl>
-        )}
-      </Box>
-      <Box sx={{my: 2}}>
+      {renderType}
+      {renderDescription}
+      <Box sx={{ my: 2 }}>
         <Button
           variant="contained"
           onClick={OnClickSave}

@@ -120,6 +120,7 @@ npx ampx sandbox delete
 - user groups
 - new item only for admin
 - user nickname/username
+- dabounce on text fields (lodash.debounce)
 
 
 ### Cloudformation sandbox stack
