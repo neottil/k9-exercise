@@ -41,23 +41,23 @@ const TypeSelect = ({
     fetchData();
   }, []);
 
-  const setTypesAndError = (data: Array<string>, error: boolean): void => {
+  const setTypesAndError = (data: Array<string>, error: boolean) => {
     setTypes(data);
     setError(error);
   };
 
-  const handleChange = (event: SelectChangeEvent): void => {
+  const handleChange = (event: SelectChangeEvent) => {
     onChangeCallback && onChangeCallback(NAME, event.target.value);
   };
 
-  const resetSelection = (): void => {
+  const resetSelection = () => {
     onChangeCallback && onChangeCallback(NAME, DEFAULT);
   };
 
   const renderMenuItems = (
     error: boolean | undefined,
     types: string[] | undefined
-  ): React.ReactNode => {
+  ) => {
     if (error) {
       return <MenuItem disabled>Error loading items</MenuItem>;
     }
@@ -73,7 +73,7 @@ const TypeSelect = ({
   };
 
   return (
-    <FormControl sx={{ minWidth: 150 }} error={error} fullWidth>
+    <FormControl error={error} fullWidth>
       <InputLabel>Tipologia</InputLabel>
       <Select
         name={NAME}
