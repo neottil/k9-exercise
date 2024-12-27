@@ -16,7 +16,19 @@ interface BodyTarget {
     fullBody: number;  // Full body engagement
 }
 
-type MovementPlan = "Mediano" | "Trasverso" | "Dorsale";
+/*
+as const:
+Trasforma l'array in un tipo readonly e ogni elemento in un valore letterale.
+Senza as const, TypeScript considererebbe l'array come string[] anziché un insieme di stringhe specifiche.
+
+typeof movementPlans:
+Ottiene il tipo dell'array (readonly ["Mediano", "Trasverso", "Dorsale"]).
+
+typeof movementPlans[number]:
+Usa l'indice number per estrarre i tipi degli elementi dell'array, producendo il tipo unione: "Mediano" | "Trasverso" | "Dorsale".
+*/
+const movementPlans = ["Mediano", "Trasverso", "Dorsale"] as const;
+type MovementPlan = typeof movementPlans[number];
 
 interface Exercise {
     id: string;
@@ -62,5 +74,6 @@ export type {
 }
 
 export {
-    defaultExercise
+    defaultExercise,
+    movementPlans
 }
