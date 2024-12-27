@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import { v4 as uuid } from "uuid";
 import {
   Alert,
   AlertTitle,
@@ -9,17 +11,15 @@ import {
   TextField,
   Snackbar
 } from "@mui/material";
-import { v4 as uuid } from "uuid";
-import { OnChangeCallback } from "../../interfaces/filterInterfaces";
-import { Exercise, defaultExercise } from "../../interfaces/exerciseInterfaces";
 import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
 } from "../filters/TypeSelect";
-import { validate } from "./validationFunction";
 import ArrayField from "../ArrayField";
-import { capitalize } from "../../functions/stringUtils";
-import { useOutletContext } from "react-router-dom";
 import { OutletRouterContext } from "../../interfaces/outletRouterContext";
+import { OnChangeCallback } from "../../interfaces/filterInterfaces";
+import { Exercise, defaultExercise, movementPlans } from "../../interfaces/exerciseInterfaces";
+import { capitalize } from "../../functions/stringUtils";
+import { validate } from "./validationFunction";
 
 enum ALERT_TYPE { ERROR = "error", INFO = "info" }
 interface FormAlert extends Error {
@@ -35,7 +35,7 @@ const Insert = (): React.ReactNode => {
   const { user } = useOutletContext<OutletRouterContext>()
 
   const validateForm = useCallback((): boolean => {
-    
+
     var errors: Error[] = validate(exerciseToSave);
     setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
@@ -196,6 +196,7 @@ const Insert = (): React.ReactNode => {
         name="movementPlan"
         items={exerciseToSave.movementPlan}
         onChange={updateExerciseToSave}
+        options={movementPlans}
       />
     </Box>
   );

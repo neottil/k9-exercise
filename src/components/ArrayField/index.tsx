@@ -1,24 +1,25 @@
 import React, { useState } from "react";
 import { Badge, Divider, Icon, ScrollView } from "@aws-amplify/ui-react";
-import { Box, Button, TextField } from "@mui/material";
+import { Box, Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { capitalize } from "../../functions/stringUtils";
 
 
-interface ArrayFieldProps {items: string[], onChange: OnChangeCallback, label: string, name: string};
+interface ArrayFieldProps { items: string[], onChange: OnChangeCallback, label: string, name: string, options?: readonly string[] };
 
 const ArrayField = ({
   items,
   onChange,
   label,
   name,
+  options
 }: ArrayFieldProps) => {
   const DEFAULT_CURRENT_VALUE = "";
   const [currentValue, setCurrentValue] = useState<string>(DEFAULT_CURRENT_VALUE);
   const [selectedBadgeIndex, setSelectedBadgeIndex] = React.useState();
-  
-  const onChangeCurrentValue = async (event: React.ChangeEvent<any>) => setCurrentValue(event.target.value);
-  
+
+  const onChangeCurrentValue = async (event: { target: { value: string; name: string } }) => setCurrentValue(event.target.value);
+
   const removeItem = async (removeIndex: number) => {
     onChange(name, items.filter((_value, index) => index !== removeIndex));
   };
@@ -82,13 +83,32 @@ const ArrayField = ({
 
   return (
     <React.Fragment>
-      <TextField
-        fullWidth
-        label={label}
-        name={name}
-        value={currentValue}
-        onChange={onChangeCurrentValue}
-      />
+      {!options &&
+        <TextField
+          fullWidth
+          label={label}
+          name={name}
+          value={currentValue}
+          onChange={onChangeCurrentValue}
+        />
+      }
+      {!!options &&
+        <FormControl fullWidth>
+          <InputLabel>{label}</InputLabel>
+          <Select
+            fullWidth
+            name={name}
+            value={currentValue}
+            onChange={onChangeCurrentValue}
+          >
+            {options.filter((opt) => !items.includes(opt)).map((opt: string) => (
+              <MenuItem key={opt} value={opt}>
+                {opt}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      }
       <Box justifyContent="flex-end">
         <Button
           children="Cancella"
