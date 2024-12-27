@@ -51,7 +51,7 @@ const tools = {
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 150,
-  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.tools?.map((tool) => <Chip label={tool} sx={{ m: 0.5 }}/>)
+  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.tools?.map((tool) => <Chip key={tool} label={tool} sx={{ m: 0.5 }}/>)
 };
 
 const setup = {
@@ -96,7 +96,7 @@ const movementPlan = {
   renderHeader,
   minWidth: 130,
   flex: 0.4,
-  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip label={plan} sx={{ m: 0.5 }}/>)
+  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }}/>)
 };
 
 export {
