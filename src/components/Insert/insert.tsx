@@ -16,21 +16,26 @@ import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
 } from "../filters/TypeSelect";
 import { validate } from "./validationFunction";
+import ArrayField from "../ArrayField";
+import { capitalize } from "../../functions/stringUtils";
+import { useOutletContext } from "react-router-dom";
+import { OutletRouterContext } from "../../interfaces/outletRouterContext";
 
 enum ALERT_TYPE { ERROR = "error", INFO = "info" }
 interface FormAlert extends Error {
   severity: ALERT_TYPE
 }
 
-// user.loginId
 const Insert = (): React.ReactNode => {
   const [exerciseToSave, setExerciseToSave] =
     useState<Exercise>(defaultExercise);
   const [newType, setNewType] = useState<boolean>(false);
   const [saveAction, setSaveAction] = useState<boolean>(false);
   const [formAlert, setFormAlert] = useState<FormAlert[]>([]);
+  const { user } = useOutletContext<OutletRouterContext>()
 
   const validateForm = useCallback((): boolean => {
+    
     var errors: Error[] = validate(exerciseToSave);
     setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
@@ -41,6 +46,15 @@ const Insert = (): React.ReactNode => {
 
     return errors.length == 0;
   }, [exerciseToSave]);
+
+  const finalizeExerciseToSave = () => {
+    if (!exerciseToSave.id) {
+      exerciseToSave.id = uuid();
+    }
+    if (!exerciseToSave.user) {
+      exerciseToSave.user = user.signInDetails?.loginId;
+    }
+  }
 
   // Manage automatic closure after 5 seconds for each alert
   useEffect(() => {
@@ -64,22 +78,23 @@ const Insert = (): React.ReactNode => {
     if (saveAction) {
       const valid: boolean = validateForm();
       if (valid) {
+        finalizeExerciseToSave()
         console.info("saving: ", exerciseToSave);
         setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
         setExerciseToSave(defaultExercise)
+        setNewType(false)
       }
       setSaveAction(false);
     }
   }, [saveAction, exerciseToSave, validateForm]);
 
   const OnClickSave = () => {
-    setExerciseToSave({ ...exerciseToSave, id: uuid() });
     setSaveAction(true);
   };
 
   const updateExerciseToSave: OnChangeCallback = (
-    name: string,
-    value: string
+    name,
+    value
   ) => {
     console.log("updateExerciseToSave -> " + name + ":" + value);
     setExerciseToSave({
@@ -90,11 +105,11 @@ const Insert = (): React.ReactNode => {
 
   const updateExerciseToSaveWithEvent = (
     event: React.ChangeEvent<any>
-  ): any => updateExerciseToSave(event.target.name, event.target.value);
+  ) => updateExerciseToSave(event.target.name, capitalize(event.target.value));
 
   const onChangeIsNewSwitch = (
     event: React.ChangeEvent<HTMLInputElement>
-  ): void => {
+  ) => {
     setNewType(event.target.checked);
     setExerciseToSave({
       ...exerciseToSave,
@@ -115,14 +130,6 @@ const Insert = (): React.ReactNode => {
           value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
         />
       )}
-      <FormControlLabel
-        label="Nuova"
-        control={
-          <Switch checked={newType} onChange={onChangeIsNewSwitch} />
-        }
-        sx={{ mx: 1 }}
-      />
-
       {newType && (
         <TextField
           fullWidth
@@ -133,6 +140,13 @@ const Insert = (): React.ReactNode => {
           onChange={updateExerciseToSaveWithEvent}
         />
       )}
+      <FormControlLabel
+        label="Nuova"
+        control={
+          <Switch checked={newType} onChange={onChangeIsNewSwitch} />
+        }
+        sx={{ mx: 1 }}
+      />
     </Box>
   );
 
@@ -150,9 +164,45 @@ const Insert = (): React.ReactNode => {
     </Box>
   );
 
+  const renderTools = (
+    <Box sx={{ my: 1 }}>
+      <ArrayField
+        label="Attrezzi"
+        name="tools"
+        items={exerciseToSave.tools}
+        onChange={updateExerciseToSave}
+      />
+    </Box>
+  );
+
+  const renderSetup = (
+    <Box sx={{ my: 1 }}>
+      <TextField
+        fullWidth
+        label="Setup"
+        name="setup"
+        value={exerciseToSave?.setup}
+        onChange={updateExerciseToSaveWithEvent}
+        multiline
+        rows={2}
+      />
+    </Box>
+  );
+
+  const renderMovementPlan = (
+    <Box sx={{ my: 1 }}>
+      <ArrayField
+        label="Piano di movimento"
+        name="movementPlan"
+        items={exerciseToSave.movementPlan}
+        onChange={updateExerciseToSave}
+      />
+    </Box>
+  );
+
   return (
     <Box sx={{ m: 1 }}>
-      {formAlert.length > 0 &&
+      {!!formAlert.length &&
         formAlert.map((alert, index) => (
           <Snackbar
             anchorOrigin={{ vertical: "top", horizontal: "left" }}
@@ -173,6 +223,9 @@ const Insert = (): React.ReactNode => {
         ))}
       {renderType}
       {renderDescription}
+      {renderTools}
+      {renderSetup}
+      {renderMovementPlan}
       <Box sx={{ my: 2 }}>
         <Button
           variant="contained"

@@ -1,4 +1,4 @@
-type OnChangeCallback = (name: string, value: string, operation?: string) => void
+type OnChangeCallback = (name: string, value: any, operation?: "eq" | "gt") => void
 
 interface SimpleFiltersProps {
   onChangeCallback?: OnChangeCallback;

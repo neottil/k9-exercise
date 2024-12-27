@@ -24,7 +24,7 @@ const App = ({ user, signOut }: WithAuthenticatorProps) => {
   return (
     <ThemeProvider theme={theme}>
       <AppBar user={user} signOut={signOut} />
-      <Outlet />
+      <Outlet context={{user}}/>
       <Footer />
     </ThemeProvider>
   );

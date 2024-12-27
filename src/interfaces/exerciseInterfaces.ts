@@ -1,5 +1,3 @@
-import { FailoverStatusCode } from "aws-cdk-lib/aws-cloudfront";
-
 // Describes the effort distribution for various working areas
 interface WorkingArea {
     mental: number;
@@ -18,7 +16,7 @@ interface BodyTarget {
     fullBody: number;  // Full body engagement
 }
 
-type MovementPlan = "MEDIANO" | "TRASVERSO" | "DORSALE";
+type MovementPlan = "Mediano" | "Trasverso" | "Dorsale";
 
 interface Exercise {
     id: string;
@@ -32,7 +30,7 @@ interface Exercise {
     tools: string[];
 
     setup: string;
-    user: string;
+    user: string | undefined;
 }
 
 const defaultExercise: Exercise = {
