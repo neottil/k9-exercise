@@ -143,9 +143,9 @@ const View = () => {
   ]);
 
   const onChangeWorkingAreaFilter: OnChangeCallback = (
-    name: string,
-    value: string,
-    operation: string
+    name,
+    value,
+    operation
   ) => {
     setFilters({
       ...filters,
@@ -154,9 +154,9 @@ const View = () => {
   };
 
   const onChangeBodyTargetFilter: OnChangeCallback = (
-    name: string,
-    value: string,
-    operation: string
+    name,
+    value,
+    operation
   ) => {
     setFilters({
       ...filters,
