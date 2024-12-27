@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { v4 as uuid } from "uuid";
+import { generateClient } from "aws-amplify/api";
 import {
   Alert,
   AlertTitle,
@@ -20,6 +21,7 @@ import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { Exercise, defaultExercise, movementPlans } from "../../interfaces/exerciseInterfaces";
 import { capitalize } from "../../functions/stringUtils";
 import { validate } from "./validationFunction";
+import { createExercise } from "./mutations";
 
 enum ALERT_TYPE { ERROR = "error", INFO = "info" }
 interface FormAlert extends Error {
@@ -32,10 +34,27 @@ const Insert = (): React.ReactNode => {
   const [newType, setNewType] = useState<boolean>(false);
   const [saveAction, setSaveAction] = useState<boolean>(false);
   const [formAlert, setFormAlert] = useState<FormAlert[]>([]);
-  const { user } = useOutletContext<OutletRouterContext>()
+  const { user } = useOutletContext<OutletRouterContext>();
+
+  const client = generateClient();
+
+  const save = async () => {
+    try {
+      await client.graphql({
+        query: createExercise,
+        variables: {
+          input: {
+            ...exerciseToSave,
+          },
+        },
+      });
+    } catch (err: any) {
+      console.error("Unexpected error", err);
+      setFormAlert([{ name: "Unexpected error", message: err, severity: ALERT_TYPE.ERROR }]);
+    }
+  };
 
   const validateForm = useCallback((): boolean => {
-
     var errors: Error[] = validate(exerciseToSave);
     setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
@@ -48,13 +67,18 @@ const Insert = (): React.ReactNode => {
   }, [exerciseToSave]);
 
   const finalizeExerciseToSave = () => {
-    if (!exerciseToSave.id) {
-      exerciseToSave.id = uuid();
-    }
-    if (!exerciseToSave.user) {
-      exerciseToSave.user = user.signInDetails?.loginId;
-    }
-  }
+    setExerciseToSave((prev) => {
+      const toSave = { ...prev };
+      if (!toSave.id) {
+        toSave.id = uuid();
+      }
+      if (!toSave.user) {
+        toSave.user = user.signInDetails?.loginId;
+      }
+      return toSave;
+    })
+  };
+
 
   // Manage automatic closure after 5 seconds for each alert
   useEffect(() => {
@@ -76,20 +100,21 @@ const Insert = (): React.ReactNode => {
 
   useEffect(() => {
     if (saveAction) {
-      const valid: boolean = validateForm();
-      if (valid) {
-        finalizeExerciseToSave()
-        console.info("saving: ", exerciseToSave);
-        setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
-        setExerciseToSave(defaultExercise)
-        setNewType(false)
-      }
+      console.info("saving: ", exerciseToSave);
+      save();
+      setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
+      setExerciseToSave(defaultExercise)
+      setNewType(false)
       setSaveAction(false);
     }
   }, [saveAction, exerciseToSave, validateForm]);
 
   const OnClickSave = () => {
-    setSaveAction(true);
+    const valid: boolean = validateForm();
+    if (valid) {
+      finalizeExerciseToSave()
+      setSaveAction(true);
+    }
   };
 
   const updateExerciseToSave: OnChangeCallback = (
