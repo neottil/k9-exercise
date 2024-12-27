@@ -5,6 +5,7 @@ import {
 import type { Schema } from "../../../amplify/data/resource";
 import WorkingAreaTable from "./WorkingAreaTable";
 import BodyTargetTable from "./BodyTargetTable";
+import { Chip } from "@mui/material";
 
 const renderHeader = (params: GridColumnHeaderParams) => (
   <strong style={{ whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>
@@ -50,16 +51,17 @@ const tools = {
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 150,
+  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.tools?.map((tool) => <Chip label={tool} sx={{ m: 0.5 }}/>)
 };
 
 const setup = {
-    field: "setup",
-    sortable: false,
-    headerName: "Setup",
-    headerClassName: "super-app-theme--header",
-    renderHeader,
-    minWidth: 120,
-    flex: 0.4,
+  field: "setup",
+  sortable: false,
+  headerName: "Setup",
+  headerClassName: "super-app-theme--header",
+  renderHeader,
+  minWidth: 120,
+  flex: 0.4,
 };
 
 const workingAreas = {
@@ -75,17 +77,17 @@ const workingAreas = {
 };
 
 const bodyTargets = {
-    field: "bodyTargets",
-    filterable: false,
-    sortable: false,
-    headerName: "Body Target",
-    headerClassName: "super-app-theme--header",
-    renderHeader,
-    minWidth: 300,
-    renderCell: BodyTargetTable,
-    flex: 1,
+  field: "bodyTargets",
+  filterable: false,
+  sortable: false,
+  headerName: "Body Target",
+  headerClassName: "super-app-theme--header",
+  renderHeader,
+  minWidth: 300,
+  renderCell: BodyTargetTable,
+  flex: 1,
 };
-  
+
 const movementPlan = {
   field: "movementPlan",
   sortable: false,
@@ -94,6 +96,7 @@ const movementPlan = {
   renderHeader,
   minWidth: 130,
   flex: 0.4,
+  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip label={plan} sx={{ m: 0.5 }}/>)
 };
 
 export {
