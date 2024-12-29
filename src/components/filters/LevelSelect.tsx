@@ -10,7 +10,7 @@ import {
   SelectChangeEvent,
   FormControl,
 } from "@mui/material";
-import { capitalize } from "../../functions/stringUtils";
+import { capitalize } from "../../utils/stringUtils";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
 const DEFAULT_SELECTED = "";

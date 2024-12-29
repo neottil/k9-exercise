@@ -1,4 +1,4 @@
-import { isEmpty } from "../../functions/stringUtils";
+import { isEmpty } from "../../utils/stringUtils";
 import { Exercise } from "../../interfaces/exerciseInterfaces";
 
 // The validation function must return Error or null

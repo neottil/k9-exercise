@@ -19,7 +19,7 @@ import ArrayField from "../ArrayField";
 import { OutletRouterContext } from "../../interfaces/outletRouterContext";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { Exercise, defaultExercise, movementPlans } from "../../interfaces/exerciseInterfaces";
-import { capitalize } from "../../functions/stringUtils";
+import { capitalize } from "../../utils/stringUtils";
 import { validate } from "./validationFunction";
 import { createExercise } from "./mutations";
 

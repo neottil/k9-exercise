@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Badge, Divider, Icon, ScrollView } from "@aws-amplify/ui-react";
 import { Box, Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
-import { capitalize } from "../../functions/stringUtils";
+import { capitalize } from "../../utils/stringUtils";
 
 
 interface ArrayFieldProps { items: string[], onChange: OnChangeCallback, label: string, name: string, options?: readonly string[] };
