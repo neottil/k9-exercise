@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Badge, Divider, Icon, ScrollView } from "@aws-amplify/ui-react";
+import { useState } from "react";
+import { Badge, Icon, ScrollView } from "@aws-amplify/ui-react";
 import { Box, Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { capitalize } from "../../utils/stringUtils";
@@ -16,7 +16,6 @@ const ArrayField = ({
 }: ArrayFieldProps) => {
   const DEFAULT_CURRENT_VALUE = "";
   const [currentValue, setCurrentValue] = useState<string>(DEFAULT_CURRENT_VALUE);
-  const [selectedBadgeIndex, setSelectedBadgeIndex] = React.useState();
 
   const onChangeCurrentValue = async (event: { target: { value: string; name: string } }) => setCurrentValue(event.target.value);
 
@@ -29,12 +28,8 @@ const ArrayField = ({
     setCurrentValue(DEFAULT_CURRENT_VALUE);
   };
 
-  const onClickBadge = async () => {
-    console.log("onClickBadge");
-  };
-
   const arraySection = (
-    <React.Fragment>
+    <>
       {!!items?.length && (
         <ScrollView height="inherit" width="inherit" maxHeight={"7rem"}>
           {items.map((value, index) => {
@@ -45,11 +40,8 @@ const ArrayField = ({
                   cursor: "pointer",
                   alignItems: "center",
                   marginRight: 3,
-                  marginTop: 3,
-                  backgroundColor:
-                    index === selectedBadgeIndex ? "#B8CEF9" : "",
+                  marginTop: 3
                 }}
-                onClick={onClickBadge}
               >
                 {value}
                 <Icon
@@ -77,12 +69,11 @@ const ArrayField = ({
           })}
         </ScrollView>
       )}
-      <Divider orientation="horizontal" marginTop={5} />
-    </React.Fragment>
+    </>
   );
 
   return (
-    <React.Fragment>
+    <>
       {!options &&
         <TextField
           fullWidth
@@ -110,22 +101,11 @@ const ArrayField = ({
           </Select>
         </FormControl>
       }
-      <Box justifyContent="flex-end">
-        <Button
-          children="Cancella"
-          type="button"
-          size="small"
-          onClick={() => {
-            setCurrentValue(DEFAULT_CURRENT_VALUE);
-            setSelectedBadgeIndex(undefined);
-          }}
-        />
-        <Button onClick={addItem}>
-          {selectedBadgeIndex !== undefined ? "Salva" : "Aggiugi"}
-        </Button>
-      </Box>
+      <Button onClick={addItem} variant="text">
+        Aggiugi
+      </Button>
       {arraySection}
-    </React.Fragment>
+    </>
   );
 }
 
