@@ -116,11 +116,11 @@ npx ampx sandbox delete
 
 ## TODO'S
 
-- user session limit
-- user groups
-- new item only for admin
-- user nickname/username
+- update page
 - dabounce on text fields (lodash.debounce)
+- user nickname/username
+- user session limit
+- new item only for admin
 - alert title in insert page (to translate)
 
 
