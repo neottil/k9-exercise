@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Badge, Icon, ScrollView } from "@aws-amplify/ui-react";
-import { Box, Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
+import { Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { capitalize } from "../../utils/stringUtils";
 
