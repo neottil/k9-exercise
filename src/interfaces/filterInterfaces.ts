@@ -16,6 +16,7 @@ interface SelectFieldProps extends SimpleFiltersProps {
 interface SelectTypeProps extends SimpleFiltersProps {
   disabled: boolean;
   value: string;
+  required?: boolean;
 }
 
 interface NumFilterWithOp {

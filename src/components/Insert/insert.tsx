@@ -178,10 +178,12 @@ const Insert = (): React.ReactNode => {
           onChangeCallback={updateExerciseToSave}
           disabled={newType}
           value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
+          required
         />
       )}
       {newType && (
         <TextField
+          required
           fullWidth
           label="Nuova Tipologia"
           name="type"
@@ -203,6 +205,7 @@ const Insert = (): React.ReactNode => {
   const renderDescription = (
     <Box sx={{ my: 1 }}>
       <TextField
+        required
         fullWidth
         label="Descrizione"
         name="description"
@@ -228,6 +231,7 @@ const Insert = (): React.ReactNode => {
   const renderSetup = (
     <Box sx={{ my: 1 }}>
       <TextField
+        required
         fullWidth
         label="Setup"
         name="setup"
@@ -235,6 +239,19 @@ const Insert = (): React.ReactNode => {
         onChange={updateExerciseToSaveWithEvent}
         multiline
         rows={2}
+      />
+    </Box>
+  );
+
+  const renderMovementPlan = (
+    <Box sx={{ my: 1 }}>
+      <ArrayField
+        required
+        label="Piano di movimento"
+        name="movementPlan"
+        items={exerciseToSave.movementPlan}
+        onChange={updateExerciseToSave}
+        options={movementPlans}
       />
     </Box>
   );
@@ -297,18 +314,6 @@ const Insert = (): React.ReactNode => {
         label="Fullbody"
         name="bodyTarget.fullBody"
         onChangeCallback={updateExerciseToSave}
-      />
-    </Box>
-  );
-
-  const renderMovementPlan = (
-    <Box sx={{ my: 1 }}>
-      <ArrayField
-        label="Piano di movimento"
-        name="movementPlan"
-        items={exerciseToSave.movementPlan}
-        onChange={updateExerciseToSave}
-        options={movementPlans}
       />
     </Box>
   );

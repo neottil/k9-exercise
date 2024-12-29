@@ -23,7 +23,8 @@ export const DEFAULT = "";
 const TypeSelect = ({
   onChangeCallback,
   disabled,
-  value
+  value,
+  required
 }: SelectTypeProps): React.ReactNode => {
   const [error, setError] = useState<boolean>();
   const [types, setTypes] = useState<Array<string>>();
@@ -73,7 +74,7 @@ const TypeSelect = ({
 
   return (
     <FormControl error={error} fullWidth>
-      <InputLabel>{LABEL}</InputLabel>
+      <InputLabel required={required}>{LABEL}</InputLabel>
       <Select
         name={NAME}
         value={value}

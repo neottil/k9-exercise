@@ -5,14 +5,18 @@ import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { capitalize } from "../../utils/stringUtils";
 
 
-interface ArrayFieldProps { items: string[], onChange: OnChangeCallback, label: string, name: string, options?: readonly string[] };
+interface ArrayFieldProps {
+  items: string[], // sono gli elementi selezionati che compaiono nei badge
+  onChange: OnChangeCallback, label: string, name: string, options?: readonly string[], required?: boolean
+};
 
 const ArrayField = ({
   items,
   onChange,
   label,
   name,
-  options
+  options,
+  required
 }: ArrayFieldProps) => {
   const DEFAULT_CURRENT_VALUE = "";
   const [currentValue, setCurrentValue] = useState<string>(DEFAULT_CURRENT_VALUE);
@@ -76,6 +80,7 @@ const ArrayField = ({
     <>
       {!options &&
         <TextField
+          required={required}
           fullWidth
           label={label}
           name={name}
@@ -85,7 +90,7 @@ const ArrayField = ({
       }
       {!!options &&
         <FormControl fullWidth>
-          <InputLabel>{label}</InputLabel>
+          <InputLabel required={required}>{label}</InputLabel>
           <Select
             fullWidth
             name={name}
