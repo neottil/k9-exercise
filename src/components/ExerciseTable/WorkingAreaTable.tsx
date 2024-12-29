@@ -25,20 +25,20 @@ const WorkingAreaTable = ({
     <Table size="small">
       <TableHead>
         <TableRow>
-          <StyledTableCell align="right">Mentale</StyledTableCell>
-          <StyledTableCell align="right">Flessibilità</StyledTableCell>
-          <StyledTableCell align="right">Forza</StyledTableCell>
-          <StyledTableCell align="right">Equilibrio</StyledTableCell>
-          <StyledTableCell align="right">Cardio</StyledTableCell>
+          <StyledTableCell align="center">Mentale</StyledTableCell>
+          <StyledTableCell align="center">Flessibilità</StyledTableCell>
+          <StyledTableCell align="center">Forza</StyledTableCell>
+          <StyledTableCell align="center">Equilibrio</StyledTableCell>
+          <StyledTableCell align="center">Cardio</StyledTableCell>
         </TableRow>
       </TableHead>
       <TableBody>
         <TableRow key={row.id}>
-          <TableCell align="right">{row.workingArea?.mental}</TableCell>
-          <TableCell align="right">{row.workingArea?.flexibility}</TableCell>
-          <TableCell align="right">{row.workingArea?.strength}</TableCell>
-          <TableCell align="right">{row.workingArea?.balance}</TableCell>
-          <TableCell align="right">{row.workingArea?.cardio}</TableCell>
+          <TableCell align="center">{row.workingArea?.mental}</TableCell>
+          <TableCell align="center">{row.workingArea?.flexibility}</TableCell>
+          <TableCell align="center">{row.workingArea?.strength}</TableCell>
+          <TableCell align="center">{row.workingArea?.balance}</TableCell>
+          <TableCell align="center">{row.workingArea?.cardio}</TableCell>
         </TableRow>
       </TableBody>
     </Table>
