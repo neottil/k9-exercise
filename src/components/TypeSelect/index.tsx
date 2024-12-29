@@ -74,7 +74,7 @@ const TypeSelect = ({
 
   return (
     <FormControl error={error} fullWidth>
-      <InputLabel>Tipologia</InputLabel>
+      <InputLabel>{LABEL}</InputLabel>
       <Select
         name={NAME}
         value={value}

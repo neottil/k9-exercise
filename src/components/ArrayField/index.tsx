@@ -98,6 +98,7 @@ const ArrayField = ({
           <Select
             fullWidth
             name={name}
+            label={label}
             value={currentValue}
             onChange={onChangeCurrentValue}
           >
