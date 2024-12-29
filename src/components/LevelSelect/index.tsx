@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { SelectFieldProps } from "../../interfaces/filterInterfaces";
+import { useEffect, useState } from "react";
+import { SelectFieldProps, OperationFilter } from "../../interfaces/filterInterfaces";
 import {
   Box,
   IconButton,
@@ -20,24 +20,24 @@ const LevelSelect = ({
   name,
   label,
   onChangeCallback,
-}: SelectFieldProps): React.ReactNode => {
+}: SelectFieldProps) => {
   const [selected, setSelected] = useState<string>(DEFAULT_SELECTED);
-  const [selectedOp, setSelectedOp] = useState<string>(DEFAULT_OPERATION);
+  const [selectedOp, setSelectedOp] = useState<OperationFilter>(DEFAULT_OPERATION);
 
   useEffect(
     () => onChangeCallback && onChangeCallback(name, selected, selectedOp),
     [name, onChangeCallback, selected, selectedOp]
   );
 
-  const handleChange = (event: SelectChangeEvent): void => {
+  const handleChange = (event: SelectChangeEvent) => {
     setSelected(event.target.value);
   };
 
-  const handleChangeOp = (event: SelectChangeEvent): void => {
-    setSelectedOp(event.target.value);
+  const handleChangeOp = (event: SelectChangeEvent<OperationFilter>) => {
+    setSelectedOp(event.target.value as OperationFilter);
   };
 
-  const resetSelection = (): void => {
+  const resetSelection = () => {
     setSelected(DEFAULT_SELECTED);
     setSelectedOp(DEFAULT_OPERATION);
     onChangeCallback &&

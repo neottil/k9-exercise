@@ -1,4 +1,6 @@
-type OnChangeCallback = (name: string, value: any, operation?: "eq" | "gt") => void
+type OperationFilter = "eq" | "gt";
+
+type OnChangeCallback = (name: string, value: any, operation?: OperationFilter) => void
 
 interface SimpleFiltersProps {
   onChangeCallback?: OnChangeCallback;
@@ -16,7 +18,7 @@ interface SelectTypeProps extends SimpleFiltersProps {
 
 interface NumFilterWithOp {
   value: number;
-  operation: "eq" | "gt";
+  operation: OperationFilter;
 }
 
 interface Filters {
@@ -41,6 +43,7 @@ export type {
   SelectFieldProps,
   SelectTypeProps,
   OnChangeCallback,
+  OperationFilter,
   Filters,
   NumFilterWithOp,
 }

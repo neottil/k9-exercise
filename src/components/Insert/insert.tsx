@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
-} from "../filters/TypeSelect";
+} from "../TypeSelect";
 import ArrayField from "../ArrayField";
 import { OutletRouterContext } from "../../interfaces/outletRouterContext";
 import { OnChangeCallback } from "../../interfaces/filterInterfaces";
@@ -214,6 +214,12 @@ const Insert = (): React.ReactNode => {
     </Box>
   );
 
+  const renderWorkingArea = (
+    <Box component="fieldset">
+      <legend>Jean-François H</legend>
+    </Box>
+  );
+
   const renderMovementPlan = (
     <Box sx={{ my: 1 }}>
       <ArrayField
@@ -252,6 +258,7 @@ const Insert = (): React.ReactNode => {
       {renderTools}
       {renderSetup}
       {renderMovementPlan}
+      {renderWorkingArea}
       <Box sx={{ my: 2 }}>
         <Button
           variant="contained"

@@ -6,7 +6,7 @@ import {
   Search as SearchIcon,
 } from "@mui/icons-material";
 import { Collapse, Container, Button, Typography } from "@mui/material";
-import LevelSelect from "./LevelSelect";
+import LevelSelect from "../LevelSelect";
 
 const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
