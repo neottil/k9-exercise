@@ -21,20 +21,20 @@ const BodyTargetTable = ({ row }: { row: Schema["Exercise"]["type"] }) => (
     <Table size="small">
       <TableHead>
         <TableRow>
-          <StyledTableCell align="right">Anteriore</StyledTableCell>
-          <StyledTableCell align="right">Posteriore</StyledTableCell>
-          <StyledTableCell align="right">Core</StyledTableCell>
-          <StyledTableCell align="right">Colonna</StyledTableCell>
-          <StyledTableCell align="right">Fullbody</StyledTableCell>
+          <StyledTableCell align="center">Anteriore</StyledTableCell>
+          <StyledTableCell align="center">Posteriore</StyledTableCell>
+          <StyledTableCell align="center">Core</StyledTableCell>
+          <StyledTableCell align="center">Colonna</StyledTableCell>
+          <StyledTableCell align="center">Fullbody</StyledTableCell>
         </TableRow>
       </TableHead>
       <TableBody>
         <TableRow key={row.id}>
-          <TableCell align="right">{row.bodyTarget?.ant}</TableCell>
-          <TableCell align="right">{row.bodyTarget?.post}</TableCell>
-          <TableCell align="right">{row.bodyTarget?.core}</TableCell>
-          <TableCell align="right">{row.bodyTarget?.backbone}</TableCell>
-          <TableCell align="right">{row.bodyTarget?.fullBody}</TableCell>
+          <TableCell align="center">{row.bodyTarget?.ant}</TableCell>
+          <TableCell align="center">{row.bodyTarget?.post}</TableCell>
+          <TableCell align="center">{row.bodyTarget?.core}</TableCell>
+          <TableCell align="center">{row.bodyTarget?.backbone}</TableCell>
+          <TableCell align="center">{row.bodyTarget?.fullBody}</TableCell>
         </TableRow>
       </TableBody>
     </Table>

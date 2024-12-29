@@ -6,26 +6,21 @@ For detailed instructions refer to the [guide section](https://docs.amplify.aws/
 
 ## Set up local env
 
-From Amplify console, select the application and the deployed branch. Yuo will see the deployment history and deployment backend resources. At the bottom of the page you will see a tab for Deployed backend resources. Click on the tab and then click the Download amplify_outputs.json file button.
+From Amplify console, select the application and the deployed branch. You will see the deployment history and deployment backend resources. At the bottom of the page you will see a tab for Deployed backend resources. Click on the tab and then click the Download amplify_outputs.json file button.
 Insert the downloaded file in root of project.
 
 [Guide section](https://docs.amplify.aws/react/start/quickstart/#4-set-up-local-environment)
 
-Run sandbok aws amplifi env before run application locally:
-```
+Run sandbok aws amplify env before run application locally:
+
+```shell
+export AWS_PROFILE=k9-exercise
 npx ampx sandbox
+
+npm run dev
+
+npx ampx sandbox delete
 ```
-
-
-const filters = {type: "stand2", area: {mental: 2}};
-const data = [{type: "stand2", desc: "this is stand 2", area: {mental:2, flex:1}},{type: "stand2", desc: "this is stand 3", area: {mental:5, flex:1}},{type: "kickback", desc: "this is kickback", area: {mental:2, flex:4}}];
-
-const typeFilter = (exercise) => !filters.type || exercise.type == filters.type;
-const areaMentalFilter = (exercise) => !filters?.area?.mental || exercise.area.mental == filters.area.mental;
-
-const filtered = data.filter(typeFilter).filter(areaMentalFilter);
-
-console.log(filtered);
 
 ## Dynamo table structure
 
@@ -37,16 +32,16 @@ console.log(filtered);
   "bodyTarget": {
     "M": {
       "ant": {
-        "N": "3"
+        "N": "2"
       },
       "backbone": {
-        "N": "0"
+        "N": "3"
       },
       "core": {
         "N": "1"
       },
       "fullBody": {
-        "N": "0"
+        "N": "4"
       },
       "post": {
         "N": "3"
@@ -60,23 +55,36 @@ console.log(filtered);
     "S": "Il cane posiziona le zampe anteriori sull'attrezzo e successivamente le posteriori"
   },
   "movementPlan": {
-    "SS": [
-      "Mediano"
+    "L": [
+      {
+        "S": "Mediano"
+      },
+      {
+        "S": "Sagittale"
+      }
     ]
   },
   "setup": {
     "S": "Balance disc posto a terra"
   },
   "tools": {
-    "SS": [
-      "Balance disc"
+    "L": [
+      {
+        "S": "Attrezzo 1"
+      },
+      {
+        "S": "AttrezzoTest"
+      },
+      {
+        "S": "Balance disc"
+      }
     ]
   },
   "type": {
-    "S": "Stand 2 stazioni"
+    "S": "Stand 2 stazioni X"
   },
   "updatedAt": {
-    "S": "2024-09-05T16:27:36.609Z"
+    "S": "2024-10-18T14:43:57.893Z"
   },
   "user": {
     "S": "neot.luka.89@gmail.com"
@@ -105,3 +113,17 @@ console.log(filtered);
   }
 }
 ```
+
+## TODO'S
+
+- user session limit
+- user groups
+- new item only for admin
+- user nickname/username
+- dabounce on text fields (lodash.debounce)
+- alert title in insert page (to translate)
+
+
+### Cloudformation sandbox stack
+arn:aws:cloudformation:eu-central-1:453224543995:stack/amplify-k9exercises-lucaneotti-sandbox-14ce632080/fdb5e3b0-c2e5-11ef-b1ba-02d58e3ab6bb
+amplify-k9exercises-lucaneotti-sandbox-14ce632080

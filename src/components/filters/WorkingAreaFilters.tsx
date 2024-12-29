@@ -1,18 +1,14 @@
 import { useState } from "react";
+import { SimpleFiltersProps } from "../../interfaces/filterInterfaces";
 import {
   ExpandLess,
   ExpandMore,
   Search as SearchIcon,
 } from "@mui/icons-material";
-import { Collapse, Container, Button, Typography } from "@mui/material";
-import LevelSelect from "./LevelSelect";
+import { Collapse, Button, Typography, Box } from "@mui/material";
+import LevelSelectWithOperation from "../LevelSelect/WithOperation";
 
-interface WorkingAreaFiltersProps {
-  onChangeCallback?: (name: string, value: string) => void;
-}
-
-
-const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
+const WorkingAreaFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
   const toggleFilters = () => {
@@ -20,11 +16,11 @@ const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
   };
 
   return (
-    <Container sx={{ py: "0.8em", px: 0.4 }} maxWidth={false} disableGutters>
+    <Box sx={{ p: 0.5 }}>
       <Button onClick={toggleFilters} variant="contained" fullWidth>
-        <SearchIcon sx={{ mr: "0.5em" }} />
-        <Typography variant="h6" sx={{ mr: "0.5em" }}>
-          Area
+        <SearchIcon sx={{ mr: 0.5 }} />
+        <Typography variant="h6" sx={{ mr: 0.5 }}>
+          Area target
         </Typography>
         {isFiltersVisible ? (
           <ExpandLess onClick={toggleFilters} />
@@ -33,33 +29,33 @@ const WorkingAreaFilters = ({ onChangeCallback }: WorkingAreaFiltersProps) => {
         )}
       </Button>
       <Collapse in={isFiltersVisible}>
-        <LevelSelect
-          name="workingAreaMental"
+        <LevelSelectWithOperation
+          name="mental"
           label="Mentale"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="workingAreaFlex"
+        <LevelSelectWithOperation
+          name="flexibility"
           label="Flessibilità"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="workingAreaStrength"
+        <LevelSelectWithOperation
+          name="strength"
           label="Forza"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="workingAreaBalance"
+        <LevelSelectWithOperation
+          name="balance"
           label="Equilibrio"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="workingAreaCardio"
+        <LevelSelectWithOperation
+          name="cardio"
           label="Cardio"
           onChangeCallback={onChangeCallback}
         />
       </Collapse>
-    </Container>
+    </Box>
   );
 };
 

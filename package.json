@@ -1,7 +1,7 @@
 {
   "name": "k9-exercises",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,6 +19,7 @@
     "aws-amplify": "^6.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^6.27.0",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

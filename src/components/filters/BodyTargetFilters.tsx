@@ -1,18 +1,14 @@
 import { useState } from "react";
+import { SimpleFiltersProps } from "../../interfaces/filterInterfaces";
 import {
   ExpandLess,
   ExpandMore,
   Search as SearchIcon,
 } from "@mui/icons-material";
-import { Collapse, Container, Button, Typography } from "@mui/material";
-import LevelSelect from "./LevelSelect";
+import { Collapse, Button, Typography, Box } from "@mui/material";
+import LevelSelectWithOperation from "../LevelSelect/WithOperation";
 
-interface BodyTargetFiltersProps {
-  onChangeCallback?: (name: string, value: string) => void;
-}
-
-
-const BodyTargetFilters = ({ onChangeCallback }: BodyTargetFiltersProps) => {
+const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
   const toggleFilters = () => {
@@ -20,10 +16,10 @@ const BodyTargetFilters = ({ onChangeCallback }: BodyTargetFiltersProps) => {
   };
 
   return (
-    <Container sx={{ py: "0.8em", px: 0.4 }} maxWidth={false} disableGutters>
+    <Box sx={{ p: 0.5 }}>
       <Button onClick={toggleFilters} variant="contained" fullWidth>
-        <SearchIcon sx={{ mr: "0.5em" }} />
-        <Typography variant="h6" sx={{ mr: "0.5em" }}>
+        <SearchIcon sx={{ mr: 0.5 }} />
+        <Typography variant="h6" sx={{ mr: 0.5 }}>
           Body Target
         </Typography>
         {isFiltersVisible ? (
@@ -33,33 +29,33 @@ const BodyTargetFilters = ({ onChangeCallback }: BodyTargetFiltersProps) => {
         )}
       </Button>
       <Collapse in={isFiltersVisible}>
-        <LevelSelect
-          name="bodyTargetAnt"
+        <LevelSelectWithOperation
+          name="ant"
           label="Anteriore"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="bodyTargetPost"
+        <LevelSelectWithOperation
+          name="post"
           label="Posteriore"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="bodyTargetCore"
+        <LevelSelectWithOperation
+          name="core"
           label="Core"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="bodyTargetBackbone"
+        <LevelSelectWithOperation
+          name="backbone"
           label="Colonna"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
-          name="bodyTargetFullbody"
+        <LevelSelectWithOperation
+          name="fullbody"
           label="Fullbody"
           onChangeCallback={onChangeCallback}
         />
       </Collapse>
-    </Container>
+    </Box>
   );
 };
 
