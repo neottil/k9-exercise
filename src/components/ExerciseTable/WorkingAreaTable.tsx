@@ -27,8 +27,8 @@ const WorkingAreaTable = ({
         <TableRow>
           <StyledTableCell align="right">Mentale</StyledTableCell>
           <StyledTableCell align="right">Flessibilità</StyledTableCell>
-          <StyledTableCell align="right">Equilibrio</StyledTableCell>
           <StyledTableCell align="right">Forza</StyledTableCell>
+          <StyledTableCell align="right">Equilibrio</StyledTableCell>
           <StyledTableCell align="right">Cardio</StyledTableCell>
         </TableRow>
       </TableHead>
@@ -36,8 +36,8 @@ const WorkingAreaTable = ({
         <TableRow key={row.id}>
           <TableCell align="right">{row.workingArea?.mental}</TableCell>
           <TableCell align="right">{row.workingArea?.flexibility}</TableCell>
-          <TableCell align="right">{row.workingArea?.balance}</TableCell>
           <TableCell align="right">{row.workingArea?.strength}</TableCell>
+          <TableCell align="right">{row.workingArea?.balance}</TableCell>
           <TableCell align="right">{row.workingArea?.cardio}</TableCell>
         </TableRow>
       </TableBody>
