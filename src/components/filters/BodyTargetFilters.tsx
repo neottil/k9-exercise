@@ -6,7 +6,7 @@ import {
   Search as SearchIcon,
 } from "@mui/icons-material";
 import { Collapse, Button, Typography, Box } from "@mui/material";
-import LevelSelect from "../LevelSelect";
+import LevelSelectWithOperation from "../LevelSelect/WithOperation";
 
 const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
@@ -29,27 +29,27 @@ const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
         )}
       </Button>
       <Collapse in={isFiltersVisible}>
-        <LevelSelect
+        <LevelSelectWithOperation
           name="ant"
           label="Anteriore"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
+        <LevelSelectWithOperation
           name="post"
           label="Posteriore"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
+        <LevelSelectWithOperation
           name="core"
           label="Core"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
+        <LevelSelectWithOperation
           name="backbone"
           label="Colonna"
           onChangeCallback={onChangeCallback}
         />
-        <LevelSelect
+        <LevelSelectWithOperation
           name="fullbody"
           label="Fullbody"
           onChangeCallback={onChangeCallback}

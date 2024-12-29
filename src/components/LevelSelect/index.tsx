@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { SelectFieldProps, OperationFilter } from "../../interfaces/filterInterfaces";
+import { SelectFieldProps } from "../../interfaces/filterInterfaces";
 import {
-  Box,
   IconButton,
   InputAdornment,
   InputLabel,
@@ -14,71 +13,59 @@ import { capitalize } from "../../utils/stringUtils";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
 const DEFAULT_SELECTED = "";
-const DEFAULT_OPERATION = "eq";
 
 const LevelSelect = ({
   name,
   label,
   onChangeCallback,
+  resetCallback,
+  disableAdornment
 }: SelectFieldProps) => {
   const [selected, setSelected] = useState<string>(DEFAULT_SELECTED);
-  const [selectedOp, setSelectedOp] = useState<OperationFilter>(DEFAULT_OPERATION);
 
   useEffect(
-    () => onChangeCallback && onChangeCallback(name, selected, selectedOp),
-    [name, onChangeCallback, selected, selectedOp]
+    () => onChangeCallback && onChangeCallback(name, selected),
+    [name, selected]
   );
 
   const handleChange = (event: SelectChangeEvent) => {
     setSelected(event.target.value);
   };
 
-  const handleChangeOp = (event: SelectChangeEvent<OperationFilter>) => {
-    setSelectedOp(event.target.value as OperationFilter);
-  };
-
-  const resetSelection = () => {
+  const reset = () => {
     setSelected(DEFAULT_SELECTED);
-    setSelectedOp(DEFAULT_OPERATION);
     onChangeCallback &&
-      onChangeCallback(name, DEFAULT_SELECTED, DEFAULT_OPERATION);
+      onChangeCallback(name, DEFAULT_SELECTED);
+    resetCallback && resetCallback();
   };
 
   return (
-    <Box display="inline-flex" sx={{ m: 1 }}>
-      <Box display="block">
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel>{capitalize(label)}</InputLabel>
-          <Select
-            name={name}
-            value={selected}
-            label={label}
-            onChange={handleChange}
-            startAdornment={
-              selected && (
-                <InputAdornment position="start">
-                  <IconButton onClick={resetSelection}>
-                    <HighlightOffIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              )
-            }
-            sx={{ minWidth: 90 }}
-          >
-            <MenuItem value={"0"}>0</MenuItem>
-            <MenuItem value={"1"}>1</MenuItem>
-            <MenuItem value={"2"}>2</MenuItem>
-            <MenuItem value={"3"}>3</MenuItem>
-            <MenuItem value={"4"}>4</MenuItem>
-            <MenuItem value={"5"}>5</MenuItem>
-          </Select>
-        </FormControl>
-        <Select name="operation" value={selectedOp} onChange={handleChangeOp}>
-          <MenuItem value="eq">{"="}</MenuItem>
-          <MenuItem value="gt">{">="}</MenuItem>
-        </Select>
-      </Box>
-    </Box>
+    <FormControl sx={{ minWidth: 150 }}>
+      <InputLabel>{capitalize(label)}</InputLabel>
+      <Select
+        name={name}
+        value={selected}
+        label={label}
+        onChange={handleChange}
+        startAdornment={
+          !disableAdornment && selected && (
+            <InputAdornment position="start">
+              <IconButton onClick={reset}>
+                <HighlightOffIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          )
+        }
+        sx={{ minWidth: 90 }}
+      >
+        <MenuItem value={"0"}>0</MenuItem>
+        <MenuItem value={"1"}>1</MenuItem>
+        <MenuItem value={"2"}>2</MenuItem>
+        <MenuItem value={"3"}>3</MenuItem>
+        <MenuItem value={"4"}>4</MenuItem>
+        <MenuItem value={"5"}>5</MenuItem>
+      </Select>
+    </FormControl>
   );
 };
 

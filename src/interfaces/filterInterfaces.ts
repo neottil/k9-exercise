@@ -9,6 +9,8 @@ interface SimpleFiltersProps {
 interface SelectFieldProps extends SimpleFiltersProps {
   name: string;
   label: string;
+  resetCallback?: () => void; 
+  disableAdornment?: boolean;
 }
 
 interface SelectTypeProps extends SimpleFiltersProps {

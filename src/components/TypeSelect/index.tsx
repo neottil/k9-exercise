@@ -28,7 +28,6 @@ const TypeSelect = ({
   const [error, setError] = useState<boolean>();
   const [types, setTypes] = useState<Array<string>>();
 
-  // create useEffect to call onChangeCallback with state value (as LevelSelect)
   useEffect(() => {
     const fetchData = async () => {
       const { data, errors } = await client.models.Exercise.list({

@@ -142,7 +142,7 @@ const View = () => {
     workingAreaStrengthFilter,
   ]);
 
-  const onChangeWorkingAreaFilter: OnChangeCallback = (
+  const onChangeWorkingAreaFilter: OnChangeCallback = useCallback((
     name,
     value,
     operation
@@ -151,9 +151,9 @@ const View = () => {
       ...filters,
       workingArea: { ...filters.workingArea, [name]: { value, operation } },
     });
-  };
+  }, []);
 
-  const onChangeBodyTargetFilter: OnChangeCallback = (
+  const onChangeBodyTargetFilter: OnChangeCallback = useCallback((
     name,
     value,
     operation
@@ -162,7 +162,7 @@ const View = () => {
       ...filters,
       bodyTarget: { ...filters.bodyTarget, [name]: { value, operation } },
     });
-  };
+  }, []);
 
   return (
     <Box sx={{ m: "0.7em" }}>

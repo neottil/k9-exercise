@@ -6,7 +6,7 @@ import {
   Search as SearchIcon,
 } from "@mui/icons-material";
 import { Collapse, Button, Typography, Box } from "@mui/material";
-import LevelSelect from "../LevelSelect";
+import LevelSelectWithOperation from "../LevelSelect/WithOperation";
 
 const WorkingAreaFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
@@ -20,7 +20,7 @@ const WorkingAreaFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
       <Button onClick={toggleFilters} variant="contained" fullWidth>
         <SearchIcon sx={{ mr: 0.5 }} />
         <Typography variant="h6" sx={{ mr: 0.5 }}>
-          Area
+          Area target
         </Typography>
         {isFiltersVisible ? (
           <ExpandLess onClick={toggleFilters} />
@@ -28,35 +28,33 @@ const WorkingAreaFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
           <ExpandMore onClick={toggleFilters} />
         )}
       </Button>
-      {isFiltersVisible && (
-        <Collapse in={isFiltersVisible}>
-          <LevelSelect
-            name="mental"
-            label="Mentale"
-            onChangeCallback={onChangeCallback}
-          />
-          <LevelSelect
-            name="flexibility"
-            label="Flessibilità"
-            onChangeCallback={onChangeCallback}
-          />
-          <LevelSelect
-            name="strength"
-            label="Forza"
-            onChangeCallback={onChangeCallback}
-          />
-          <LevelSelect
-            name="balance"
-            label="Equilibrio"
-            onChangeCallback={onChangeCallback}
-          />
-          <LevelSelect
-            name="cardio"
-            label="Cardio"
-            onChangeCallback={onChangeCallback}
-          />
-        </Collapse>
-      )}
+      <Collapse in={isFiltersVisible}>
+        <LevelSelectWithOperation
+          name="mental"
+          label="Mentale"
+          onChangeCallback={onChangeCallback}
+        />
+        <LevelSelectWithOperation
+          name="flexibility"
+          label="Flessibilità"
+          onChangeCallback={onChangeCallback}
+        />
+        <LevelSelectWithOperation
+          name="strength"
+          label="Forza"
+          onChangeCallback={onChangeCallback}
+        />
+        <LevelSelectWithOperation
+          name="balance"
+          label="Equilibrio"
+          onChangeCallback={onChangeCallback}
+        />
+        <LevelSelectWithOperation
+          name="cardio"
+          label="Cardio"
+          onChangeCallback={onChangeCallback}
+        />
+      </Collapse>
     </Box>
   );
 };
