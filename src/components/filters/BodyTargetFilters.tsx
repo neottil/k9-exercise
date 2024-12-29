@@ -5,7 +5,7 @@ import {
   ExpandMore,
   Search as SearchIcon,
 } from "@mui/icons-material";
-import { Collapse, Container, Button, Typography } from "@mui/material";
+import { Collapse, Button, Typography, Box } from "@mui/material";
 import LevelSelect from "../LevelSelect";
 
 const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
@@ -16,10 +16,10 @@ const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
   };
 
   return (
-    <Container sx={{ py: "0.8em", px: 0.4 }} maxWidth={false} disableGutters>
+    <Box sx={{ p: 0.5 }}>
       <Button onClick={toggleFilters} variant="contained" fullWidth>
-        <SearchIcon sx={{ mr: "0.5em" }} />
-        <Typography variant="h6" sx={{ mr: "0.5em" }}>
+        <SearchIcon sx={{ mr: 0.5 }} />
+        <Typography variant="h6" sx={{ mr: 0.5 }}>
           Body Target
         </Typography>
         {isFiltersVisible ? (
@@ -55,7 +55,7 @@ const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
           onChangeCallback={onChangeCallback}
         />
       </Collapse>
-    </Container>
+    </Box>
   );
 };
 
