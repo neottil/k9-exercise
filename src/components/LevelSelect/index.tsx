@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { SelectFieldProps } from "../../interfaces/filterInterfaces";
+import { useMemo } from "react";
+import { LevelSelectProps } from "../../interfaces/filterInterfaces";
 import {
   IconButton,
   InputAdornment,
@@ -12,43 +12,32 @@ import {
 import { capitalize } from "../../utils/stringUtils";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
-const DEFAULT_SELECTED = "";
-
 const LevelSelect = ({
+  value,
   name,
   label,
   onChangeCallback,
   resetCallback,
-  disableAdornment
-}: SelectFieldProps) => {
-  const [selected, setSelected] = useState<string>(DEFAULT_SELECTED);
+  disableAdornment,
+  useZeroValue
+}: LevelSelectProps) => {
 
-  useEffect(
-    () => onChangeCallback && onChangeCallback(name, selected),
-    [name, selected]
-  );
+  const handleChange = (event: SelectChangeEvent<string>) => onChangeCallback(name, Number(event.target.value));
 
-  const handleChange = (event: SelectChangeEvent) => {
-    setSelected(event.target.value);
-  };
+  const reset = () => resetCallback && resetCallback(name);
 
-  const reset = () => {
-    setSelected(DEFAULT_SELECTED);
-    onChangeCallback &&
-      onChangeCallback(name, DEFAULT_SELECTED);
-    resetCallback && resetCallback();
-  };
+  const getValue = useMemo(() => !!useZeroValue || value !== 0 ? value.toString() : "", [value]);
 
   return (
     <FormControl sx={{ minWidth: 150 }}>
       <InputLabel>{capitalize(label)}</InputLabel>
       <Select
         name={name}
-        value={selected}
+        value={getValue}
         label={label}
         onChange={handleChange}
         startAdornment={
-          !disableAdornment && selected && (
+          !disableAdornment && !!value && (
             <InputAdornment position="start">
               <IconButton onClick={reset}>
                 <HighlightOffIcon fontSize="small" />
@@ -58,7 +47,7 @@ const LevelSelect = ({
         }
         sx={{ minWidth: 90 }}
       >
-        <MenuItem value={"0"}>0</MenuItem>
+        {!!useZeroValue && <MenuItem value={"0"}>0</MenuItem>}
         <MenuItem value={"1"}>1</MenuItem>
         <MenuItem value={"2"}>2</MenuItem>
         <MenuItem value={"3"}>3</MenuItem>

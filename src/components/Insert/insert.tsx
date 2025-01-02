@@ -17,12 +17,12 @@ import TypeSelect, {
 } from "../TypeSelect";
 import ArrayField from "../ArrayField";
 import { OutletRouterContext } from "../../interfaces/outletRouterContext";
-import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { Exercise, defaultExercise, movementPlans } from "../../interfaces/exerciseInterfaces";
 import { capitalize } from "../../utils/stringUtils";
 import { validate } from "./validationFunction";
 import { createExercise } from "./mutations";
 import LevelSelect from "../LevelSelect";
+import { deepCopy } from "../../utils/objectUtils";
 
 enum ALERT_TYPE { ERROR = "error", INFO = "info" }
 interface FormAlert extends Error {
@@ -30,8 +30,7 @@ interface FormAlert extends Error {
 }
 
 const Insert = (): React.ReactNode => {
-  const [exerciseToSave, setExerciseToSave] =
-    useState<Exercise>(defaultExercise);
+  const [exerciseToSave, setExerciseToSave] = useState<Exercise>(deepCopy(defaultExercise));
   const [newType, setNewType] = useState<boolean>(false);
   const [saveAction, setSaveAction] = useState<boolean>(false);
   const [formAlert, setFormAlert] = useState<FormAlert[]>([]);
@@ -112,8 +111,8 @@ const Insert = (): React.ReactNode => {
         const isSaved = await save();
         if (isSaved) {
           setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
-          setExerciseToSave(defaultExercise)
-          setNewType(false)
+          setExerciseToSave(deepCopy(defaultExercise));
+          setNewType(false);
         }
       } catch (e) {
 
@@ -133,9 +132,9 @@ const Insert = (): React.ReactNode => {
     }
   };
 
-  const updateExerciseToSave: OnChangeCallback = (
-    name,
-    value
+  const updateExerciseToSave = (
+    name: string,
+    value: string | number
   ) => {
     console.log("updateExerciseToSave -> " + name + ":" + value);
     setExerciseToSave(prevState => {
@@ -154,7 +153,7 @@ const Insert = (): React.ReactNode => {
   };
 
   const updateExerciseToSaveWithEvent = (
-    event: React.ChangeEvent<any>
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => updateExerciseToSave(event.target.name, capitalize(event.target.value));
 
   const onChangeIsNewSwitch = (
@@ -212,7 +211,7 @@ const Insert = (): React.ReactNode => {
         value={exerciseToSave?.description}
         onChange={updateExerciseToSaveWithEvent}
         multiline
-        rows={2}
+        minRows={2}
       />
     </Box>
   );
@@ -260,28 +259,43 @@ const Insert = (): React.ReactNode => {
     <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
       <legend>Area target</legend>
       <LevelSelect
+        value={exerciseToSave.workingArea.mental}
         label="Mentale"
         name="workingArea.mental"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.workingArea.flexibility}
         label="Flessibilità"
         name="workingArea.flexibility"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.workingArea.strength}
         label="Forza"
         name="workingArea.strength"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.workingArea.balance}
         label="Equilibrio"
         name="workingArea.balance"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.workingArea.cardio}
         label="Cardio"
         name="workingArea.cardio"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
     </Box>
@@ -291,28 +305,43 @@ const Insert = (): React.ReactNode => {
     <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
       <legend>Body target</legend>
       <LevelSelect
+        value={exerciseToSave.bodyTarget.ant}
         label="Anteriore"
         name="bodyTarget.ant"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.bodyTarget.post}
         label="Posteriore"
         name="bodyTarget.post"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.bodyTarget.core}
         label="Core"
         name="bodyTarget.core"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.bodyTarget.backbone}
         label="Colonna"
         name="bodyTarget.backbone"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
       <LevelSelect
+        value={exerciseToSave.bodyTarget.fullBody}
         label="Fullbody"
         name="bodyTarget.fullBody"
+        useZeroValue
+        disableAdornment
         onChangeCallback={updateExerciseToSave}
       />
     </Box>
