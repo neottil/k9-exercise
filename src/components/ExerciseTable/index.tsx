@@ -58,6 +58,7 @@ const ExerciseTable = ({ rows }: ExerciseTableProps) => {
         getRowHeight={() => "auto"}
         autosizeOptions={autosizeOptions}
         getRowSpacing={getRowSpacing}
+        scrollbarSize={0}
       />
     </StyledTableContainer>
   );};
