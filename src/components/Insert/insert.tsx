@@ -134,7 +134,7 @@ const Insert = (): React.ReactNode => {
 
   const updateExerciseToSave = (
     name: string,
-    value: string | number
+    value: string | string[] | number
   ) => {
     console.log("updateExerciseToSave -> " + name + ":" + value);
     setExerciseToSave(prevState => {

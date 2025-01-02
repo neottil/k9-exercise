@@ -1,4 +1,4 @@
-import { LevelSelectWithOperationProps, LevelSelectOnChangeCallback, OperationFilter } from "../../interfaces/filterInterfaces";
+import { LevelSelectWithOperationProps, NumberOnChangeCallback, OperationFilter } from "../../interfaces/filterInterfaces";
 import {
   Box,
   MenuItem,
@@ -15,7 +15,7 @@ const LevelSelectWithOperation = ({
   resetCallback
 }: LevelSelectWithOperationProps) => {
 
-  const onChangeLevelCallback: LevelSelectOnChangeCallback = (name, selected) => onChangeCallback(name, selected, value.operation);
+  const onChangeLevelCallback: NumberOnChangeCallback = (name, selected) => onChangeCallback(name, selected, value.operation);
 
   const handleChangeOp = (event: SelectChangeEvent<string>) => {
     onChangeCallback(name, value.value, event.target.value as OperationFilter);

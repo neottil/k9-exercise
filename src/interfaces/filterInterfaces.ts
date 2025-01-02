@@ -2,14 +2,16 @@ import { defaultBodyTarget, defaultWorkingArea } from "./exerciseInterfaces";
 
 type OperationFilter = "eq" | "gt";
 
-type LevelSelectOnChangeCallback = (name: string, value: number) => void
+type StringOnChangeCallback = (name: string, value: string) => void
 
-type LevelSelectWithOperationOnChangeCallback = (name: string, value: number, operation: OperationFilter) => void
+type NumberOnChangeCallback = (name: string, value: number) => void
+
+type NumberWithOperationOnChangeCallback = (name: string, value: number, operation: OperationFilter) => void
 
 type ResetCallBack = (name: string) => void;
 
 interface ViewFilters {
-  onChangeCallback: LevelSelectWithOperationOnChangeCallback;
+  onChangeCallback: NumberWithOperationOnChangeCallback;
   resetCallback: ResetCallBack;
 }
 
@@ -25,7 +27,7 @@ interface LevelSelectProps {
   value: number;
   name: string;
   label: string;
-  onChangeCallback: LevelSelectOnChangeCallback;
+  onChangeCallback: NumberOnChangeCallback;
   resetCallback?: ResetCallBack;
   disableAdornment?: boolean;
   useZeroValue?: boolean;
@@ -33,11 +35,11 @@ interface LevelSelectProps {
 
 interface LevelSelectWithOperationProps extends Omit<LevelSelectProps, 'value' | 'onChangeCallback'> {
   value: NumFilterWithOp;
-  onChangeCallback: LevelSelectWithOperationOnChangeCallback;
+  onChangeCallback: NumberWithOperationOnChangeCallback;
 }
 
 interface SelectTypeProps {
-  onChangeCallback?: LevelSelectOnChangeCallback;
+  onChangeCallback?: StringOnChangeCallback;
   disabled: boolean;
   value: string;
   required?: boolean;
@@ -96,9 +98,9 @@ export type {
   LevelSelectProps,
   LevelSelectWithOperationProps,
   SelectTypeProps,
-  TextFieldOnChangeCallback,
-  LevelSelectOnChangeCallback,
-  LevelSelectWithOperationOnChangeCallback,
+  StringOnChangeCallback,
+  NumberOnChangeCallback,
+  NumberWithOperationOnChangeCallback,
   ResetCallBack,
   OperationFilter,
   ViewFilters,

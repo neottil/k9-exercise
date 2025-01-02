@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Schema } from "../../../amplify/data/resource";
 import { generateClient } from "aws-amplify/data";
 import { SelectTypeProps } from "../../interfaces/filterInterfaces";
@@ -25,7 +25,7 @@ const TypeSelect = ({
   disabled,
   value,
   required
-}: SelectTypeProps): React.ReactNode => {
+}: SelectTypeProps) => {
   const [error, setError] = useState<boolean>();
   const [types, setTypes] = useState<Array<string>>();
 

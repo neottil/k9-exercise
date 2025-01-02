@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  LevelSelectWithOperationOnChangeCallback,
+  NumberWithOperationOnChangeCallback,
   Filters,
   NumFilterWithOp,
   defaultFilters,
@@ -141,7 +141,7 @@ const View = () => {
     workingAreaStrengthFilter,
   ]);
 
-  const updateFilter: LevelSelectWithOperationOnChangeCallback = useCallback((
+  const updateFilter: NumberWithOperationOnChangeCallback = useCallback((
     name,
     value,
     operation
