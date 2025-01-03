@@ -16,17 +16,6 @@ interface BodyTarget {
     fullBody: number;  // Full body engagement
 }
 
-/*
-as const:
-Trasforma l'array in un tipo readonly e ogni elemento in un valore letterale.
-Senza as const, TypeScript considererebbe l'array come string[] anziché un insieme di stringhe specifiche.
-
-typeof movementPlans:
-Ottiene il tipo dell'array (readonly ["Mediano", "Trasverso", "Dorsale"]).
-
-typeof movementPlans[number]:
-Usa l'indice number per estrarre i tipi degli elementi dell'array, producendo il tipo unione: "Mediano" | "Trasverso" | "Dorsale".
-*/
 const movementPlans = ["Mediano", "Trasverso", "Dorsale"] as const;
 type MovementPlan = typeof movementPlans[number];
 
@@ -45,24 +34,28 @@ interface Exercise {
     user: string | undefined;
 }
 
+const defaultWorkingArea: WorkingArea = {
+    mental: 0,
+    flexibility: 0,
+    strength: 0,
+    balance: 0,
+    cardio: 0,
+}
+
+const defaultBodyTarget: BodyTarget = {
+    ant: 0,
+    post: 0,
+    core: 0,
+    backbone: 0,
+    fullBody: 0,
+}
+
 const defaultExercise: Exercise = {
     id: "",
     type: "",
     description: "",
-    workingArea: {
-        mental: 0,
-        flexibility: 0,
-        strength: 0,
-        balance: 0,
-        cardio: 0,
-    },
-    bodyTarget: {
-        ant: 0,
-        post: 0,
-        core: 0,
-        backbone: 0,
-        fullBody: 0,
-    },
+    workingArea: defaultWorkingArea,
+    bodyTarget: defaultBodyTarget,
     movementPlan: [],
     tools: [],
     setup: "",
@@ -75,5 +68,7 @@ export type {
 
 export {
     defaultExercise,
+    defaultWorkingArea,
+    defaultBodyTarget,
     movementPlans
 }

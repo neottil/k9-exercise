@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SimpleFiltersProps } from "../../interfaces/filterInterfaces";
+import { BodyTargetViewFilters } from "../../interfaces/filterInterfaces";
 import {
   ExpandLess,
   ExpandMore,
@@ -8,7 +8,7 @@ import {
 import { Collapse, Button, Typography, Box } from "@mui/material";
 import LevelSelectWithOperation from "../LevelSelect/WithOperation";
 
-const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
+const BodyTargetFilters = ({ value, onChangeCallback, resetCallback }: BodyTargetViewFilters) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
   const toggleFilters = () => {
@@ -30,29 +30,39 @@ const BodyTargetFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
       </Button>
       <Collapse in={isFiltersVisible}>
         <LevelSelectWithOperation
-          name="ant"
+          value={value.ant}
+          name="bodyTarget.ant"
           label="Anteriore"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="post"
+          value={value.post}
+          name="bodyTarget.post"
           label="Posteriore"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="core"
+          value={value.core}
+          name="bodyTarget.core"
           label="Core"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="backbone"
+          value={value.backbone}
+          name="bodyTarget.backbone"
           label="Colonna"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="fullbody"
+          value={value.fullBody}
+          name="bodyTarget.fullBody"
           label="Fullbody"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
       </Collapse>
     </Box>

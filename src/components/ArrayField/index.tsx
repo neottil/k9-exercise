@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { Badge, Icon, ScrollView } from "@aws-amplify/ui-react";
 import { Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
-import { OnChangeCallback } from "../../interfaces/filterInterfaces";
 import { capitalize } from "../../utils/stringUtils";
 
+type OnChangeCallback = (name: string, value: string[]) => void
 
 interface ArrayFieldProps {
+  name: string, 
+  label: string, 
   items: string[], // sono gli elementi selezionati che compaiono nei badge
-  onChange: OnChangeCallback, label: string, name: string, options?: readonly string[], required?: boolean
+  onChange: OnChangeCallback, 
+  options?: readonly string[], 
+  required?: boolean
 };
 
 const ArrayField = ({

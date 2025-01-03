@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { SelectFieldProps, OnChangeCallback, OperationFilter } from "../../interfaces/filterInterfaces";
+import { LevelSelectWithOperationProps, NumberOnChangeCallback, OperationFilter } from "../../interfaces/filterInterfaces";
 import {
   Box,
   MenuItem,
@@ -8,44 +7,30 @@ import {
 } from "@mui/material";
 import LevelSelect from ".";
 
-const DEFAULT_SELECTED = "";
-const DEFAULT_OPERATION = "eq";
-
 const LevelSelectWithOperation = ({
+  value,
   name,
   label,
-  onChangeCallback
-}: SelectFieldProps) => {
-  const [selected, setSelected] = useState<string>(DEFAULT_SELECTED);
-  const [selectedOp, setSelectedOp] = useState<OperationFilter>(DEFAULT_OPERATION);
+  onChangeCallback,
+  resetCallback
+}: LevelSelectWithOperationProps) => {
 
-  useEffect(
-    () => onChangeCallback && onChangeCallback(name, selected, selectedOp),
-    [name, selected, selectedOp]
-  );
+  const onChangeLevelCallback: NumberOnChangeCallback = (name, selected) => onChangeCallback(name, selected, value.operation);
 
-  const onChangeLevelCallback: OnChangeCallback = useCallback(
-    (_name, value) => {
-      setSelected(value);
-    }, []);
-
-  const handleChangeOp = (event: SelectChangeEvent<OperationFilter>) => {
-    setSelectedOp(event.target.value as OperationFilter);
+  const handleChangeOp = (event: SelectChangeEvent<string>) => {
+    onChangeCallback(name, value.value, event.target.value as OperationFilter);
   };
-
-  const resetCallback = () => {
-    setSelectedOp(DEFAULT_OPERATION);
-  }
 
   return (
     <Box display="inline-flex" sx={{ m: 1 }}>
       <LevelSelect
+        value={value.value}
         name={name}
         label={label}
         onChangeCallback={onChangeLevelCallback}
         resetCallback={resetCallback}
       />
-      <Select name="operation" value={selectedOp} onChange={handleChangeOp}>
+      <Select name="operation" value={value.operation} onChange={handleChangeOp}>
         <MenuItem value="eq">{"="}</MenuItem>
         <MenuItem value="gt">{">="}</MenuItem>
       </Select>

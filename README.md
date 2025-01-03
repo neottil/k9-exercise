@@ -122,8 +122,3 @@ npx ampx sandbox delete
 - user session limit
 - new item only for admin
 - alert title in insert page (to translate)
-
-
-### Cloudformation sandbox stack
-arn:aws:cloudformation:eu-central-1:453224543995:stack/amplify-k9exercises-lucaneotti-sandbox-14ce632080/fdb5e3b0-c2e5-11ef-b1ba-02d58e3ab6bb
-amplify-k9exercises-lucaneotti-sandbox-14ce632080

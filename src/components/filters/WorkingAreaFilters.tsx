@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SimpleFiltersProps } from "../../interfaces/filterInterfaces";
+import { WorkingAreaViewFilters } from "../../interfaces/filterInterfaces";
 import {
   ExpandLess,
   ExpandMore,
@@ -8,7 +8,7 @@ import {
 import { Collapse, Button, Typography, Box } from "@mui/material";
 import LevelSelectWithOperation from "../LevelSelect/WithOperation";
 
-const WorkingAreaFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
+const WorkingAreaFilters = ({ value, onChangeCallback, resetCallback }: WorkingAreaViewFilters) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
   const toggleFilters = () => {
@@ -30,29 +30,39 @@ const WorkingAreaFilters = ({ onChangeCallback }: SimpleFiltersProps) => {
       </Button>
       <Collapse in={isFiltersVisible}>
         <LevelSelectWithOperation
-          name="mental"
+          value={value.mental}
+          name="workingArea.mental"
           label="Mentale"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="flexibility"
+          value={value.flexibility}
+          name="workingArea.flexibility"
           label="Flessibilità"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="strength"
+          value={value.strength}
+          name="workingArea.strength"
           label="Forza"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="balance"
+          value={value.balance}
+          name="workingArea.balance"
           label="Equilibrio"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
         <LevelSelectWithOperation
-          name="cardio"
+          value={value.cardio}
+          name="workingArea.cardio"
           label="Cardio"
           onChangeCallback={onChangeCallback}
+          resetCallback={resetCallback}
         />
       </Collapse>
     </Box>

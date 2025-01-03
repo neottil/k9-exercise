@@ -1,19 +1,45 @@
+import { defaultBodyTarget, defaultWorkingArea } from "./exerciseInterfaces";
+
 type OperationFilter = "eq" | "gt";
 
-type OnChangeCallback = (name: string, value: any, operation?: OperationFilter) => void
+type StringOnChangeCallback = (name: string, value: string) => void
 
-interface SimpleFiltersProps {
-  onChangeCallback?: OnChangeCallback;
+type NumberOnChangeCallback = (name: string, value: number) => void
+
+type NumberWithOperationOnChangeCallback = (name: string, value: number, operation: OperationFilter) => void
+
+type ResetCallBack = (name: string) => void;
+
+interface ViewFilters {
+  onChangeCallback: NumberWithOperationOnChangeCallback;
+  resetCallback: ResetCallBack;
 }
 
-interface SelectFieldProps extends SimpleFiltersProps {
+interface WorkingAreaViewFilters extends ViewFilters {
+  value: WorkingAreaFilters;
+}
+
+interface BodyTargetViewFilters extends ViewFilters {
+  value: BodyTargetFilters;
+}
+
+interface LevelSelectProps {
+  value: number;
   name: string;
   label: string;
-  resetCallback?: () => void; 
+  onChangeCallback: NumberOnChangeCallback;
+  resetCallback?: ResetCallBack;
   disableAdornment?: boolean;
+  useZeroValue?: boolean;
 }
 
-interface SelectTypeProps extends SimpleFiltersProps {
+interface LevelSelectWithOperationProps extends Omit<LevelSelectProps, 'value' | 'onChangeCallback'> {
+  value: NumFilterWithOp;
+  onChangeCallback: NumberWithOperationOnChangeCallback;
+}
+
+interface SelectTypeProps {
+  onChangeCallback?: StringOnChangeCallback;
   disabled: boolean;
   value: string;
   required?: boolean;
@@ -24,29 +50,68 @@ interface NumFilterWithOp {
   operation: OperationFilter;
 }
 
+interface WorkingAreaFilters {
+  mental: NumFilterWithOp;
+  flexibility: NumFilterWithOp;
+  strength: NumFilterWithOp;
+  balance: NumFilterWithOp;
+  cardio: NumFilterWithOp;
+}
+
+interface BodyTargetFilters {
+  ant: NumFilterWithOp;
+  post: NumFilterWithOp;
+  core: NumFilterWithOp;
+  backbone: NumFilterWithOp;
+  fullBody: NumFilterWithOp;
+}
+
 interface Filters {
-  workingArea?: {
-    mental?: NumFilterWithOp;
-    flexibility?: NumFilterWithOp;
-    strength?: NumFilterWithOp;
-    balance?: NumFilterWithOp;
-    cardio?: NumFilterWithOp;
-  };
-  bodyTarget?: {
-    ant?: NumFilterWithOp;
-    post?: NumFilterWithOp;
-    core?: NumFilterWithOp;
-    backbone?: NumFilterWithOp;
-    fullbody?: NumFilterWithOp;
-  }
+  workingArea: WorkingAreaFilters;
+  bodyTarget: BodyTargetFilters;
+}
+
+const defaultFilters: Filters = {
+  workingArea:  Object.keys(defaultWorkingArea).reduce(
+    (acc, k) => {
+      acc[k as keyof WorkingAreaFilters] = {
+        value: defaultWorkingArea[k as keyof WorkingAreaFilters],
+        operation: "gt",
+      };
+      return acc;
+    },
+    {} as WorkingAreaFilters
+  ),
+  bodyTarget:  Object.keys(defaultBodyTarget).reduce(
+    (acc, k) => {
+      acc[k as keyof BodyTargetFilters] = {
+        value: defaultBodyTarget[k as keyof BodyTargetFilters],
+        operation: "gt",
+      };
+      return acc;
+    },
+    {} as BodyTargetFilters
+  )
 }
 
 export type {
-  SimpleFiltersProps,
-  SelectFieldProps,
+  LevelSelectProps,
+  LevelSelectWithOperationProps,
   SelectTypeProps,
-  OnChangeCallback,
+  StringOnChangeCallback,
+  NumberOnChangeCallback,
+  NumberWithOperationOnChangeCallback,
+  ResetCallBack,
   OperationFilter,
+  ViewFilters,
   Filters,
+  WorkingAreaViewFilters,
+  BodyTargetViewFilters,
+  WorkingAreaFilters,
+  BodyTargetFilters,
   NumFilterWithOp,
+}
+
+export {
+  defaultFilters
 }
