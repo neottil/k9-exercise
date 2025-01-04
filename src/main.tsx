@@ -1,4 +1,4 @@
-import React from "react";
+import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import Router from "./components/Router";
@@ -8,7 +8,7 @@ import outputs from "../amplify_outputs.json";
 Amplify.configure(outputs);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+  <StrictMode>
     <RouterProvider router={Router} />
-  </React.StrictMode>
+  </StrictMode>
 );
