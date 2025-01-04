@@ -16,6 +16,7 @@ const renderHeader = (params: GridColumnHeaderParams) => (
 const id = {
   field: "id",
   headerName: "Id",
+  /*
   renderHeader: (params: GridColumnHeaderParams) => (
     <Box sx={{ display: "none" }}>{params.colDef.headerName}</Box>
   ),
@@ -24,6 +25,9 @@ const id = {
   ),
   minWidth: 1,
   maxWidth: 1,
+  */
+  renderHeader,
+  minWidth: 100,
 };
 
 const type = {
