@@ -15,7 +15,6 @@ import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 
 const client = generateClient<Schema>();
 
-const LABEL = "Tipologia";
 const NAME = "type";
 export const DEFAULT = "";
 
