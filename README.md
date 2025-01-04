@@ -124,4 +124,5 @@ Run "npm run build" before push to verify if build run correctly.
 
 - update page
 - singOut on component unmount
+- configure cognito session timeout
 - translation
