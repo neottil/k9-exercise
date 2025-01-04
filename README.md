@@ -22,6 +22,12 @@ npm run dev
 npx ampx sandbox delete
 ```
 
+## Check before push
+
+Update package.json version and run npm install to automaticaly update package-lok.json.
+
+Run "npm run build" before push to verify if build run correctly.
+
 ## Dynamo table structure
 
 ```json

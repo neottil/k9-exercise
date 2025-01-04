@@ -9,7 +9,6 @@ import {
   Box,
   Button,
   FormControlLabel,
-  FormControl,
   InputLabel,
   Switch,
   TextField,
