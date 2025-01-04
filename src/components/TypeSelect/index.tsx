@@ -76,7 +76,6 @@ const TypeSelect = ({
       <Select
         name={NAME}
         value={value}
-        label={LABEL}
         onChange={handleChange}
         startAdornment={
           enableStartAdornment && value && (
