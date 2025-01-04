@@ -3,51 +3,43 @@ import { Exercise } from "../../interfaces/exerciseInterfaces";
 
 // The validation function must return Error or null
 
-const validateType = (type: string): Error | null => {
-  if (isEmpty(type)) {
-    return {
+const validateType = (type: string): Error | null =>
+  isEmpty(type)
+    ? ({
       name: "Tipologia",
       message: "La tipologia di esercizio è obbligatoria.",
-    };
-  }
-  return null;
-};
+    })
+    : null;
 
-const validateDescription = (desc: string): Error | null => {
-  if (isEmpty(desc)) {
-    return {
+const validateDescription = (desc: string): Error | null =>
+  isEmpty(desc)
+    ? ({
       name: "Descrizione",
       message: "La descrizione dell'esercizio è obbligatoria.",
-    };
-  }
-  return null;
-};
+    })
+    : null;
 
-const validateSetup = (setup: string): Error | null => {
-  if (isEmpty(setup)) {
-    return {
+const validateSetup = (tools: string[], setup: string): Error | null =>
+  tools.length > 0 && isEmpty(setup)
+    ? ({
       name: "Setup",
-      message: "La descrizione del setup è obbligatoria.",
-    };
-  }
-  return null;
-};
+      message: "La descrizione del setup è obbligatoria quando sono presenti degli attrezzi.",
+    })
+    : null;
 
-const validateMovementPlan = (plans: string[]): Error | null => {
-  if (plans.length === 0) {
-    return {
+const validateMovementPlan = (plans: string[]): Error | null =>
+  plans.length === 0
+    ? ({
       name: "Piano di movimento",
       message: "E' obbligatorio almeno un piano di movimento",
-    };
-  }
-  return null;
-};
+    })
+    : null;
 
 export const validate = (exerciseToSave: Exercise): Error[] => {
   const errors: (Error | null)[] = [
     validateType(exerciseToSave.type),
     validateDescription(exerciseToSave.description),
-    validateSetup(exerciseToSave.setup),
+    validateSetup(exerciseToSave.tools, exerciseToSave.setup),
     validateMovementPlan(exerciseToSave.movementPlan)
   ]
   return errors.filter(err => err !== null);

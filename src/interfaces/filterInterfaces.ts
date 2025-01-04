@@ -39,10 +39,10 @@ interface LevelSelectWithOperationProps extends Omit<LevelSelectProps, 'value' |
 }
 
 interface SelectTypeProps {
-  onChangeCallback?: StringOnChangeCallback;
-  disabled: boolean;
   value: string;
-  required?: boolean;
+  disabled?: boolean;
+  enableStartAdornment?: boolean;
+  onChangeCallback?: StringOnChangeCallback;
 }
 
 interface NumFilterWithOp {

@@ -49,7 +49,7 @@ const ExerciseTable = ({ rows }: ExerciseTableProps) => {
       bottom: 3,
     };
   }, []);
-  
+
   return (
     <StyledTableContainer>
       <DataGrid
@@ -61,6 +61,7 @@ const ExerciseTable = ({ rows }: ExerciseTableProps) => {
         scrollbarSize={0}
       />
     </StyledTableContainer>
-  );};
+  );
+};
 
 export default ExerciseTable;

@@ -1,13 +1,16 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, ChangeEvent } from "react";
 import { useOutletContext } from "react-router-dom";
 import { v4 as uuid } from "uuid";
 import { generateClient } from "aws-amplify/api";
+import { debounce } from "lodash";
 import {
   Alert,
   AlertTitle,
   Box,
   Button,
   FormControlLabel,
+  FormControl,
+  InputLabel,
   Switch,
   TextField,
   Snackbar
@@ -29,7 +32,7 @@ interface FormAlert extends Error {
   severity: ALERT_TYPE
 }
 
-const Insert = (): React.ReactNode => {
+const Insert = () => {
   const [exerciseToSave, setExerciseToSave] = useState<Exercise>(deepCopy(defaultExercise));
   const [newType, setNewType] = useState<boolean>(false);
   const [saveAction, setSaveAction] = useState<boolean>(false);
@@ -152,18 +155,15 @@ const Insert = (): React.ReactNode => {
     });
   };
 
-  const updateExerciseToSaveWithEvent = (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => updateExerciseToSave(event.target.name, capitalize(event.target.value));
+  const updateExerciseToSaveWithEvent = debounce((
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => updateExerciseToSave(event.target.name, capitalize(event.target.value)), 500);
 
   const onChangeIsNewSwitch = (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>
   ) => {
     setNewType(event.target.checked);
-    setExerciseToSave({
-      ...exerciseToSave,
-      type: TypeSelectDefaultValue,
-    });
+    updateExerciseToSave("type", TypeSelectDefaultValue);
   };
 
   const handleCloseSnackbar = (name: string) => {
@@ -171,44 +171,40 @@ const Insert = (): React.ReactNode => {
   };
 
   const renderType = (
-    <Box display="flex" flexDirection="row" sx={{ my: 1 }}>
-      {!newType && (
-        <TypeSelect
-          onChangeCallback={updateExerciseToSave}
-          disabled={newType}
-          value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
-          required
+    <>
+      <InputLabel required>Tipologia</InputLabel>
+      <Box display="flex" flexDirection="row" sx={{ my: 1 }}>
+        {!newType && (
+          <TypeSelect
+            onChangeCallback={updateExerciseToSave}
+            value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
+          />
+        )}
+        {newType && (
+          <TextField
+            fullWidth
+            name="type"
+            onChange={updateExerciseToSaveWithEvent}
+          />
+        )}
+        <FormControlLabel
+          label="Nuova"
+          control={
+            <Switch checked={newType} onChange={onChangeIsNewSwitch} />
+          }
+          sx={{ mx: 1 }}
         />
-      )}
-      {newType && (
-        <TextField
-          required
-          fullWidth
-          label="Nuova Tipologia"
-          name="type"
-          value={(newType && exerciseToSave?.type)}
-          disabled={!newType}
-          onChange={updateExerciseToSaveWithEvent}
-        />
-      )}
-      <FormControlLabel
-        label="Nuova"
-        control={
-          <Switch checked={newType} onChange={onChangeIsNewSwitch} />
-        }
-        sx={{ mx: 1 }}
-      />
-    </Box>
+      </Box>
+    </>
   );
 
   const renderDescription = (
     <Box sx={{ my: 1 }}>
+      <InputLabel required>Descrizione</InputLabel>
       <TextField
         required
         fullWidth
-        label="Descrizione"
         name="description"
-        value={exerciseToSave?.description}
         onChange={updateExerciseToSaveWithEvent}
         multiline
         minRows={2}
@@ -218,8 +214,8 @@ const Insert = (): React.ReactNode => {
 
   const renderTools = (
     <Box sx={{ my: 1 }}>
+      <InputLabel>Attrezzi</InputLabel>
       <ArrayField
-        label="Attrezzi"
         name="tools"
         items={exerciseToSave.tools}
         onChange={updateExerciseToSave}
@@ -227,14 +223,13 @@ const Insert = (): React.ReactNode => {
     </Box>
   );
 
+  // setup is required if there are some tools
   const renderSetup = (
     <Box sx={{ my: 1 }}>
+      <InputLabel required={exerciseToSave.tools.length > 0}>Setup</InputLabel>
       <TextField
-        required
         fullWidth
-        label="Setup"
         name="setup"
-        value={exerciseToSave?.setup}
         onChange={updateExerciseToSaveWithEvent}
         multiline
         rows={2}
@@ -244,9 +239,8 @@ const Insert = (): React.ReactNode => {
 
   const renderMovementPlan = (
     <Box sx={{ my: 1 }}>
+      <InputLabel required>Piano di movimento</InputLabel>
       <ArrayField
-        required
-        label="Piano di movimento"
         name="movementPlan"
         items={exerciseToSave.movementPlan}
         onChange={updateExerciseToSave}
@@ -257,7 +251,7 @@ const Insert = (): React.ReactNode => {
 
   const renderWorkingArea = (
     <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
-      <legend>Area target</legend>
+      <InputLabel component="legend" required>Area target</InputLabel>
       <LevelSelect
         value={exerciseToSave.workingArea.mental}
         label="Mentale"
@@ -302,49 +296,49 @@ const Insert = (): React.ReactNode => {
   );
 
   const renderBodyTarget = (
-    <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
-      <legend>Body target</legend>
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.ant}
-        label="Anteriore"
-        name="bodyTarget.ant"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.post}
-        label="Posteriore"
-        name="bodyTarget.post"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.core}
-        label="Core"
-        name="bodyTarget.core"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.backbone}
-        label="Colonna"
-        name="bodyTarget.backbone"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.fullBody}
-        label="Fullbody"
-        name="bodyTarget.fullBody"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-    </Box>
+      <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
+      <InputLabel component="legend" required>Body target</InputLabel>
+        <LevelSelect
+          value={exerciseToSave.bodyTarget.ant}
+          label="Anteriore"
+          name="bodyTarget.ant"
+          useZeroValue
+          disableAdornment
+          onChangeCallback={updateExerciseToSave}
+        />
+        <LevelSelect
+          value={exerciseToSave.bodyTarget.post}
+          label="Posteriore"
+          name="bodyTarget.post"
+          useZeroValue
+          disableAdornment
+          onChangeCallback={updateExerciseToSave}
+        />
+        <LevelSelect
+          value={exerciseToSave.bodyTarget.core}
+          label="Core"
+          name="bodyTarget.core"
+          useZeroValue
+          disableAdornment
+          onChangeCallback={updateExerciseToSave}
+        />
+        <LevelSelect
+          value={exerciseToSave.bodyTarget.backbone}
+          label="Colonna"
+          name="bodyTarget.backbone"
+          useZeroValue
+          disableAdornment
+          onChangeCallback={updateExerciseToSave}
+        />
+        <LevelSelect
+          value={exerciseToSave.bodyTarget.fullBody}
+          label="Fullbody"
+          name="bodyTarget.fullBody"
+          useZeroValue
+          disableAdornment
+          onChangeCallback={updateExerciseToSave}
+        />
+      </Box>
   );
 
   return (

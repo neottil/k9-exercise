@@ -117,8 +117,5 @@ npx ampx sandbox delete
 ## TODO'S
 
 - update page
-- dabounce on text fields (lodash.debounce)
-- user nickname/username
-- user session limit
-- new item only for admin
-- alert title in insert page (to translate)
+- singOut on component unmount
+- translation

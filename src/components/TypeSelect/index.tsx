@@ -7,7 +7,6 @@ import {
   FormHelperText,
   IconButton,
   InputAdornment,
-  InputLabel,
   MenuItem,
   Select,
   SelectChangeEvent,
@@ -21,10 +20,10 @@ const NAME = "type";
 export const DEFAULT = "";
 
 const TypeSelect = ({
-  onChangeCallback,
-  disabled,
   value,
-  required
+  disabled,
+  enableStartAdornment,
+  onChangeCallback
 }: SelectTypeProps) => {
   const [error, setError] = useState<boolean>();
   const [types, setTypes] = useState<Array<string>>();
@@ -73,16 +72,14 @@ const TypeSelect = ({
   };
 
   return (
-    <FormControl error={error} fullWidth>
-      <InputLabel required={required}>{LABEL}</InputLabel>
+    <FormControl error={error} fullWidth disabled={disabled}>
       <Select
         name={NAME}
         value={value}
         label={LABEL}
         onChange={handleChange}
-        disabled={disabled}
         startAdornment={
-          value && (
+          enableStartAdornment && value && (
             <InputAdornment position="start">
               <IconButton onClick={resetSelection}>
                 <HighlightOffIcon fontSize="small" />

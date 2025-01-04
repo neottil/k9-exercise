@@ -1,26 +1,22 @@
 import { useState } from "react";
 import { Badge, Icon, ScrollView } from "@aws-amplify/ui-react";
-import { Button, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
+import { Button, MenuItem, Select, TextField } from "@mui/material";
 import { capitalize } from "../../utils/stringUtils";
 
 type OnChangeCallback = (name: string, value: string[]) => void
 
 interface ArrayFieldProps {
-  name: string, 
-  label: string, 
+  name: string,
   items: string[], // sono gli elementi selezionati che compaiono nei badge
-  onChange: OnChangeCallback, 
-  options?: readonly string[], 
-  required?: boolean
+  onChange: OnChangeCallback,
+  options?: readonly string[]
 };
 
 const ArrayField = ({
   items,
   onChange,
-  label,
   name,
-  options,
-  required
+  options
 }: ArrayFieldProps) => {
   const DEFAULT_CURRENT_VALUE = "";
   const [currentValue, setCurrentValue] = useState<string>(DEFAULT_CURRENT_VALUE);
@@ -66,7 +62,6 @@ const ArrayField = ({
                       stroke: "black",
                     },
                   ]}
-                  ariaLabel="button"
                   onClick={(event) => {
                     event.stopPropagation();
                     removeItem(index);
@@ -84,31 +79,25 @@ const ArrayField = ({
     <>
       {!options &&
         <TextField
-          required={required}
           fullWidth
-          label={label}
           name={name}
           value={currentValue}
           onChange={onChangeCurrentValue}
         />
       }
       {!!options &&
-        <FormControl fullWidth>
-          <InputLabel required={required}>{label}</InputLabel>
-          <Select
-            fullWidth
-            name={name}
-            label={label}
-            value={currentValue}
-            onChange={onChangeCurrentValue}
-          >
-            {options.filter((opt) => !items.includes(opt)).map((opt: string) => (
-              <MenuItem key={opt} value={opt}>
-                {opt}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Select
+          fullWidth
+          name={name}
+          value={currentValue}
+          onChange={onChangeCurrentValue}
+        >
+          {options.filter((opt) => !items.includes(opt)).map((opt: string) => (
+            <MenuItem key={opt} value={opt}>
+              {opt}
+            </MenuItem>
+          ))}
+        </Select>
       }
       <Button onClick={addItem} variant="text">
         Aggiugi
