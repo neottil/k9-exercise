@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, ChangeEvent } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
+import { useParams } from "react-router"
 import { v4 as uuid } from "uuid";
-import { generateClient } from "aws-amplify/api";
+import { generateClient, GraphQLResult } from "aws-amplify/api";
 import { debounce } from "lodash";
 import {
   Alert,
@@ -22,13 +23,17 @@ import { OutletRouterContext } from "../../interfaces/outletRouterContext";
 import { Exercise, defaultExercise, movementPlans } from "../../interfaces/exerciseInterfaces";
 import { capitalize } from "../../utils/stringUtils";
 import { validate } from "./validationFunction";
-import { createExercise } from "./mutations";
+import { createExercise, getExercise, updateExercise } from "./mutations";
 import LevelSelect from "../LevelSelect";
-import { deepCopy } from "../../utils/objectUtils";
+import { deepCopy, filterObjectByType } from "../../utils/objectUtils";
 
 enum ALERT_TYPE { ERROR = "error", INFO = "info" }
 interface FormAlert extends Error {
   severity: ALERT_TYPE
+}
+
+interface GetExerciseData {
+  getExercise: Exercise;
 }
 
 const Insert = () => {
@@ -37,13 +42,70 @@ const Insert = () => {
   const [saveAction, setSaveAction] = useState<boolean>(false);
   const [formAlert, setFormAlert] = useState<FormAlert[]>([]);
   const { user } = useOutletContext<OutletRouterContext>();
+  const navigate = useNavigate();
+  // id from url params (if set is update mode)
+  const { id } = useParams();
 
   const client = generateClient();
+
+  const handleCloseSnackbar = (name: string) => {
+    setFormAlert((prev) => prev.filter((error) => error.name !== name));
+  };
+
+  // Manage automatic closure after 5 seconds for each alert
+  useEffect(() => {
+    const timers: NodeJS.Timeout[] = [];
+
+    formAlert.forEach((alert) => {
+      const timer = setTimeout(() => {
+        handleCloseSnackbar(alert.name);
+      }, 4000);
+      timers.push(timer);
+    });
+
+    // Clean the timers when the component disassembles or when the alert array changes
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+    };
+  }, [formAlert]);
+
+  // fetch exercise if is in update mode (id from url params)
+  useEffect(() => {
+    const fetchExercise = async () => {
+      if (!!id) {
+        try {
+          const response = await client.graphql<GraphQLResult<GetExerciseData>>({
+            query: getExercise,
+            variables: {
+              id
+            }
+          });
+          if (response && "data" in response) {
+            // setState with only model fields
+            const cleanFetchedData: Exercise = filterObjectByType(response.data.getExercise, defaultExercise);
+            console.log("fetchExercise: ", JSON.stringify(cleanFetchedData));
+            setExerciseToSave(cleanFetchedData);
+          } else {
+            setFormAlert([{ name: "Unexpected error", message: `Visualize exercise with id: ${id} error`, severity: ALERT_TYPE.ERROR }]);
+          }
+        } catch (err: any) {
+          console.error("Unexpected error when get exercise", err);
+          if (err.errors && Array.isArray(err.errors)) {
+            setFormAlert(err.errors.map((e: { message: string; }) => ({ name: `Get exercise with id: ${id}`, message: e.message, severity: ALERT_TYPE.ERROR })));
+          } else {
+            setFormAlert([{ name: "Unexpected error", message: `Get exercise with id: ${id} error`, severity: ALERT_TYPE.ERROR }]);
+          }
+        }
+      };
+    };
+
+    fetchExercise();
+  }, [id]);
 
   const save = async (): Promise<boolean> => {
     try {
       await client.graphql({
-        query: createExercise,
+        query: !!id ? updateExercise : createExercise,
         variables: {
           input: {
             ...exerciseToSave,
@@ -52,7 +114,7 @@ const Insert = () => {
       });
       return true;
     } catch (err: any) {
-      console.error("Unexpected error", err);
+      console.error("Unexpected error when save exercise", err);
       if (err.errors && Array.isArray(err.errors)) {
         setFormAlert(err.errors.map((e: { message: string; }) => ({ name: "Saving error", message: e.message, severity: ALERT_TYPE.ERROR })));
       } else {
@@ -87,24 +149,6 @@ const Insert = () => {
     })
   };
 
-
-  // Manage automatic closure after 5 seconds for each alert
-  useEffect(() => {
-    const timers: NodeJS.Timeout[] = [];
-
-    formAlert.forEach((alert) => {
-      const timer = setTimeout(() => {
-        handleCloseSnackbar(alert.name);
-      }, 4000);
-      timers.push(timer);
-    });
-
-    // Clean the timers when the component disassembles or when the alert array changes
-    return () => {
-      timers.forEach((timer) => clearTimeout(timer));
-    };
-  }, [formAlert]);
-
   const handleSave = async () => {
     if (saveAction) {
       console.info("saving: ", exerciseToSave);
@@ -113,8 +157,13 @@ const Insert = () => {
         const isSaved = await save();
         if (isSaved) {
           setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
-          setExerciseToSave(deepCopy(defaultExercise));
-          setNewType(false);
+          // if is update mode move to homepage
+          if (!!id) {
+            setTimeout(() => navigate("/"), 1000);
+          } else {
+            setExerciseToSave(deepCopy(defaultExercise));
+            setNewType(false);
+          }
         }
       } catch (e) {
 
@@ -165,10 +214,6 @@ const Insert = () => {
     updateExerciseToSave("type", TypeSelectDefaultValue);
   };
 
-  const handleCloseSnackbar = (name: string) => {
-    setFormAlert((prev) => prev.filter((error) => error.name !== name));
-  };
-
   const renderType = (
     <>
       <InputLabel required>Tipologia</InputLabel>
@@ -201,7 +246,7 @@ const Insert = () => {
     <Box sx={{ my: 1 }}>
       <InputLabel required>Descrizione</InputLabel>
       <TextField
-        required
+        defaultValue={exerciseToSave.description}
         fullWidth
         name="description"
         onChange={updateExerciseToSaveWithEvent}
@@ -227,6 +272,7 @@ const Insert = () => {
     <Box sx={{ my: 1 }}>
       <InputLabel required={exerciseToSave.tools.length > 0}>Setup</InputLabel>
       <TextField
+        defaultValue={exerciseToSave.setup}
         fullWidth
         name="setup"
         onChange={updateExerciseToSaveWithEvent}
@@ -295,49 +341,49 @@ const Insert = () => {
   );
 
   const renderBodyTarget = (
-      <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
+    <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
       <InputLabel component="legend" required>Body target</InputLabel>
-        <LevelSelect
-          value={exerciseToSave.bodyTarget.ant}
-          label="Anteriore"
-          name="bodyTarget.ant"
-          useZeroValue
-          disableAdornment
-          onChangeCallback={updateExerciseToSave}
-        />
-        <LevelSelect
-          value={exerciseToSave.bodyTarget.post}
-          label="Posteriore"
-          name="bodyTarget.post"
-          useZeroValue
-          disableAdornment
-          onChangeCallback={updateExerciseToSave}
-        />
-        <LevelSelect
-          value={exerciseToSave.bodyTarget.core}
-          label="Core"
-          name="bodyTarget.core"
-          useZeroValue
-          disableAdornment
-          onChangeCallback={updateExerciseToSave}
-        />
-        <LevelSelect
-          value={exerciseToSave.bodyTarget.backbone}
-          label="Colonna"
-          name="bodyTarget.backbone"
-          useZeroValue
-          disableAdornment
-          onChangeCallback={updateExerciseToSave}
-        />
-        <LevelSelect
-          value={exerciseToSave.bodyTarget.fullBody}
-          label="Fullbody"
-          name="bodyTarget.fullBody"
-          useZeroValue
-          disableAdornment
-          onChangeCallback={updateExerciseToSave}
-        />
-      </Box>
+      <LevelSelect
+        value={exerciseToSave.bodyTarget.ant}
+        label="Anteriore"
+        name="bodyTarget.ant"
+        useZeroValue
+        disableAdornment
+        onChangeCallback={updateExerciseToSave}
+      />
+      <LevelSelect
+        value={exerciseToSave.bodyTarget.post}
+        label="Posteriore"
+        name="bodyTarget.post"
+        useZeroValue
+        disableAdornment
+        onChangeCallback={updateExerciseToSave}
+      />
+      <LevelSelect
+        value={exerciseToSave.bodyTarget.core}
+        label="Core"
+        name="bodyTarget.core"
+        useZeroValue
+        disableAdornment
+        onChangeCallback={updateExerciseToSave}
+      />
+      <LevelSelect
+        value={exerciseToSave.bodyTarget.backbone}
+        label="Colonna"
+        name="bodyTarget.backbone"
+        useZeroValue
+        disableAdornment
+        onChangeCallback={updateExerciseToSave}
+      />
+      <LevelSelect
+        value={exerciseToSave.bodyTarget.fullBody}
+        label="Fullbody"
+        name="bodyTarget.fullBody"
+        useZeroValue
+        disableAdornment
+        onChangeCallback={updateExerciseToSave}
+      />
+    </Box>
   );
 
   return (

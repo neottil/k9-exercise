@@ -17,6 +17,10 @@ const router = createBrowserRouter([
                 path: "insert",
                 element: <Insert />,
             },
+            {
+                path: "update/:id",
+                element: <Insert />,
+            }
         ],
     },
 ]);

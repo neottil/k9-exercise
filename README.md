@@ -122,7 +122,8 @@ Run "npm run build" before push to verify if build run correctly.
 
 ## TODO'S
 
-- update page
+- add updateUser in model
+- edit add button in tools. It should not be possible to add a tool “”
 - singOut on component unmount
 - configure cognito session timeout
 - translation

@@ -5,16 +5,16 @@ interface WorkingArea {
     strength: number;
     balance: number;
     cardio: number;
-}
+};
 
 // Describes the focus on different body target areas
 interface BodyTarget {
-    ant: number;       // Anterior muscles
-    post: number;      // Posterior muscles
-    core: number;      // Core muscles
-    backbone: number;  // Backbone-related muscles
-    fullBody: number;  // Full body engagement
-}
+    ant: number;
+    post: number;
+    core: number;
+    backbone: number;
+    fullBody: number;
+};
 
 const movementPlans = ["Mediano", "Trasverso", "Dorsale"] as const;
 type MovementPlan = typeof movementPlans[number];
@@ -32,7 +32,7 @@ interface Exercise {
 
     setup: string;
     user: string | undefined;
-}
+};
 
 const defaultWorkingArea: WorkingArea = {
     mental: 0,
@@ -40,7 +40,7 @@ const defaultWorkingArea: WorkingArea = {
     strength: 0,
     balance: 0,
     cardio: 0,
-}
+};
 
 const defaultBodyTarget: BodyTarget = {
     ant: 0,
@@ -48,7 +48,7 @@ const defaultBodyTarget: BodyTarget = {
     core: 0,
     backbone: 0,
     fullBody: 0,
-}
+};
 
 const defaultExercise: Exercise = {
     id: "",
