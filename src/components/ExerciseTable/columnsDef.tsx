@@ -1,11 +1,10 @@
-import Box from "@mui/material/Box";
+import { Chip } from "@mui/material";
 import {
   GridColumnHeaderParams,
 } from "@mui/x-data-grid";
 import type { Schema } from "../../../amplify/data/resource";
 import WorkingAreaTable from "./WorkingAreaTable";
 import BodyTargetTable from "./BodyTargetTable";
-import { Chip } from "@mui/material";
 
 const renderHeader = (params: GridColumnHeaderParams) => (
   <strong style={{ whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>

@@ -126,4 +126,4 @@ Run "npm run build" before push to verify if build run correctly.
 - edit add button in tools. It should not be possible to add a tool “”
 - singOut on component unmount
 - configure cognito session timeout
-- translation
+- trace update changes in table
