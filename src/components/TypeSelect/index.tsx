@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Schema } from "../../../amplify/data/resource";
 import { generateClient } from "aws-amplify/data";
 import { SelectTypeProps } from "../../interfaces/filterInterfaces";
@@ -27,8 +27,11 @@ const TypeSelect = ({
   const [error, setError] = useState<boolean>();
   const [types, setTypes] = useState<Array<string>>();
 
+  const safeValue = useMemo(() => !types || !types.includes(value) ? "" : value, [types, value]);
+
   useEffect(() => {
     const fetchData = async () => {
+      // TODO fare con query che estragga unique
       const { data, errors } = await client.models.Exercise.list({
         selectionSet: ["type"],
       });
@@ -74,7 +77,7 @@ const TypeSelect = ({
     <FormControl error={error} fullWidth disabled={disabled}>
       <Select
         name={NAME}
-        value={value}
+        value={safeValue}
         onChange={handleChange}
         startAdornment={
           enableStartAdornment && value && (

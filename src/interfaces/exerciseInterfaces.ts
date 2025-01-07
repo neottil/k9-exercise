@@ -5,7 +5,7 @@ interface WorkingArea {
     strength: number;
     balance: number;
     cardio: number;
-};
+}
 
 // Describes the focus on different body target areas
 interface BodyTarget {
@@ -14,7 +14,7 @@ interface BodyTarget {
     core: number;
     backbone: number;
     fullBody: number;
-};
+}
 
 const movementPlans = ["Mediano", "Trasverso", "Dorsale"] as const;
 type MovementPlan = typeof movementPlans[number];
@@ -32,7 +32,7 @@ interface Exercise {
 
     setup: string;
     user: string | undefined;
-};
+}
 
 const defaultWorkingArea: WorkingArea = {
     mental: 0,

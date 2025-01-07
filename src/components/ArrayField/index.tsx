@@ -10,7 +10,7 @@ interface ArrayFieldProps {
   items: string[], // sono gli elementi selezionati che compaiono nei badge
   onChange: OnChangeCallback,
   options?: readonly string[]
-};
+}
 
 const ArrayField = ({
   items,

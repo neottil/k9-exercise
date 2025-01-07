@@ -54,7 +54,7 @@ const ExerciseTable = ({ rows }: ExerciseTableProps) => {
       bottom: 3,
     };
   }, []);
-  const onRowSelectionModelChange = useCallback((id: GridRowSelectionModel) =>  navigate(`/update/${id}`), []);
+  const onRowSelectionModelChange = useCallback((id: GridRowSelectionModel) =>  navigate(`/update/${id}`), [navigate]);
   return (
     <StyledTableContainer>
       <DataGrid

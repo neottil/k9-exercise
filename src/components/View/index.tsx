@@ -4,7 +4,7 @@ import {
   Filters,
   NumFilterWithOp,
   defaultFilters,
-  ResetCallBack,
+  ResetCallBack
 } from "../../interfaces/filterInterfaces";
 import { generateClient } from "aws-amplify/data";
 import Box from "@mui/material/Box";
@@ -150,6 +150,7 @@ const View = () => {
       const updatedState = { ...prevState };
       const keys = name.split(".");
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let temp: any = updatedState;
       for (let i = 0; i < keys.length - 1; i++) {
         temp = temp[keys[i]]; // Naviga fino al penultimo livello
@@ -164,13 +165,14 @@ const View = () => {
   const resetFilter: ResetCallBack = useCallback((name) => {
     // Ottieni il valore di default dal percorso
     const keys = name.split("."); // Divide il percorso (es. "workingArea.mental") in chiavi
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let defaultValue: any = defaultFilters;
     for (let i = 0; i < keys.length; i++) {
       defaultValue = defaultValue[keys[i]];
     }
     // Utilizza la funzione updateFilterState per aggiornare lo stato con il valore di default
     updateFilter(name, defaultValue.value, defaultValue.operation);
-  }, []);
+  }, [updateFilter]);
 
   return (
     <Box sx={{ mx: 1 }}>

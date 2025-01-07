@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, ChangeEvent } from "react";
+import { useCallback, useEffect, useState, ChangeEvent, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useParams } from "react-router"
 import { v4 as uuid } from "uuid";
@@ -46,7 +46,7 @@ const Insert = () => {
   // id from url params (if set is update mode)
   const { id } = useParams();
 
-  const client = generateClient();
+  const client = useMemo(() => generateClient(), []);
 
   const handleCloseSnackbar = (name: string) => {
     setFormAlert((prev) => prev.filter((error) => error.name !== name));
@@ -72,7 +72,7 @@ const Insert = () => {
   // fetch exercise if is in update mode (id from url params)
   useEffect(() => {
     const fetchExercise = async () => {
-      if (!!id) {
+      if (id) {
         try {
           const response = await client.graphql<GraphQLResult<GetExerciseData>>({
             query: getExercise,
@@ -88,6 +88,7 @@ const Insert = () => {
           } else {
             setFormAlert([{ name: "Unexpected error", message: `Visualize exercise with id: ${id} error`, severity: ALERT_TYPE.ERROR }]);
           }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
           console.error("Unexpected error when get exercise", err);
           if (err.errors && Array.isArray(err.errors)) {
@@ -96,16 +97,16 @@ const Insert = () => {
             setFormAlert([{ name: "Unexpected error", message: `Get exercise with id: ${id} error`, severity: ALERT_TYPE.ERROR }]);
           }
         }
-      };
+      }
     };
 
     fetchExercise();
-  }, [id]);
+  }, [id, client]);
 
-  const save = async (): Promise<boolean> => {
+  const save = useCallback(async (): Promise<boolean> => {
     try {
       await client.graphql({
-        query: !!id ? updateExercise : createExercise,
+        query: id ? updateExercise : createExercise,
         variables: {
           input: {
             ...exerciseToSave,
@@ -113,6 +114,7 @@ const Insert = () => {
         },
       });
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Unexpected error when save exercise", err);
       if (err.errors && Array.isArray(err.errors)) {
@@ -122,10 +124,32 @@ const Insert = () => {
       }
       return false;
     }
-  };
+  }, [exerciseToSave, client, id]);
+
+  useEffect(() => {
+    const handleSave = async () => {
+      if (saveAction) {
+        console.info("saving: ", exerciseToSave);
+        setSaveAction(false);
+        const isSaved = await save();
+        if (isSaved) {
+          setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
+          // if is update mode move to homepage
+          if (id) {
+            setTimeout(() => navigate("/"), 1000);
+          } else {
+            setExerciseToSave(deepCopy(defaultExercise));
+            setNewType(false);
+          }
+        }
+      }
+    };
+
+    handleSave();
+  }, [saveAction, exerciseToSave, id, navigate, save]);
 
   const validateForm = useCallback((): boolean => {
-    var errors: Error[] = validate(exerciseToSave);
+    const errors: Error[] = validate(exerciseToSave);
     setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
     errors.length !== 0 && console.error("Validation errors:\n", errors.reduce((acc, { name, message }) => {
@@ -149,28 +173,6 @@ const Insert = () => {
     })
   };
 
-  const handleSave = async () => {
-    if (saveAction) {
-      console.info("saving: ", exerciseToSave);
-      setSaveAction(false);
-      const isSaved = await save();
-      if (isSaved) {
-        setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
-        // if is update mode move to homepage
-        if (!!id) {
-          setTimeout(() => navigate("/"), 1000);
-        } else {
-          setExerciseToSave(deepCopy(defaultExercise));
-          setNewType(false);
-        }
-      }
-    }
-  };
-
-  useEffect(() => {
-    handleSave();
-  }, [saveAction, exerciseToSave, validateForm]);
-
   const OnClickSave = () => {
     const valid: boolean = validateForm();
     if (valid) {
@@ -183,11 +185,11 @@ const Insert = () => {
     name: string,
     value: string | string[] | number
   ) => {
-    console.log("updateExerciseToSave -> " + name + ":" + value);
     setExerciseToSave(prevState => {
       const updatedState = { ...prevState };
       const keys = name.split('.'); // Usa il punto come delimitatore per separare il percorso
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let temp: any = updatedState;
       for (let i = 0; i < keys.length - 1; i++) {
         temp = temp[keys[i]]; // Naviga fino al penultimo livello

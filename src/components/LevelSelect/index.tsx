@@ -26,7 +26,7 @@ const LevelSelect = ({
 
   const reset = () => resetCallback && resetCallback(name);
 
-  const getValue = useMemo(() => !!useZeroValue || value !== 0 ? value.toString() : "", [value]);
+  const getValue = useMemo(() => !!useZeroValue || value !== 0 ? value.toString() : "", [value, useZeroValue]);
 
   return (
     <FormControl sx={{ minWidth: 150 }}>
