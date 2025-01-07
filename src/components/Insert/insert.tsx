@@ -152,21 +152,17 @@ const Insert = () => {
   const handleSave = async () => {
     if (saveAction) {
       console.info("saving: ", exerciseToSave);
-      try {
-        setSaveAction(false);
-        const isSaved = await save();
-        if (isSaved) {
-          setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
-          // if is update mode move to homepage
-          if (!!id) {
-            setTimeout(() => navigate("/"), 1000);
-          } else {
-            setExerciseToSave(deepCopy(defaultExercise));
-            setNewType(false);
-          }
+      setSaveAction(false);
+      const isSaved = await save();
+      if (isSaved) {
+        setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
+        // if is update mode move to homepage
+        if (!!id) {
+          setTimeout(() => navigate("/"), 1000);
+        } else {
+          setExerciseToSave(deepCopy(defaultExercise));
+          setNewType(false);
         }
-      } catch (e) {
-
       }
     }
   };
