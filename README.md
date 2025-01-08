@@ -133,7 +133,6 @@ npm version patch
 
 ## TODO'S
 
-- add updateUser in model
 - edit add button in tools. It should not be possible to add a tool “”
 - singOut on component unmount
 - configure cognito session timeout

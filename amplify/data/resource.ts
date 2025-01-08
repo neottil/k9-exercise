@@ -24,6 +24,7 @@ const schema = a.schema({
       tools: a.string().array(),
       setup: a.string(),
       user: a.email(),
+      userUpdate: a.email()
     })
     .authorization((allow) => [allow.publicApiKey()]),
 });

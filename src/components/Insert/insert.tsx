@@ -81,10 +81,8 @@ const Insert = () => {
             }
           });
           if (response && "data" in response) {
-            // setState with only model fields
-            const cleanFetchedData: Exercise = filterObjectByType(response.data.getExercise, defaultExercise);
-            console.log("fetchExercise: ", JSON.stringify(cleanFetchedData));
-            setExerciseToSave(cleanFetchedData);
+            console.log("fetchExercise: ", JSON.stringify(response.data.getExercise));
+            setExerciseToSave(response.data.getExercise);
           } else {
             setFormAlert([{ name: "Unexpected error", message: `Visualize exercise with id: ${id} error`, severity: ALERT_TYPE.ERROR }]);
           }
@@ -169,6 +167,7 @@ const Insert = () => {
       if (!toSave.user) {
         toSave.user = user.signInDetails?.loginId;
       }
+      toSave.userUpdate = user.signInDetails?.loginId;
       return toSave;
     })
   };

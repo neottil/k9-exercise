@@ -32,6 +32,7 @@ interface Exercise {
 
     setup: string;
     user: string | undefined;
+    userUpdate: string | undefined;
 }
 
 const defaultWorkingArea: WorkingArea = {
@@ -60,6 +61,7 @@ const defaultExercise: Exercise = {
     tools: [],
     setup: "",
     user: "",
+    userUpdate: ""
 };
 
 export type {

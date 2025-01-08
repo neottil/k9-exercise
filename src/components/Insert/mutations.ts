@@ -20,6 +20,7 @@ export const createExercise = /* GraphQL */ `
       type
       updatedAt
       user
+      userUpdate
       workingArea {
         balance
         cardio
@@ -43,7 +44,6 @@ export const updateExercise = /* GraphQL */ `
         core
         fullBody
         post
-        __typename
       }
       createdAt
       description
@@ -54,15 +54,14 @@ export const updateExercise = /* GraphQL */ `
       type
       updatedAt
       user
+      userUpdate
       workingArea {
         balance
         cardio
         flexibility
         mental
         strength
-        __typename
       }
-      __typename
     }
   }
 `;
@@ -76,26 +75,22 @@ export const getExercise = /* GraphQL */ `
         core
         fullBody
         post
-        __typename
       }
-      createdAt
       description
       id
       movementPlan
       setup
       tools
       type
-      updatedAt
       user
+      userUpdate
       workingArea {
         balance
         cardio
         flexibility
         mental
         strength
-        __typename
       }
-      __typename
     }
   }
 `;
