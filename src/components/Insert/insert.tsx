@@ -25,7 +25,7 @@ import { capitalize } from "../../utils/stringUtils";
 import { validate } from "./validationFunction";
 import { createExercise, getExercise, updateExercise } from "./mutations";
 import LevelSelect from "../LevelSelect";
-import { deepCopy, filterObjectByType } from "../../utils/objectUtils";
+import { deepCopy } from "../../utils/objectUtils";
 
 enum ALERT_TYPE { ERROR = "error", INFO = "info" }
 interface FormAlert extends Error {
