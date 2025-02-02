@@ -29,6 +29,7 @@ interface Exercise {
 
     movementPlan: MovementPlan[];
     tools: string[];
+    difficultyLevel: number;
 
     setup: string;
     user: string | undefined;
@@ -59,6 +60,7 @@ const defaultExercise: Exercise = {
     bodyTarget: defaultBodyTarget,
     movementPlan: [],
     tools: [],
+    difficultyLevel: 0,
     setup: "",
     user: "",
     userUpdate: ""

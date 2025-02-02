@@ -21,6 +21,7 @@ export const createExercise = /* GraphQL */ `
       updatedAt
       user
       userUpdate
+      difficultyLevel
       workingArea {
         balance
         cardio
@@ -55,6 +56,7 @@ export const updateExercise = /* GraphQL */ `
       updatedAt
       user
       userUpdate
+      difficultyLevel
       workingArea {
         balance
         cardio
@@ -84,6 +86,7 @@ export const getExercise = /* GraphQL */ `
       type
       user
       userUpdate
+      difficultyLevel
       workingArea {
         balance
         cardio

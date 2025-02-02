@@ -102,6 +102,15 @@ const movementPlan = {
   renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }}/>)
 };
 
+const difficultyLevel  = {
+  field: "difficultyLevel ",
+  headerName: "Difficoltà",
+  headerClassName: "super-app-theme--header",
+  renderHeader,
+  minWidth: 10,
+  flex: 0.3
+};
+
 export {
   id,
   type,
@@ -111,4 +120,5 @@ export {
   workingAreas,
   bodyTargets,
   movementPlan,
+  difficultyLevel
 };

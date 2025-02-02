@@ -232,30 +232,46 @@ const Insert = () => {
     updateExerciseToSave("type", TypeSelectDefaultValue);
   };
 
-  const renderType = (
+  const renderDifficultyAndType = (
     <>
-      <InputLabel required>Tipologia</InputLabel>
-      <Box display="flex" flexDirection="row" sx={{ my: 1 }}>
-        {!newType && (
-          <TypeSelect
+      <Box display="flex" flexDirection="row" alignItems="center" sx={{ my: 1 }}>
+        {/* Nuovo campo con InputLabel */}
+        <Box display="flex" flexDirection="column" sx={{ mr: 2 }}>
+          <InputLabel required>Difficoltà</InputLabel>
+          <LevelSelect
+            value={exerciseToSave.difficultyLevel}
+            label=""
+            name="difficultyLevel"
+            useZeroValue
+            disableAdornment
             onChangeCallback={updateExerciseToSave}
-            value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
           />
-        )}
-        {newType && (
-          <TextField
-            fullWidth
-            name="type"
-            onChange={updateExerciseToSaveWithEvent}
-          />
-        )}
-        <FormControlLabel
-          label="Nuova"
-          control={
-            <Switch checked={newType} onChange={onChangeIsNewSwitch} />
-          }
-          sx={{ mx: 1 }}
-        />
+        </Box>
+
+        {/* Tipologia con InputLabel */}
+        <Box display="flex" flexDirection="column" flexGrow={1}>
+          <InputLabel required>Tipologia</InputLabel>
+          <Box display="flex" flexDirection="row">
+            {!newType && (
+              <TypeSelect
+                onChangeCallback={updateExerciseToSave}
+                value={(!newType && exerciseToSave?.type) || TypeSelectDefaultValue}
+              />
+            )}
+            {newType && (
+              <TextField
+                fullWidth
+                name="type"
+                onChange={updateExerciseToSaveWithEvent}
+              />
+            )}
+            <FormControlLabel
+              label="Nuova"
+              control={<Switch checked={newType} onChange={onChangeIsNewSwitch} />}
+              sx={{ mx: 1 }}
+            />
+          </Box>
+        </Box>
       </Box>
     </>
   );
@@ -427,7 +443,7 @@ const Insert = () => {
             </Alert>
           </Snackbar>
         ))}
-      {renderType}
+      {renderDifficultyAndType}
       {renderDescription}
       {renderTools}
       {renderSetup}
