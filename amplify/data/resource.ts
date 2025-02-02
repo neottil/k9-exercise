@@ -23,6 +23,7 @@ const schema = a.schema({
       movementPlan: a.string().array(),
       tools: a.string().array(),
       setup: a.string(),
+      difficultyLevel: a.integer(),
       user: a.email(),
       userUpdate: a.email()
     })
