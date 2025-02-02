@@ -4,7 +4,6 @@ import {
   DataGrid,
   GridColDef,
   GridAutosizeOptions,
-  GridRowSelectionModel,
   GridRowParams,
 } from "@mui/x-data-grid";
 import { styled } from "@mui/material/styles";
@@ -19,6 +18,7 @@ import {
   workingAreas,
   bodyTargets,
   movementPlan,
+  difficultyLevel
 } from "./columnsDef";
 
 interface ExerciseTableProps {
@@ -39,6 +39,7 @@ const columnsDef: GridColDef[] = [
   workingAreas,
   bodyTargets,
   movementPlan,
+  difficultyLevel
 ];
 
 const autosizeOptions: GridAutosizeOptions = {

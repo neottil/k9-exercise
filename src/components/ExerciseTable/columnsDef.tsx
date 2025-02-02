@@ -107,7 +107,7 @@ const difficultyLevel  = {
   headerName: "Difficoltà",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 10,
+  minWidth: 80,
   flex: 0.3
 };
 
