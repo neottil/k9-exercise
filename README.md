@@ -133,8 +133,9 @@ npm version patch
 
 ## TODO'S
 
-- manage apikey errors (from view)
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - aggiungere livello difficoltà
+- manage apikey errors (from view)
 - singOut on component unmount
 - configure cognito session timeout
 - trace update changes in table
