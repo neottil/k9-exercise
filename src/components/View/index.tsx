@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Exercise } from "../../interfaces/exerciseInterfaces";
 import {
   NumberWithOperationOnChangeCallback,
   Filters,
@@ -6,7 +7,7 @@ import {
   defaultFilters,
   ResetCallBack
 } from "../../interfaces/filterInterfaces";
-import { generateClient } from "aws-amplify/data";
+import { generateClient, GraphQLResult } from "aws-amplify/api";
 import Box from "@mui/material/Box";
 
 import WorkingAreaFilters from "../filters/WorkingAreaFilters";
@@ -14,6 +15,11 @@ import BodyTargetFilters from "../filters/BodyTargetFilters";
 import ExerciseTable from "../ExerciseTable";
 import type { Schema } from "../../../amplify/data/resource";
 import { deepCopy } from "../../utils/objectUtils";
+import { listExercises } from "./mutations";
+
+interface GetAllExerciseData {
+  getAllExercise: Exercise;
+}
 
 const client = generateClient<Schema>();
 
@@ -22,12 +28,35 @@ const View = () => {
   const [filteredExercises, setFilteredExercises] = useState<Array<Schema["Exercise"]["type"]>>([]);
   const [filters, setFilters] = useState<Filters>(deepCopy(defaultFilters));
 
+  
+  const fetchExercise = async () => {
+    try {
+      const response = await client.graphql<GraphQLResult<GetAllExerciseData>>({
+        query: listExercises,
+      });
+      if (response && "data" in response) {
+        console.log("fetchExercise: ", JSON.stringify(response.data.getExercise));
+        setExercises(response.data.listExercises.items);
+      } else {
+        console.log("Pare non ci siano dati")
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      console.error("Unexpected error when get exercise", err);
+      if (err.errors && Array.isArray(err.errors)) {
+        console.log("ERRORE nel caricamento dei dati")
+      }
+    }
+  };
+
   useEffect(() => {
-    client.models.Exercise.observeQuery().subscribe({
-      next: (data) => {
-        setExercises([...data.items]);
-      },
-    });
+    // client.models.Exercise.observeQuery().subscribe({
+    //   next: (data) => {
+    //     setExercises([...data.items]);
+    //   },
+    // });
+
+    fetchExercise();
   }, []);
 
   const applyNumericFilter = (

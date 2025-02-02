@@ -102,13 +102,13 @@ const movementPlan = {
   renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }}/>)
 };
 
-const difficultyLevel  = {
-  field: "difficultyLevel ",
+const difficultyLevel = {
+  field: "difficultyLevel",
   headerName: "Difficoltà",
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 80,
-  flex: 0.3
+  flex: 0.1
 };
 
 export {
