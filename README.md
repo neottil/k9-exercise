@@ -133,7 +133,8 @@ npm version patch
 
 ## TODO'S
 
-- edit add button in tools. It should not be possible to add a tool “”
+- manage apikey errors (from view)
+- aggiungere livello difficoltà
 - singOut on component unmount
 - configure cognito session timeout
 - trace update changes in table

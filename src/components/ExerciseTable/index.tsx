@@ -5,6 +5,7 @@ import {
   GridColDef,
   GridAutosizeOptions,
   GridRowSelectionModel,
+  GridRowParams,
 } from "@mui/x-data-grid";
 import { styled } from "@mui/material/styles";
 import Box from "@mui/material/Box";
@@ -54,7 +55,8 @@ const ExerciseTable = ({ rows }: ExerciseTableProps) => {
       bottom: 3,
     };
   }, []);
-  const onRowSelectionModelChange = useCallback((id: GridRowSelectionModel) =>  navigate(`/update/${id}`), [navigate]);
+  const onRowDoubleClick = useCallback((params: GridRowParams) =>  navigate(`/update/${params.id}`), [navigate]);
+  
   return (
     <StyledTableContainer>
       <DataGrid
@@ -64,7 +66,7 @@ const ExerciseTable = ({ rows }: ExerciseTableProps) => {
         getRowHeight={getRowHeight}
         getRowSpacing={getRowSpacing}
         scrollbarSize={0}
-        onRowSelectionModelChange={onRowSelectionModelChange}
+        onRowDoubleClick={onRowDoubleClick}
       />
     </StyledTableContainer>
   );

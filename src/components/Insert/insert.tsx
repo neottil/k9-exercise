@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, ChangeEvent, useMemo } from "react";
+import { useCallback, useEffect, useState, ChangeEvent, useMemo, useRef } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useParams } from "react-router"
 import { v4 as uuid } from "uuid";
@@ -45,6 +45,21 @@ const Insert = () => {
   const navigate = useNavigate();
   // id from url params (if set is update mode)
   const { id } = useParams();
+
+  const descriptionInputRef = useRef<HTMLInputElement | null>(null);
+  const setupInputRef = useRef<HTMLInputElement | null>(null);
+
+  const resetDescription = () => {
+    if (descriptionInputRef.current) {
+      descriptionInputRef.current.value = "";
+    }
+  };
+
+  const resetSetup = () => {
+    if (setupInputRef.current) {
+      setupInputRef.current.value = "";
+    }
+  };
 
   const client = useMemo(() => generateClient(), []);
 
@@ -111,6 +126,7 @@ const Insert = () => {
           },
         },
       });
+      setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
       return true;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
@@ -124,6 +140,13 @@ const Insert = () => {
     }
   }, [exerciseToSave, client, id]);
 
+  const resetForm = () => {
+    setExerciseToSave(deepCopy(defaultExercise));
+    setNewType(false);
+    resetDescription();
+    resetSetup();
+  }
+
   useEffect(() => {
     const handleSave = async () => {
       if (saveAction) {
@@ -131,13 +154,11 @@ const Insert = () => {
         setSaveAction(false);
         const isSaved = await save();
         if (isSaved) {
-          setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
           // if is update mode move to homepage
           if (id) {
             setTimeout(() => navigate("/"), 1000);
           } else {
-            setExerciseToSave(deepCopy(defaultExercise));
-            setNewType(false);
+            resetForm();
           }
         }
       }
@@ -243,6 +264,7 @@ const Insert = () => {
     <Box sx={{ my: 1 }}>
       <InputLabel required>Descrizione</InputLabel>
       <TextField
+        inputRef={descriptionInputRef}
         defaultValue={exerciseToSave.description}
         fullWidth
         name="description"
@@ -269,6 +291,7 @@ const Insert = () => {
     <Box sx={{ my: 1 }}>
       <InputLabel required={exerciseToSave.tools.length > 0}>Setup</InputLabel>
       <TextField
+        inputRef={setupInputRef}
         defaultValue={exerciseToSave.setup}
         fullWidth
         name="setup"
