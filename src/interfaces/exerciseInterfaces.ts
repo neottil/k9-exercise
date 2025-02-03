@@ -60,7 +60,7 @@ const defaultExercise: Exercise = {
     bodyTarget: defaultBodyTarget,
     movementPlan: [],
     tools: [],
-    difficultyLevel: 0,
+    difficultyLevel: 1,
     setup: "",
     user: "",
     userUpdate: ""
