@@ -5,7 +5,7 @@ const schema = a.schema({
     .model({
       id: a.id().required(),
       type: a.string().required(),
-      variant: a.string().required(),
+      variant: a.string(),
       description: a.string().required(),
       workingArea: a.customType({
         mental: a.integer(),
