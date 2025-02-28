@@ -22,6 +22,7 @@ type MovementPlan = typeof movementPlans[number];
 interface Exercise {
     id: string;
     type: string;
+    variant: string;
     description: string;
 
     workingArea: WorkingArea;
@@ -55,6 +56,7 @@ const defaultBodyTarget: BodyTarget = {
 const defaultExercise: Exercise = {
     id: "",
     type: "",
+    variant: "",
     description: "",
     workingArea: defaultWorkingArea,
     bodyTarget: defaultBodyTarget,

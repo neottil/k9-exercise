@@ -27,6 +27,8 @@ const View = () => {
   const [exercises, setExercises] = useState<Array<Schema["Exercise"]["type"]>>([]);
   const [filteredExercises, setFilteredExercises] = useState<Array<Schema["Exercise"]["type"]>>([]);
   const [filters, setFilters] = useState<Filters>(deepCopy(defaultFilters));
+  const [isLoading, setLoading] = useState<boolean>(true);
+  const [isLoadingError, setLoadingError] = useState<boolean>(false);
 
   
   const fetchExercise = async () => {
@@ -42,20 +44,14 @@ const View = () => {
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
+      setLoadingError(true);
       console.error("Unexpected error when get exercise", err);
-      if (err.errors && Array.isArray(err.errors)) {
-        console.log("ERRORE nel caricamento dei dati")
-      }
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    // client.models.Exercise.observeQuery().subscribe({
-    //   next: (data) => {
-    //     setExercises([...data.items]);
-    //   },
-    // });
-
     fetchExercise();
   }, []);
 
@@ -209,7 +205,7 @@ const View = () => {
         <WorkingAreaFilters onChangeCallback={updateFilter} resetCallback={resetFilter} value={filters.workingArea} />
         <BodyTargetFilters onChangeCallback={updateFilter} resetCallback={resetFilter} value={filters.bodyTarget} />
       </Box>
-      <ExerciseTable rows={filteredExercises} />
+      <ExerciseTable rows={filteredExercises} loading={isLoading} error={isLoadingError}/>
     </Box>
   );
 };

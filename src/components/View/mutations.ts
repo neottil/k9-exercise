@@ -18,6 +18,7 @@ export const listExercises = /* GraphQL */ `
         user
         userUpdate
         difficultyLevel
+        variant
         workingArea {
           balance
           cardio

@@ -48,6 +48,7 @@ const Insert = () => {
 
   const descriptionInputRef = useRef<HTMLInputElement | null>(null);
   const setupInputRef = useRef<HTMLInputElement | null>(null);
+  const variantInputRef = useRef<HTMLInputElement | null>(null);
 
   const resetDescription = () => {
     if (descriptionInputRef.current) {
@@ -58,6 +59,12 @@ const Insert = () => {
   const resetSetup = () => {
     if (setupInputRef.current) {
       setupInputRef.current.value = "";
+    }
+  };
+
+  const resetVariant = () => {
+    if (variantInputRef.current) {
+      variantInputRef.current.value = "";
     }
   };
 
@@ -145,6 +152,7 @@ const Insert = () => {
     setNewType(false);
     resetDescription();
     resetSetup();
+    resetVariant();
   }
 
   useEffect(() => {
@@ -274,6 +282,21 @@ const Insert = () => {
         </Box>
       </Box>
     </>
+  );
+
+  const renderVariant = (
+    <Box sx={{ my: 1 }}>
+      <InputLabel>Variante</InputLabel>
+      <TextField
+        inputRef={variantInputRef}
+        defaultValue={exerciseToSave.variant}
+        fullWidth
+        name="variant"
+        onChange={updateExerciseToSaveWithEvent}
+        multiline
+        maxRows={1}
+      />
+    </Box>
   );
 
   const renderDescription = (
@@ -444,6 +467,7 @@ const Insert = () => {
           </Snackbar>
         ))}
       {renderDifficultyAndType}
+      {renderVariant}
       {renderDescription}
       {renderTools}
       {renderSetup}

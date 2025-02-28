@@ -34,7 +34,17 @@ const type = {
   headerName: "Tipologia",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 150,
+  minWidth: 110,
+  flex: 0.1
+};
+
+const variant = {
+  field: "variant",
+  headerName: "Variante",
+  headerClassName: "super-app-theme--header",
+  renderHeader,
+  minWidth: 110,
+  flex: 0.1
 };
 
 const description = {
@@ -44,7 +54,7 @@ const description = {
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 300,
-  flex: 0.5,
+  flex: 0.1
 };
 
 const tools = {
@@ -53,8 +63,9 @@ const tools = {
   headerName: "Attrezzi",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 150,
-  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.tools?.map((tool) => <Chip key={tool} label={tool} sx={{ m: 0.5 }}/>)
+  minWidth: 80,
+  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.tools?.map((tool) => <Chip key={tool} label={tool} sx={{ m: 0.5 }}/>),
+  flex: 0.3
 };
 
 const setup = {
@@ -63,8 +74,8 @@ const setup = {
   headerName: "Setup",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 120,
-  flex: 0.4,
+  minWidth: 300,
+  flex: 0.1
 };
 
 const workingAreas = {
@@ -76,7 +87,7 @@ const workingAreas = {
   renderHeader,
   minWidth: 300,
   renderCell: WorkingAreaTable,
-  flex: 1,
+  flex: 1
 };
 
 const bodyTargets = {
@@ -88,7 +99,7 @@ const bodyTargets = {
   renderHeader,
   minWidth: 300,
   renderCell: BodyTargetTable,
-  flex: 1,
+  flex: 1
 };
 
 const movementPlan = {
@@ -98,8 +109,8 @@ const movementPlan = {
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 130,
-  flex: 0.4,
-  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }}/>)
+  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }}/>),
+  flex: 0.1
 };
 
 const difficultyLevel = {
@@ -107,13 +118,13 @@ const difficultyLevel = {
   headerName: "Difficoltà",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 80,
-  flex: 0.1
+  minWidth: 80
 };
 
 export {
   id,
   type,
+  variant,
   description,
   tools,
   setup,
