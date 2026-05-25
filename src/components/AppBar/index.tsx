@@ -1,13 +1,11 @@
-import { WithAuthenticatorProps } from "@aws-amplify/ui-react";
 import AppBar from "@mui/material/AppBar";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 
 import MainMenu from "./menu";
 
-const SiteAppBar = ({ signOut }: WithAuthenticatorProps) => {
+const SiteAppBar = () => {
   return (
     <AppBar position="sticky">
       <Toolbar sx={{ width: "100%" }}>
@@ -17,9 +15,6 @@ const SiteAppBar = ({ signOut }: WithAuthenticatorProps) => {
             K9 Cross Training Exercise Database
           </Typography>
         </Link>
-        <Button onClick={signOut} color="secondary">
-          Sign out
-        </Button>
       </Toolbar>
     </AppBar>
   );

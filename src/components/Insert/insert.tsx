@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState, ChangeEvent, useMemo, useRef } from "react";
-import { useOutletContext, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useParams } from "react-router"
 import { v4 as uuid } from "uuid";
-import { generateClient, GraphQLResult } from "aws-amplify/api";
 import { debounce } from "lodash";
 import {
   Alert,
@@ -19,11 +18,10 @@ import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
 } from "../TypeSelect";
 import ArrayField from "../ArrayField";
-import { OutletRouterContext } from "../../interfaces/outletRouterContext";
 import { Exercise, defaultExercise, movementPlans } from "../../interfaces/exerciseInterfaces";
 import { capitalize } from "../../utils/stringUtils";
 import { validate } from "./validationFunction";
-import { createExercise, getExercise, updateExercise } from "./mutations";
+import { createExercise as createExerciseApi, updateExercise as updateExerciseApi, getExercise as getExerciseApi } from "../../api/exercises";
 import LevelSelect from "../LevelSelect";
 import { deepCopy } from "../../utils/objectUtils";
 
@@ -32,18 +30,12 @@ interface FormAlert extends Error {
   severity: ALERT_TYPE
 }
 
-interface GetExerciseData {
-  getExercise: Exercise;
-}
-
 const Insert = () => {
   const [exerciseToSave, setExerciseToSave] = useState<Exercise>(deepCopy(defaultExercise));
   const [newType, setNewType] = useState<boolean>(false);
   const [saveAction, setSaveAction] = useState<boolean>(false);
   const [formAlert, setFormAlert] = useState<FormAlert[]>([]);
-  const { user } = useOutletContext<OutletRouterContext>();
   const navigate = useNavigate();
-  // id from url params (if set is update mode)
   const { id } = useParams();
 
   const descriptionInputRef = useRef<HTMLInputElement | null>(null);
@@ -51,101 +43,58 @@ const Insert = () => {
   const variantInputRef = useRef<HTMLInputElement | null>(null);
 
   const resetDescription = () => {
-    if (descriptionInputRef.current) {
-      descriptionInputRef.current.value = "";
-    }
+    if (descriptionInputRef.current) descriptionInputRef.current.value = "";
   };
-
   const resetSetup = () => {
-    if (setupInputRef.current) {
-      setupInputRef.current.value = "";
-    }
+    if (setupInputRef.current) setupInputRef.current.value = "";
   };
-
   const resetVariant = () => {
-    if (variantInputRef.current) {
-      variantInputRef.current.value = "";
-    }
+    if (variantInputRef.current) variantInputRef.current.value = "";
   };
-
-  const client = useMemo(() => generateClient(), []);
 
   const handleCloseSnackbar = (name: string) => {
     setFormAlert((prev) => prev.filter((error) => error.name !== name));
   };
 
-  // Manage automatic closure after 5 seconds for each alert
   useEffect(() => {
     const timers: NodeJS.Timeout[] = [];
-
     formAlert.forEach((alert) => {
-      const timer = setTimeout(() => {
-        handleCloseSnackbar(alert.name);
-      }, 4000);
+      const timer = setTimeout(() => handleCloseSnackbar(alert.name), 4000);
       timers.push(timer);
     });
-
-    // Clean the timers when the component disassembles or when the alert array changes
-    return () => {
-      timers.forEach((timer) => clearTimeout(timer));
-    };
+    return () => timers.forEach((timer) => clearTimeout(timer));
   }, [formAlert]);
 
-  // fetch exercise if is in update mode (id from url params)
   useEffect(() => {
     const fetchExercise = async () => {
       if (id) {
         try {
-          const response = await client.graphql<GraphQLResult<GetExerciseData>>({
-            query: getExercise,
-            variables: {
-              id
-            }
-          });
-          if (response && "data" in response) {
-            console.log("fetchExercise: ", JSON.stringify(response.data.getExercise));
-            setExerciseToSave(response.data.getExercise);
-          } else {
-            setFormAlert([{ name: "Unexpected error", message: `Visualize exercise with id: ${id} error`, severity: ALERT_TYPE.ERROR }]);
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (err: any) {
-          console.error("Unexpected error when get exercise", err);
-          if (err.errors && Array.isArray(err.errors)) {
-            setFormAlert(err.errors.map((e: { message: string; }) => ({ name: `Get exercise with id: ${id}`, message: e.message, severity: ALERT_TYPE.ERROR })));
-          } else {
-            setFormAlert([{ name: "Unexpected error", message: `Get exercise with id: ${id} error`, severity: ALERT_TYPE.ERROR }]);
-          }
+          const data = await getExerciseApi(id);
+          setExerciseToSave(data);
+        } catch (err) {
+          console.error("Errore nel recupero dell'esercizio", err);
+          setFormAlert([{ name: "Errore", message: `Recupero esercizio con id: ${id} fallito`, severity: ALERT_TYPE.ERROR }]);
         }
       }
     };
-
     fetchExercise();
-  }, [id, client]);
+  }, [id]);
 
   const save = useCallback(async (): Promise<boolean> => {
     try {
-      await client.graphql({
-        query: id ? updateExercise : createExercise,
-        variables: {
-          input: {
-            ...exerciseToSave,
-          },
-        },
-      });
+      if (id) {
+        await updateExerciseApi(id, exerciseToSave);
+      } else {
+        await createExerciseApi(exerciseToSave);
+      }
       setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
       return true;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      console.error("Unexpected error when save exercise", err);
-      if (err.errors && Array.isArray(err.errors)) {
-        setFormAlert(err.errors.map((e: { message: string; }) => ({ name: "Saving error", message: e.message, severity: ALERT_TYPE.ERROR })));
-      } else {
-        setFormAlert([{ name: "Unexpected error", message: "Unexpected error during saving action", severity: ALERT_TYPE.ERROR }]);
-      }
+    } catch (err) {
+      console.error("Errore nel salvataggio", err);
+      setFormAlert([{ name: "Errore di salvataggio", message: "Errore imprevisto durante il salvataggio", severity: ALERT_TYPE.ERROR }]);
       return false;
     }
-  }, [exerciseToSave, client, id]);
+  }, [exerciseToSave, id]);
 
   const resetForm = () => {
     setExerciseToSave(deepCopy(defaultExercise));
@@ -153,7 +102,7 @@ const Insert = () => {
     resetDescription();
     resetSetup();
     resetVariant();
-  }
+  };
 
   useEffect(() => {
     const handleSave = async () => {
@@ -162,7 +111,6 @@ const Insert = () => {
         setSaveAction(false);
         const isSaved = await save();
         if (isSaved) {
-          // if is update mode move to homepage
           if (id) {
             setTimeout(() => navigate("/"), 1000);
           } else {
@@ -171,7 +119,6 @@ const Insert = () => {
         }
       }
     };
-
     handleSave();
   }, [saveAction, exerciseToSave, id, navigate, save]);
 
@@ -187,24 +134,21 @@ const Insert = () => {
     return errors.length == 0;
   }, [exerciseToSave]);
 
-  const finalizeExerciseToSave = () => {
+  // useMemo is no longer needed for client but kept for id stability
+  const finalizeExerciseToSave = useMemo(() => () => {
     setExerciseToSave((prev) => {
       const toSave = { ...prev };
       if (!toSave.id) {
         toSave.id = uuid();
       }
-      if (!toSave.user) {
-        toSave.user = user.signInDetails?.loginId;
-      }
-      toSave.userUpdate = user.signInDetails?.loginId;
       return toSave;
-    })
-  };
+    });
+  }, []);
 
   const OnClickSave = () => {
     const valid: boolean = validateForm();
     if (valid) {
-      finalizeExerciseToSave()
+      finalizeExerciseToSave();
       setSaveAction(true);
     }
   };
@@ -215,16 +159,13 @@ const Insert = () => {
   ) => {
     setExerciseToSave(prevState => {
       const updatedState = { ...prevState };
-      const keys = name.split('.'); // Usa il punto come delimitatore per separare il percorso
-
+      const keys = name.split('.');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let temp: any = updatedState;
       for (let i = 0; i < keys.length - 1; i++) {
-        temp = temp[keys[i]]; // Naviga fino al penultimo livello
+        temp = temp[keys[i]];
       }
-
-      temp[keys[keys.length - 1]] = value; // Aggiorna il campo finale
-
+      temp[keys[keys.length - 1]] = value;
       return updatedState;
     });
   };
@@ -233,9 +174,7 @@ const Insert = () => {
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => updateExerciseToSave(event.target.name, capitalize(event.target.value)), 500);
 
-  const onChangeIsNewSwitch = (
-    event: ChangeEvent<HTMLInputElement>
-  ) => {
+  const onChangeIsNewSwitch = (event: ChangeEvent<HTMLInputElement>) => {
     setNewType(event.target.checked);
     updateExerciseToSave("type", TypeSelectDefaultValue);
   };
@@ -243,7 +182,6 @@ const Insert = () => {
   const renderDifficultyAndType = (
     <>
       <Box display="flex" flexDirection="row" alignItems="center" sx={{ my: 1 }}>
-        {/* Nuovo campo con InputLabel */}
         <Box display="flex" flexDirection="column" sx={{ mr: 2 }}>
           <InputLabel required>Difficoltà</InputLabel>
           <LevelSelect
@@ -255,8 +193,6 @@ const Insert = () => {
             onChangeCallback={updateExerciseToSave}
           />
         </Box>
-
-        {/* Tipologia con InputLabel */}
         <Box display="flex" flexDirection="column" flexGrow={1}>
           <InputLabel required>Tipologia</InputLabel>
           <Box display="flex" flexDirection="row">
@@ -325,7 +261,6 @@ const Insert = () => {
     </Box>
   );
 
-  // setup is required if there are some tools
   const renderSetup = (
     <Box sx={{ my: 1 }}>
       <InputLabel required={exerciseToSave.tools.length > 0}>Setup</InputLabel>
@@ -356,92 +291,22 @@ const Insert = () => {
   const renderWorkingArea = (
     <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
       <InputLabel component="legend" required>Area target</InputLabel>
-      <LevelSelect
-        value={exerciseToSave.workingArea.mental}
-        label="Mentale"
-        name="workingArea.mental"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.workingArea.flexibility}
-        label="Flessibilità"
-        name="workingArea.flexibility"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.workingArea.strength}
-        label="Forza"
-        name="workingArea.strength"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.workingArea.balance}
-        label="Equilibrio"
-        name="workingArea.balance"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.workingArea.cardio}
-        label="Cardio"
-        name="workingArea.cardio"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
+      <LevelSelect value={exerciseToSave.workingArea.mental} label="Mentale" name="workingArea.mental" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.workingArea.flexibility} label="Flessibilità" name="workingArea.flexibility" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.workingArea.strength} label="Forza" name="workingArea.strength" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.workingArea.balance} label="Equilibrio" name="workingArea.balance" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.workingArea.cardio} label="Cardio" name="workingArea.cardio" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
     </Box>
   );
 
   const renderBodyTarget = (
     <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
       <InputLabel component="legend" required>Body target</InputLabel>
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.ant}
-        label="Anteriore"
-        name="bodyTarget.ant"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.post}
-        label="Posteriore"
-        name="bodyTarget.post"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.core}
-        label="Core"
-        name="bodyTarget.core"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.backbone}
-        label="Colonna"
-        name="bodyTarget.backbone"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
-      <LevelSelect
-        value={exerciseToSave.bodyTarget.fullBody}
-        label="Fullbody"
-        name="bodyTarget.fullBody"
-        useZeroValue
-        disableAdornment
-        onChangeCallback={updateExerciseToSave}
-      />
+      <LevelSelect value={exerciseToSave.bodyTarget.ant} label="Anteriore" name="bodyTarget.ant" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.bodyTarget.post} label="Posteriore" name="bodyTarget.post" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.bodyTarget.core} label="Core" name="bodyTarget.core" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.bodyTarget.backbone} label="Colonna" name="bodyTarget.backbone" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+      <LevelSelect value={exerciseToSave.bodyTarget.fullBody} label="Fullbody" name="bodyTarget.fullBody" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
     </Box>
   );
 
@@ -453,14 +318,9 @@ const Insert = () => {
             anchorOrigin={{ vertical: "top", horizontal: "left" }}
             open
             key={alert.name}
-            sx={{
-              marginTop: index * 10, // Aggiunge un margine verticale tra i messaggi
-            }}
+            sx={{ marginTop: index * 10 }}
           >
-            <Alert
-              onClose={() => handleCloseSnackbar(alert.name)}
-              severity={alert.severity}
-            >
+            <Alert onClose={() => handleCloseSnackbar(alert.name)} severity={alert.severity}>
               <AlertTitle>{alert.name}</AlertTitle>
               {alert.message}
             </Alert>
@@ -475,10 +335,7 @@ const Insert = () => {
       {renderWorkingArea}
       {renderBodyTarget}
       <Box sx={{ my: 2 }}>
-        <Button
-          variant="contained"
-          onClick={OnClickSave}
-        >
+        <Button variant="contained" onClick={OnClickSave}>
           Salva
         </Button>
       </Box>

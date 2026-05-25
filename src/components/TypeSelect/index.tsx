@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Schema } from "../../../amplify/data/resource";
-import { generateClient } from "aws-amplify/data";
+import { listExerciseTypes } from "../../api/exercises";
 import { SelectTypeProps } from "../../interfaces/filterInterfaces";
 import {
   FormControl,
@@ -12,8 +11,6 @@ import {
   SelectChangeEvent,
 } from "@mui/material";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
-
-const client = generateClient<Schema>();
 
 const NAME = "type";
 export const DEFAULT = "";
@@ -31,21 +28,16 @@ const TypeSelect = ({
 
   useEffect(() => {
     const fetchData = async () => {
-      // TODO fare con query che estragga unique
-      const { data, errors } = await client.models.Exercise.list({
-        selectionSet: ["type"],
-      });
-      const types: Array<string> = data.map(({ type }) => type);
-      const uniqTypes: Array<string> = [...new Set(types)];
-      errors ? setError(true) : !!data && setTypesAndError(uniqTypes, false);
+      try {
+        const data = await listExerciseTypes();
+        setTypes(data);
+        setError(false);
+      } catch {
+        setError(true);
+      }
     };
     fetchData();
   }, []);
-
-  const setTypesAndError = (data: Array<string>, error: boolean) => {
-    setTypes(data);
-    setError(error);
-  };
 
   const handleChange = (event: SelectChangeEvent) => {
     onChangeCallback && onChangeCallback(NAME, event.target.value);

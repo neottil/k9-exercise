@@ -7,45 +7,28 @@ import {
   defaultFilters,
   ResetCallBack
 } from "../../interfaces/filterInterfaces";
-import { generateClient, GraphQLResult } from "aws-amplify/api";
+import { listExercises as fetchExercisesApi } from "../../api/exercises";
 import Box from "@mui/material/Box";
 
 import WorkingAreaFilters from "../filters/WorkingAreaFilters";
 import BodyTargetFilters from "../filters/BodyTargetFilters";
 import ExerciseTable from "../ExerciseTable";
-import type { Schema } from "../../../amplify/data/resource";
 import { deepCopy } from "../../utils/objectUtils";
-import { listExercises } from "./mutations";
-
-interface GetAllExerciseData {
-  getAllExercise: Exercise;
-}
-
-const client = generateClient<Schema>();
 
 const View = () => {
-  const [exercises, setExercises] = useState<Array<Schema["Exercise"]["type"]>>([]);
-  const [filteredExercises, setFilteredExercises] = useState<Array<Schema["Exercise"]["type"]>>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
   const [filters, setFilters] = useState<Filters>(deepCopy(defaultFilters));
   const [isLoading, setLoading] = useState<boolean>(true);
   const [isLoadingError, setLoadingError] = useState<boolean>(false);
 
-  
   const fetchExercise = async () => {
     try {
-      const response = await client.graphql<GraphQLResult<GetAllExerciseData>>({
-        query: listExercises,
-      });
-      if (response && "data" in response) {
-        console.log("fetchExercise: ", JSON.stringify(response.data.getExercise));
-        setExercises(response.data.listExercises.items);
-      } else {
-        console.log("Pare non ci siano dati")
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
+      const data = await fetchExercisesApi();
+      setExercises(data);
+    } catch (err) {
       setLoadingError(true);
-      console.error("Unexpected error when get exercise", err);
+      console.error("Errore nel recupero degli esercizi", err);
     } finally {
       setLoading(false);
     }
@@ -59,81 +42,60 @@ const View = () => {
     filter: NumFilterWithOp,
     exerciseValue: number | null | undefined
   ) =>
-    !filter.value || // if value is undefined return true (not apply filter) to data
-    exerciseValue == undefined || // if exerciseValue is null return true (not apply filter) to data
-    (filter.operation === "eq" && exerciseValue == filter.value) || // if operation is lt then apply filter
-    (filter.operation === "gt" && exerciseValue >= filter.value); // if operation is gt then apply filter
+    !filter.value ||
+    exerciseValue == undefined ||
+    (filter.operation === "eq" && exerciseValue == filter.value) ||
+    (filter.operation === "gt" && exerciseValue >= filter.value);
 
   const workingAreaMentalFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
-      applyNumericFilter(
-        filters.workingArea.mental,
-        exercise.workingArea?.mental
-      ),
+    (exercise: Exercise) =>
+      applyNumericFilter(filters.workingArea.mental, exercise.workingArea?.mental),
     [filters.workingArea.mental]
   );
   const workingAreaFlexFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
-      applyNumericFilter(
-        filters.workingArea.flexibility,
-        exercise.workingArea?.flexibility
-      ),
+    (exercise: Exercise) =>
+      applyNumericFilter(filters.workingArea.flexibility, exercise.workingArea?.flexibility),
     [filters.workingArea.flexibility]
   );
   const workingAreaStrengthFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
-      applyNumericFilter(
-        filters.workingArea.strength,
-        exercise.workingArea?.strength
-      ),
+    (exercise: Exercise) =>
+      applyNumericFilter(filters.workingArea.strength, exercise.workingArea?.strength),
     [filters.workingArea.strength]
   );
   const workingAreaBalanceFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
-      applyNumericFilter(
-        filters.workingArea.balance,
-        exercise.workingArea?.balance
-      ),
+    (exercise: Exercise) =>
+      applyNumericFilter(filters.workingArea.balance, exercise.workingArea?.balance),
     [filters.workingArea.balance]
   );
   const workingAreaCardioFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
-      applyNumericFilter(
-        filters.workingArea.cardio,
-        exercise.workingArea?.cardio
-      ),
+    (exercise: Exercise) =>
+      applyNumericFilter(filters.workingArea.cardio, exercise.workingArea?.cardio),
     [filters.workingArea.cardio]
   );
 
   const bodyTargetAntFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
+    (exercise: Exercise) =>
       applyNumericFilter(filters.bodyTarget.ant, exercise.bodyTarget?.ant),
     [filters.bodyTarget.ant]
   );
   const bodyTargetPostFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
+    (exercise: Exercise) =>
       applyNumericFilter(filters.bodyTarget.post, exercise.bodyTarget?.post),
     [filters.bodyTarget.post]
   );
   const bodyTargetCoreFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
+    (exercise: Exercise) =>
       applyNumericFilter(filters.bodyTarget.core, exercise.bodyTarget?.core),
     [filters.bodyTarget.core]
   );
   const bodyTargetBackboneFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
-      applyNumericFilter(
-        filters.bodyTarget.backbone,
-        exercise.bodyTarget?.backbone
-      ),
+    (exercise: Exercise) =>
+      applyNumericFilter(filters.bodyTarget.backbone, exercise.bodyTarget?.backbone),
     [filters.bodyTarget.backbone]
   );
   const bodyTargetFullbodyFilter = useCallback(
-    (exercise: Schema["Exercise"]["type"]) =>
-      applyNumericFilter(
-        filters.bodyTarget.fullBody,
-        exercise.bodyTarget?.fullBody
-      ),
+    (exercise: Exercise) =>
+      applyNumericFilter(filters.bodyTarget.fullBody, exercise.bodyTarget?.fullBody),
     [filters.bodyTarget.fullBody]
   );
 
@@ -178,24 +140,22 @@ const View = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let temp: any = updatedState;
       for (let i = 0; i < keys.length - 1; i++) {
-        temp = temp[keys[i]]; // Naviga fino al penultimo livello
+        temp = temp[keys[i]];
       }
 
-      temp[keys[keys.length - 1]] = { value, operation }; // Aggiorna il campo finale{ value, operation };
+      temp[keys[keys.length - 1]] = { value, operation };
 
       return updatedState;
     });
   }, []);
 
   const resetFilter: ResetCallBack = useCallback((name) => {
-    // Ottieni il valore di default dal percorso
-    const keys = name.split("."); // Divide il percorso (es. "workingArea.mental") in chiavi
+    const keys = name.split(".");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let defaultValue: any = defaultFilters;
     for (let i = 0; i < keys.length; i++) {
       defaultValue = defaultValue[keys[i]];
     }
-    // Utilizza la funzione updateFilterState per aggiornare lo stato con il valore di default
     updateFilter(name, defaultValue.value, defaultValue.operation);
   }, [updateFilter]);
 

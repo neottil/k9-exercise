@@ -7,7 +7,7 @@ import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import { styled } from "@mui/material/styles";
 
-import type { Schema } from "../../../amplify/data/resource";
+import { Exercise } from "../../interfaces/exerciseInterfaces";
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {
@@ -16,7 +16,7 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
   }
 }));
 
-const BodyTargetTable = ({ row }: { row: Schema["Exercise"]["type"] }) => (
+const BodyTargetTable = ({ row }: { row: Exercise }) => (
   <TableContainer component={Paper}>
     <Table size="small">
       <TableHead>

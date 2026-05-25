@@ -35,15 +35,15 @@ const Footer = () => (
         </Link>
         <Typography sx={{ display: "inline" }}>, powered with&nbsp;</Typography>
         <Tooltip title="Deployed by Amplify and routed by Route53">
-          <Link
+        <Link
             href="https://aws.amazon.com/it/"
-            target="_blank"
-            rel="noreferrer"
-            underline="none"
-            sx={{ display: "inline" }}
-          >
+          target="_blank"
+          rel="noreferrer"
+          underline="none"
+          sx={{ display: "inline" }}
+        >
             AWS
-          </Link>
+        </Link>
         </Tooltip>
         <Typography sx={{ display: "inline" }}>&nbsp;by</Typography>
         <Link

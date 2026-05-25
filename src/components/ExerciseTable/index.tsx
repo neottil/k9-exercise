@@ -9,7 +9,7 @@ import {
 import { styled } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 
-import type { Schema } from "../../../amplify/data/resource";
+import { Exercise } from "../../interfaces/exerciseInterfaces";
 import {
   type,
   variant,
@@ -23,7 +23,7 @@ import {
 } from "./columnsDef";
 
 interface ExerciseTableProps {
-  rows: Array<Schema["Exercise"]["type"]>;
+  rows: Array<Exercise>;
   loading: boolean;
   error: boolean;
 }

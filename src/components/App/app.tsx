@@ -1,7 +1,5 @@
 import { PropsWithChildren, useLayoutEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { WithAuthenticatorProps } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
 import { ThemeProvider } from "@mui/material/styles";
 
 import "./index.css";
@@ -17,11 +15,11 @@ const ScrollToTop = ({ children }: PropsWithChildren) => {
   return children
 }
 
-const App = ({ user, signOut }: WithAuthenticatorProps) => (
+const App = () => (
   <ScrollToTop>
     <ThemeProvider theme={theme}>
-      <AppBar user={user} signOut={signOut} />
-      <Outlet context={{ user }} />
+      <AppBar />
+      <Outlet />
       <Footer />
     </ThemeProvider>
   </ScrollToTop>

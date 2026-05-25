@@ -1,8 +1,6 @@
 import { Chip } from "@mui/material";
-import {
-  GridColumnHeaderParams,
-} from "@mui/x-data-grid";
-import type { Schema } from "../../../amplify/data/resource";
+import { GridColumnHeaderParams } from "@mui/x-data-grid";
+import { Exercise } from "../../interfaces/exerciseInterfaces";
 import WorkingAreaTable from "./WorkingAreaTable";
 import BodyTargetTable from "./BodyTargetTable";
 
@@ -15,16 +13,6 @@ const renderHeader = (params: GridColumnHeaderParams) => (
 const id = {
   field: "id",
   headerName: "Id",
-  /*
-  renderHeader: (params: GridColumnHeaderParams) => (
-    <Box sx={{ display: "none" }}>{params.colDef.headerName}</Box>
-  ),
-  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => (
-    <Box sx={{ display: "none" }}>{row.id}</Box>
-  ),
-  minWidth: 1,
-  maxWidth: 1,
-  */
   renderHeader,
   minWidth: 100,
 };
@@ -64,7 +52,8 @@ const tools = {
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 80,
-  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.tools?.map((tool) => <Chip key={tool} label={tool} sx={{ m: 0.5 }}/>),
+  renderCell: ({ row }: { row: Exercise }) =>
+    row.tools?.map((tool) => <Chip key={tool} label={tool} sx={{ m: 0.5 }} />),
   flex: 0.3
 };
 
@@ -109,7 +98,8 @@ const movementPlan = {
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 130,
-  renderCell: ({ row }: { row: Schema["Exercise"]["type"] }) => row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }}/>),
+  renderCell: ({ row }: { row: Exercise }) =>
+    row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }} />),
   flex: 0.1
 };
 
