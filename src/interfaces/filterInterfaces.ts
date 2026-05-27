@@ -1,6 +1,6 @@
 import { defaultBodyTarget, defaultWorkingArea } from "./exerciseInterfaces";
 
-type OperationFilter = "eq" | "gt";
+type OperationFilter = "eq" | "gte";
 
 type StringOnChangeCallback = (name: string, value: string) => void
 
@@ -76,7 +76,7 @@ const defaultFilters: Filters = {
     (acc, k) => {
       acc[k as keyof WorkingAreaFilters] = {
         value: defaultWorkingArea[k as keyof WorkingAreaFilters],
-        operation: "gt",
+        operation: "gte",
       };
       return acc;
     },
@@ -86,7 +86,7 @@ const defaultFilters: Filters = {
     (acc, k) => {
       acc[k as keyof BodyTargetFilters] = {
         value: defaultBodyTarget[k as keyof BodyTargetFilters],
-        operation: "gt",
+        operation: "gte",
       };
       return acc;
     },

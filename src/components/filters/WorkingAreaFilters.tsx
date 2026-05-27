@@ -16,7 +16,7 @@ const WorkingAreaFilters = ({ value, onChangeCallback, resetCallback }: WorkingA
   };
 
   return (
-    <Box sx={{ p: 0.5 }}>
+    <Box sx={{ p: 0.5, flexGrow: 1 }}>
       <Button onClick={toggleFilters} variant="contained" fullWidth>
         <SearchIcon sx={{ mr: 0.5 }} />
         <Typography variant="h6" sx={{ mr: 0.5 }}>

@@ -22,12 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.lh/*
 
 # environment
 .env
 
-# amplify (legacy)
-.amplify
-amplify_outputs*
-amplifyconfiguration*
-.history

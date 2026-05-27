@@ -7,6 +7,8 @@ import {
 } from "@mui/material";
 import LevelSelect from ".";
 
+const isOperationEnabled = import.meta.env.VITE_ENABLE_WITH_OPERATION_FILTER === "true";
+
 const LevelSelectWithOperation = ({
   value,
   name,
@@ -15,10 +17,11 @@ const LevelSelectWithOperation = ({
   resetCallback
 }: LevelSelectWithOperationProps) => {
 
-  const onChangeLevelCallback: NumberOnChangeCallback = (name, selected) => onChangeCallback(name, selected, value.operation);
+  const onChangeLevelCallback: NumberOnChangeCallback = (name, selected) =>
+    onChangeCallback(name, selected, isOperationEnabled ? value.operation : "gte");
 
   const handleChangeOp = (event: SelectChangeEvent<string>) => {
-    onChangeCallback(name, value.value, event.target.value as OperationFilter);
+    onChangeCallback(name, value.value, isOperationEnabled ? event.target.value as OperationFilter : "gte");
   };
 
   return (
@@ -30,10 +33,12 @@ const LevelSelectWithOperation = ({
         onChangeCallback={onChangeLevelCallback}
         resetCallback={resetCallback}
       />
-      <Select name="operation" value={value.operation} onChange={handleChangeOp}>
-        <MenuItem value="eq">{"="}</MenuItem>
-        <MenuItem value="gt">{">="}</MenuItem>
-      </Select>
+      {isOperationEnabled && (
+        <Select name="operation" value={value.operation} onChange={handleChangeOp}>
+          <MenuItem value="eq">{"="}</MenuItem>
+          <MenuItem value="gte">{">="}</MenuItem>
+        </Select>
+      )}
     </Box>
   );
 };
