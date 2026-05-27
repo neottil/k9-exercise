@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DataGrid,
@@ -11,7 +11,7 @@ import Box from "@mui/material/Box";
 
 import { Exercise } from "../../interfaces/exerciseInterfaces";
 import {
-  type,
+  createTypeColumn,
   variant,
   description,
   tools,
@@ -19,7 +19,7 @@ import {
   workingAreas,
   bodyTargets,
   movementPlan,
-  difficultyLevel
+  difficultyLevel,
 } from "./columnsDef";
 
 interface ExerciseTableProps {
@@ -34,8 +34,9 @@ const StyledTableContainer = styled(Box)(({ theme }) => ({
   },
 }));
 
-const columnsDef: GridColDef[] = [
-  type,
+// Colonne statiche — definite fuori dal componente, non ri-create ad ogni render.
+// "type" (con bottone edit) è creata tramite factory in columnsDef.tsx.
+const staticColumns: GridColDef[] = [
   variant,
   description,
   tools,
@@ -43,41 +44,77 @@ const columnsDef: GridColDef[] = [
   workingAreas,
   bodyTargets,
   movementPlan,
-  difficultyLevel
+  difficultyLevel,
 ];
 
-const autosizeOptions: GridAutosizeOptions = {
-  includeOutliers: true,
-};
+const autosizeOptions: GridAutosizeOptions = { includeOutliers: true };
 
 const ExerciseTable = ({ rows, loading, error }: ExerciseTableProps) => {
   const navigate = useNavigate();
 
+  // Riga selezionata: usata su touch per mostrare il bottone edit al tap
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+
+  // Colonna "Tipologia" con bottone edit — definita in columnsDef.tsx tramite factory.
+  const typeWithEdit = useMemo(() => createTypeColumn(navigate), [navigate]);
+
+  const columns = useMemo(
+    () => [typeWithEdit, ...staticColumns],
+    [typeWithEdit]
+  );
+
   const getRowHeight = useCallback(() => "auto", []);
-  const getRowSpacing = useCallback(() => {
-    return {
-      top: 3,
-      bottom: 3,
-    };
+  const getRowSpacing = useCallback(() => ({ top: 3, bottom: 3 }), []);
+
+  // Tap su riga (mobile): seleziona/deseleziona → mostra/nasconde il bottone
+  const onRowClick = useCallback((params: GridRowParams) => {
+    setSelectedRowId((prev) =>
+      prev === (params.id as string) ? null : (params.id as string)
+    );
   }, []);
-  const onRowDoubleClick = useCallback((params: GridRowParams) =>  navigate(`/update/${params.id}`), [navigate]);
-  
+
   return (
     <StyledTableContainer>
       <DataGrid
         slots={{
-          noRowsOverlay: () => <Box sx={{display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%"}}>
+          noRowsOverlay: () => (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+              }}
+            >
               {error ? "Errore nel caricamento dei dati" : "Nessun risultato"}
-              </Box>,
+            </Box>
+          ),
         }}
         rows={rows}
-        columns={columnsDef}
+        columns={columns}
         autosizeOptions={autosizeOptions}
         getRowHeight={getRowHeight}
         getRowSpacing={getRowSpacing}
         scrollbarSize={0}
-        onRowDoubleClick={onRowDoubleClick}
+        rowSelectionModel={selectedRowId ? [selectedRowId] : []}
+        onRowClick={onRowClick}
         loading={loading}
+        sx={{
+          // Bottone invisibile di default
+          "& .MuiDataGrid-row .edit-action": {
+            opacity: 0,
+            transition: "opacity 150ms ease",
+          },
+          // Desktop: visibile sull'hover dell'intera riga
+          "& .MuiDataGrid-row:hover .edit-action": {
+            opacity: 1,
+          },
+          // Mobile/tablet: visibile sulla riga selezionata dal tap
+          "& .MuiDataGrid-row.Mui-selected .edit-action": {
+            opacity: 1,
+          },
+        }}
       />
     </StyledTableContainer>
   );
