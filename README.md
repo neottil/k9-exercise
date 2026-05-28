@@ -24,7 +24,6 @@ npm version patch
 
 - pagina di approvazione solo per admin
 - script batch schedulato per segnalare nuovi utenti e esercizi
-- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 
 ---
 
