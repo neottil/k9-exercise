@@ -42,16 +42,6 @@ const Insert = () => {
   const setupInputRef = useRef<HTMLInputElement | null>(null);
   const variantInputRef = useRef<HTMLInputElement | null>(null);
 
-  const resetDescription = () => {
-    if (descriptionInputRef.current) descriptionInputRef.current.value = "";
-  };
-  const resetSetup = () => {
-    if (setupInputRef.current) setupInputRef.current.value = "";
-  };
-  const resetVariant = () => {
-    if (variantInputRef.current) variantInputRef.current.value = "";
-  };
-
   const handleCloseSnackbar = (name: string) => {
     setFormAlert((prev) => prev.filter((error) => error.name !== name));
   };
@@ -95,14 +85,6 @@ const Insert = () => {
       return false;
     }
   }, [exerciseToSave, id]);
-
-  const resetForm = () => {
-    setExerciseToSave(deepCopy(defaultExercise));
-    setNewType(false);
-    resetDescription();
-    resetSetup();
-    resetVariant();
-  };
 
   useEffect(() => {
     const handleSave = async () => {

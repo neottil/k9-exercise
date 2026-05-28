@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useState } from "react";
 import type { ReactNode } from "react";
+import type { GridFilterModel, GridSortModel } from "@mui/x-data-grid";
 
 import {
   Filters,
@@ -9,16 +10,33 @@ import {
 } from "../interfaces/filterInterfaces";
 import { deepCopy } from "../utils/objectUtils";
 
+// Stato interno del DataGrid (filtri colonne + ordinamento)
+interface DataGridState {
+  filterModel: GridFilterModel;
+  sortModel: GridSortModel;
+}
+
+const defaultDataGridState: DataGridState = {
+  filterModel: { items: [] },
+  sortModel: [],
+};
+
 interface FiltersContextValue {
+  // Filtri WorkingArea / BodyTarget (usati per la query al backend)
   filters: Filters;
   updateFilter: NumberWithOperationOnChangeCallback;
   resetFilter: ResetCallBack;
+  // Stato interno del DataGrid (filtri colonne, ordinamento)
+  dataGridState: DataGridState;
+  setDataGridFilterModel: (model: GridFilterModel) => void;
+  setDataGridSortModel: (model: GridSortModel) => void;
 }
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);
 
 export const FiltersProvider = ({ children }: { children: ReactNode }) => {
   const [filters, setFilters] = useState<Filters>(deepCopy(defaultFilters));
+  const [dataGridState, setDataGridStateRaw] = useState<DataGridState>(defaultDataGridState);
 
   const updateFilter: NumberWithOperationOnChangeCallback = useCallback(
     (name, value, operation) => {
@@ -52,8 +70,25 @@ export const FiltersProvider = ({ children }: { children: ReactNode }) => {
     [updateFilter]
   );
 
+  const setDataGridFilterModel = useCallback((model: GridFilterModel) => {
+    setDataGridStateRaw((prev) => ({ ...prev, filterModel: model }));
+  }, []);
+
+  const setDataGridSortModel = useCallback((model: GridSortModel) => {
+    setDataGridStateRaw((prev) => ({ ...prev, sortModel: model }));
+  }, []);
+
   return (
-    <FiltersContext.Provider value={{ filters, updateFilter, resetFilter }}>
+    <FiltersContext.Provider
+      value={{
+        filters,
+        updateFilter,
+        resetFilter,
+        dataGridState,
+        setDataGridFilterModel,
+        setDataGridSortModel,
+      }}
+    >
       {children}
     </FiltersContext.Provider>
   );

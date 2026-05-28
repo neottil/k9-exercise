@@ -10,6 +10,7 @@ import { styled } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 
 import { Exercise } from "../../interfaces/exerciseInterfaces";
+import { useFilters } from "../../contexts/FiltersContext";
 import {
   createTypeColumn,
   variant,
@@ -51,6 +52,7 @@ const autosizeOptions: GridAutosizeOptions = { includeOutliers: true };
 
 const ExerciseTable = ({ rows, loading, error }: ExerciseTableProps) => {
   const navigate = useNavigate();
+  const { dataGridState, setDataGridFilterModel, setDataGridSortModel } = useFilters();
 
   // Riga selezionata: usata su touch per mostrare il bottone edit al tap
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
@@ -97,6 +99,10 @@ const ExerciseTable = ({ rows, loading, error }: ExerciseTableProps) => {
         getRowHeight={getRowHeight}
         getRowSpacing={getRowSpacing}
         scrollbarSize={0}
+        filterModel={dataGridState.filterModel}
+        onFilterModelChange={setDataGridFilterModel}
+        sortModel={dataGridState.sortModel}
+        onSortModelChange={setDataGridSortModel}
         rowSelectionModel={selectedRowId ? [selectedRowId] : []}
         onRowClick={onRowClick}
         loading={loading}
