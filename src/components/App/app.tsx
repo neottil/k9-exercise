@@ -6,6 +6,7 @@ import "./index.css";
 import theme from "./theme";
 import AppBar from "../AppBar";
 import Footer from "../Footer";
+import { FiltersProvider } from "../../contexts/FiltersContext";
 
 const ScrollToTop = ({ children }: PropsWithChildren) => {
   const location = useLocation();
@@ -18,9 +19,11 @@ const ScrollToTop = ({ children }: PropsWithChildren) => {
 const App = () => (
   <ScrollToTop>
     <ThemeProvider theme={theme}>
-      <AppBar />
-      <Outlet />
-      <Footer />
+      <FiltersProvider>
+        <AppBar />
+        <Outlet />
+        <Footer />
+      </FiltersProvider>
     </ThemeProvider>
   </ScrollToTop>
 );

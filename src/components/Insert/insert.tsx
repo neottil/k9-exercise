@@ -111,11 +111,7 @@ const Insert = () => {
         setSaveAction(false);
         const isSaved = await save();
         if (isSaved) {
-          if (id) {
             setTimeout(() => navigate("/"), 1000);
-          } else {
-            resetForm();
-          }
         }
       }
     };

@@ -1,6 +1,6 @@
 import { useState, MouseEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import IconButton from "@mui/material/IconButton";
-import Link from "@mui/material/Link";
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 
@@ -19,6 +19,7 @@ interface MainMenuItemProps {
 
 const MainMenu = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const navigate = useNavigate();
   const open = Boolean(anchorEl);
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -28,12 +29,10 @@ const MainMenu = () => {
   };
 
   const MainMenuItem = ({ link, IconComponent, label }: MainMenuItemProps) => (
-    <Link href={link} underline="none">
-      <MenuItem onClick={handleClose}>
-        <IconComponent sx={{ mr: 1 }} />
-        {label}
-      </MenuItem>
-    </Link>
+    <MenuItem onClick={() => { handleClose(); navigate(link); }}>
+      <IconComponent sx={{ mr: 1 }} />
+      {label}
+    </MenuItem>
   )
 
   return (
