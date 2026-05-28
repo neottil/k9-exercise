@@ -14,7 +14,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 
 const Login = () => {
-  const { login, user, isLoading } = useAuth();
+  const { login, user, isLoading, sessionExpired } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +61,11 @@ const Login = () => {
           <Typography variant="h6" mb={3} textAlign="center" fontWeight="bold" color="text.secondary">
             K9 Cross Training - Exercise
           </Typography>
+          {sessionExpired && !error && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Sessione scaduta. Effettua nuovamente il login.
+            </Alert>
+          )}
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}

@@ -136,7 +136,13 @@ router.get("/:id", async (req: Request, res: Response) => {
 router.post("/", async (req: Request, res: Response) => {
   try {
     const { id, ...rest } = req.body;
-    const exercise = new Exercise({ _id: id, ...rest, state: TO_APPROVE });
+    const exercise = new Exercise({
+      _id: id,
+      ...rest,
+      state: TO_APPROVE,
+      user: req.user?.email,
+      userUpdate: req.user?.email,
+    });
     await exercise.save();
     res.status(201).json(exercise);
   } catch (err) {
@@ -175,7 +181,7 @@ router.put("/:id", async (req: Request, res: Response) => {
       console.log(`[PUT /:id] aggiornamento diretto (TO_APPROVE / no state)`);
       const updated = await Exercise.findByIdAndUpdate(
         id,
-        { $set: submittedFields },
+        { $set: { ...submittedFields, userUpdate: req.user?.email } },
         { new: true }
       );
       res.json(updated);
@@ -200,12 +206,12 @@ router.put("/:id", async (req: Request, res: Response) => {
         }
         console.log(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
         await ExerciseChange.create(
-          [{ exerciseId: id, fields: diff }],
+          [{ exerciseId: id, fields: diff, user: req.user?.email, userUpdate: req.user?.email }],
           { session }
         );
         await Exercise.findByIdAndUpdate(
           id,
-          { $set: { state: PENDING_UPDATE } },
+          { $set: { state: PENDING_UPDATE, userUpdate: req.user?.email } },
           { session }
         );
       } else {
@@ -215,15 +221,20 @@ router.put("/:id", async (req: Request, res: Response) => {
           await ExerciseChange.deleteOne({ exerciseId: id }, { session });
           await Exercise.findByIdAndUpdate(
             id,
-            { $set: { state: APPROVED } },
+            { $set: { state: APPROVED, userUpdate: req.user?.email } },
             { session }
           );
         } else {
           console.log(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
           await ExerciseChange.findOneAndUpdate(
             { exerciseId: id },
-            { $set: { fields: diff } },
+            { $set: { fields: diff, userUpdate: req.user?.email } },
             { session, upsert: true, new: true }
+          );
+          await Exercise.findByIdAndUpdate(
+            id,
+            { $set: { userUpdate: req.user?.email } },
+            { session }
           );
         }
       }

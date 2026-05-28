@@ -4,6 +4,8 @@ const ExerciseChangeSchema = new Schema(
   {
     exerciseId: { type: String, required: true, index: true },
     fields: { type: Schema.Types.Mixed, required: true },
+    user: { type: String },
+    userUpdate: { type: String },
   },
   {
     timestamps: true,

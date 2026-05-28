@@ -18,17 +18,20 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/k9-exe
 app.use(cors());
 app.use(express.json());
 
+const SESSION_MAX_AGE = 1000 * 60 * 60 * 2; // 2 ore
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: MONGODB_URI }),
+    rolling: true, // sliding window: la scadenza si azzera ad ogni richiesta
+    store: MongoStore.create({ mongoUrl: MONGODB_URI, ttl: SESSION_MAX_AGE / 1000 }),
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      maxAge: SESSION_MAX_AGE,
     },
   })
 );
