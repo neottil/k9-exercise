@@ -2,7 +2,12 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import session from "express-session";
+import MongoStore from "connect-mongo";
+
 import exerciseRoutes from "./routes/exercises";
+import authRoutes from "./routes/auth";
+import { requireAuth } from "./middleware/requireAuth";
 
 dotenv.config();
 
@@ -13,7 +18,23 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/k9-exe
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/exercises", exerciseRoutes);
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "dev-secret-change-in-prod",
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: MONGODB_URI }),
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    },
+  })
+);
+
+app.use("/api/auth", authRoutes);
+app.use("/api/exercises", requireAuth, exerciseRoutes);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

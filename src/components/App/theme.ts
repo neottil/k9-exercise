@@ -11,6 +11,10 @@ const theme = createTheme({
         secondary: {
             main: blue[50],
         },
+        success: {
+            main: "#88cc22",
+            contrastText: "#fff",
+        },
         contrastThreshold: 3,
         tonalOffset: 0.2,
     },
