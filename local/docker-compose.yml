@@ -1,0 +1,22 @@
+services:
+  mongo:
+    container_name: mongo-rs
+    image: mongo:8.0
+    ports:
+      - 27017:27017
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo_rs_data:/data/db
+    healthcheck:
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status() }
+          catch(e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}) }
+        "
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mongo_rs_data:

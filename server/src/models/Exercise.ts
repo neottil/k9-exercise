@@ -34,6 +34,7 @@ const ExerciseSchema = new Schema(
     tools: [String],
     setup: String,
     difficultyLevel: Number,
+    state: String,
     user: String,
     userUpdate: String,
   },

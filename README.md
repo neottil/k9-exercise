@@ -22,7 +22,6 @@ npm version patch
 
 ## TODO'S
 
-- When insert exercise by default set a state to TO_APPROVE. Exercise in his state are not be shown in View.
 - Login/user passato da sito. Come integrare i due sistemi.
 - Save the filters in state so the query runs again when the user navigates back in the browser.
 - trace update changes in table

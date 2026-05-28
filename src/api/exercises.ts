@@ -37,7 +37,7 @@ export const listExercises = async (filters?: Filters): Promise<Exercise[]> => {
 };
 
 export const getExercise = async (id: string): Promise<Exercise> => {
-  const res = await fetch(`${BASE_URL}/${id}`);
+  const res = await fetch(`${BASE_URL}/${id}/changes`);
   if (!res.ok) throw new Error(`Errore nel recupero dell'esercizio con id: ${id}`);
   return res.json();
 };

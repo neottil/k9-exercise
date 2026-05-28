@@ -69,7 +69,7 @@ const defaultExercise: Exercise = {
 };
 
 export type {
-    Exercise
+    Exercise,
 }
 
 export {

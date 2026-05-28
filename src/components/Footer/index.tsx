@@ -56,7 +56,7 @@ const Footer = () => (
         </Link>
       </Box>
       <Typography color="primary">version: {version}</Typography>
-      <Typography sx={{ display: "inline" }}>Copyright ©2024</Typography>
+      <Typography sx={{ display: "inline" }}>Copyright ©2026</Typography>
     </Box>
   </Box>
 );
