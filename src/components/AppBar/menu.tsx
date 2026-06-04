@@ -5,11 +5,13 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
-import MenuIcon from "@mui/icons-material/Menu";
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import HomeIcon from '@mui/icons-material/Home';
+import MenuIcon from "@mui/icons-material/Menu";
 
 import { OverridableComponent } from '@mui/material/OverridableComponent';
 import { SvgIconTypeMap } from '@mui/material/SvgIcon';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface MainMenuItemProps {
   link: string;
@@ -29,6 +31,7 @@ const MainMenuItem = ({ link, IconComponent, label, onNavigate }: MainMenuItemPr
 const MainMenu = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
+  const { user } = useAuth();
   const open = Boolean(anchorEl);
 
   const handleClick = (event: MouseEvent<HTMLElement>) => {
@@ -71,6 +74,9 @@ const MainMenu = () => {
       >
         <MainMenuItem link="/" label="Home" IconComponent={HomeIcon} onNavigate={handleNavigate} />
         <MainMenuItem link="/insert" label="Inserisci" IconComponent={AddCircleOutlineIcon} onNavigate={handleNavigate} />
+        {user?.role === "admin" && (
+          <MainMenuItem link="/admin" label="Admin" IconComponent={AdminPanelSettingsIcon} onNavigate={handleNavigate} />
+        )}
       </Menu>
     </>
   );

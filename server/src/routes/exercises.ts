@@ -1,7 +1,16 @@
 import mongoose from "mongoose";
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import Exercise from "../models/Exercise";
 import ExerciseChange from "../models/ExerciseChange";
+
+// Middleware: solo admin — usato sulle route di approvazione
+const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  if (req.user?.role !== "admin") {
+    res.status(403).json({ error: "Accesso riservato agli amministratori" });
+    return;
+  }
+  next();
+};
 
 const router = Router();
 
@@ -95,6 +104,23 @@ router.get("/types", async (_req: Request, res: Response) => {
     res.json(types);
   } catch (err) {
     res.status(500).json({ error: "Errore nel recupero dei tipi" });
+  }
+});
+
+// GET /pending — esercizi in PENDING_UPDATE con i rispettivi change doc (solo admin)
+router.get("/pending", requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const exercises = await Exercise.find({ state: PENDING_UPDATE });
+    const result = await Promise.all(
+      exercises.map(async (ex) => {
+        const change = await ExerciseChange.findOne({ exerciseId: ex._id });
+        return { exercise: ex.toJSON(), change: change ? change.toJSON() : null };
+      })
+    );
+    res.json(result);
+  } catch (err) {
+    console.error("[GET /exercises/pending]", err);
+    res.status(500).json({ error: "Errore nel recupero delle modifiche in attesa" });
   }
 });
 
@@ -206,7 +232,7 @@ router.put("/:id", async (req: Request, res: Response) => {
         }
         console.log(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
         await ExerciseChange.create(
-          [{ exerciseId: id, fields: diff, user: req.user?.email, userUpdate: req.user?.email }],
+          [{ exerciseId: id as string, fields: diff, user: req.user?.email, userUpdate: req.user?.email }],
           { session }
         );
         await Exercise.findByIdAndUpdate(
@@ -252,6 +278,69 @@ router.put("/:id", async (req: Request, res: Response) => {
   } catch (err) {
     console.error(`[PUT /:id] errore:`, err);
     res.status(500).json({ error: "Errore nell'aggiornamento dell'esercizio" });
+  }
+});
+
+// POST /:id/approve — applica i campi selezionati sull'esercizio, lo riporta ad APPROVED (solo admin)
+// Body: { fieldsToApply?: Record<string, unknown> }
+// Se fieldsToApply è assente applica tutto il change doc (compatibilità backward).
+router.post("/:id/approve", requireAdmin, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { fieldsToApply } = req.body as { fieldsToApply?: Record<string, unknown> };
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const change = await ExerciseChange.findOne({ exerciseId: id }).session(session);
+    if (!change) {
+      await session.abortTransaction();
+      res.status(404).json({ error: "Nessuna modifica in attesa per questo esercizio" });
+      return;
+    }
+
+    // Usa i campi inviati dal client; fallback all'intero change doc per compatibilità
+    const toApply = fieldsToApply ?? (change.fields as Record<string, unknown>);
+
+    await Exercise.findByIdAndUpdate(
+      id,
+      { $set: { ...toApply, state: APPROVED, userUpdate: req.user?.email } },
+      { session }
+    );
+    await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+
+    await session.commitTransaction();
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[POST /exercises/:id/approve]", err);
+    await session.abortTransaction();
+    res.status(500).json({ error: "Errore nell'approvazione della modifica" });
+  } finally {
+    await session.endSession();
+  }
+});
+
+// POST /:id/reject — elimina il change doc, riporta l'esercizio ad APPROVED (solo admin)
+router.post("/:id/reject", requireAdmin, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+    await Exercise.findByIdAndUpdate(
+      id,
+      { $set: { state: APPROVED, userUpdate: req.user?.email } },
+      { session }
+    );
+
+    await session.commitTransaction();
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[POST /exercises/:id/reject]", err);
+    await session.abortTransaction();
+    res.status(500).json({ error: "Errore nel rifiuto della modifica" });
+  } finally {
+    await session.endSession();
   }
 });
 

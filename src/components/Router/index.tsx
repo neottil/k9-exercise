@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 import App from "../App";
 import View from "../View";
 import Insert from "../Insert";
+import Admin from "../Admin";
 import Login from "../Login";
 import Register from "../Register";
 import ProtectedRoute from "./ProtectedRoute";
@@ -31,6 +32,14 @@ const router = createBrowserRouter([
       {
         path: "update/:id",
         element: <Insert />,
+      },
+      {
+        path: "admin",
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <Admin />
+          </ProtectedRoute>
+        ),
       },
     ],
   },

@@ -1,4 +1,5 @@
 import { Exercise } from "../interfaces/exerciseInterfaces";
+import type { PendingItem } from "../interfaces/adminInterfaces";
 import { Filters, NumFilterWithOp, WorkingAreaFilters, BodyTargetFilters } from "../interfaces/filterInterfaces";
 import { apiFetch } from "./apiFetch";
 
@@ -61,4 +62,24 @@ export const listExerciseTypes = async (): Promise<string[]> => {
   const res = await apiFetch(`${BASE_URL}/types`);
   if (!res.ok) throw new Error("Errore nel recupero dei tipi");
   return res.json();
+};
+
+export const getPending = async (): Promise<PendingItem[]> => {
+  const res = await apiFetch(`${BASE_URL}/pending`);
+  if (!res.ok) throw new Error("Errore nel caricamento delle modifiche in attesa");
+  return res.json();
+};
+
+export const approveChange = async (id: string, fieldsToApply: Record<string, unknown>): Promise<void> => {
+  const res = await apiFetch(`${BASE_URL}/${id}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fieldsToApply }),
+  });
+  if (!res.ok) throw new Error("Errore nell'approvazione");
+};
+
+export const rejectChange = async (id: string): Promise<void> => {
+  const res = await apiFetch(`${BASE_URL}/${id}/reject`, { method: "POST" });
+  if (!res.ok) throw new Error("Errore nel rifiuto");
 };

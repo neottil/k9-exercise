@@ -22,7 +22,8 @@ npm version patch
 
 ## TODO'S
 
-- pagina di approvazione solo per admin
+- <Alert> presente in più punti, si può creare un componente unico centralizzato?
+- cambiare visualizzazione aree con diagramma a barre
 - script batch schedulato per segnalare nuovi utenti e esercizi
 
 ---
