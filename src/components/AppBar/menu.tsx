@@ -4,7 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
 import MenuIcon from "@mui/icons-material/Menu";
 import HomeIcon from '@mui/icons-material/Home';
 
@@ -14,13 +14,23 @@ import { SvgIconTypeMap } from '@mui/material/SvgIcon';
 interface MainMenuItemProps {
   link: string;
   IconComponent: OverridableComponent<SvgIconTypeMap> & { muiName: string };
-  label: string
+  label: string;
+  onNavigate: (link: string) => void;
 }
+
+// Definito fuori dal componente padre per evitare ricreazioni ad ogni render
+const MainMenuItem = ({ link, IconComponent, label, onNavigate }: MainMenuItemProps) => (
+  <MenuItem onClick={() => onNavigate(link)}>
+    <IconComponent sx={{ mr: 1 }} />
+    {label}
+  </MenuItem>
+);
 
 const MainMenu = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
   const open = Boolean(anchorEl);
+
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -28,12 +38,10 @@ const MainMenu = () => {
     setAnchorEl(null);
   };
 
-  const MainMenuItem = ({ link, IconComponent, label }: MainMenuItemProps) => (
-    <MenuItem onClick={() => { handleClose(); navigate(link); }}>
-      <IconComponent sx={{ mr: 1 }} />
-      {label}
-    </MenuItem>
-  )
+  const handleNavigate = (link: string) => {
+    handleClose();
+    navigate(link);
+  };
 
   return (
     <>
@@ -61,11 +69,11 @@ const MainMenu = () => {
         open={open}
         onClose={handleClose}
       >
-        <MainMenuItem link="/" label="Home" IconComponent={HomeIcon} />
-        <MainMenuItem link="/insert" label="Inserisci" IconComponent={AddCircleOutlineIcon} />
+        <MainMenuItem link="/" label="Home" IconComponent={HomeIcon} onNavigate={handleNavigate} />
+        <MainMenuItem link="/insert" label="Inserisci" IconComponent={AddCircleOutlineIcon} onNavigate={handleNavigate} />
       </Menu>
     </>
-  )
-}
+  );
+};
 
 export default MainMenu;

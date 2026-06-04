@@ -47,7 +47,7 @@ const Insert = () => {
   };
 
   useEffect(() => {
-    const timers: NodeJS.Timeout[] = [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
     formAlert.forEach((alert) => {
       const timer = setTimeout(() => handleCloseSnackbar(alert.name), 4000);
       timers.push(timer);
@@ -104,10 +104,12 @@ const Insert = () => {
     const errors: Error[] = validate(exerciseToSave);
     setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
-    errors.length !== 0 && console.error("Validation errors:\n", errors.reduce((acc, { name, message }) => {
-      const errorLine = `${name}: ${message}`;
-      return acc ? `${acc}\n${errorLine}` : errorLine;
-    }, ""));
+    if (errors.length !== 0) {
+      console.error("Validation errors:\n", errors.reduce((acc, { name, message }) => {
+        const errorLine = `${name}: ${message}`;
+        return acc ? `${acc}\n${errorLine}` : errorLine;
+      }, ""));
+    }
 
     return errors.length == 0;
   }, [exerciseToSave]);
@@ -159,8 +161,8 @@ const Insert = () => {
 
   const renderDifficultyAndType = (
     <>
-      <Box display="flex" flexDirection="row" alignItems="center" sx={{ my: 1 }}>
-        <Box display="flex" flexDirection="column" sx={{ mr: 2 }}>
+      <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", my: 1 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", mr: 2 }}>
           <InputLabel required>Difficoltà</InputLabel>
           <LevelSelect
             value={exerciseToSave.difficultyLevel}
@@ -171,9 +173,9 @@ const Insert = () => {
             onChangeCallback={updateExerciseToSave}
           />
         </Box>
-        <Box display="flex" flexDirection="column" flexGrow={1}>
+        <Box sx={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
           <InputLabel required>Tipologia</InputLabel>
-          <Box display="flex" flexDirection="row">
+          <Box sx={{ display: "flex", flexDirection: "row" }}>
             {!newType && (
               <TypeSelect
                 onChangeCallback={updateExerciseToSave}
@@ -267,7 +269,7 @@ const Insert = () => {
   );
 
   const renderWorkingArea = (
-    <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
+    <Box component="fieldset" sx={{ my: 1, display: "flex", justifyContent: "space-between", gap: 2 }}>
       <InputLabel component="legend" required>Area target</InputLabel>
       <LevelSelect value={exerciseToSave.workingArea.mental} label="Mentale" name="workingArea.mental" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
       <LevelSelect value={exerciseToSave.workingArea.flexibility} label="Flessibilità" name="workingArea.flexibility" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
@@ -278,7 +280,7 @@ const Insert = () => {
   );
 
   const renderBodyTarget = (
-    <Box component="fieldset" sx={{ my: 1 }} display="flex" justifyContent="space-between" gap={2}>
+    <Box component="fieldset" sx={{ my: 1, display: "flex", justifyContent: "space-between", gap: 2 }}>
       <InputLabel component="legend" required>Body target</InputLabel>
       <LevelSelect value={exerciseToSave.bodyTarget.ant} label="Anteriore" name="bodyTarget.ant" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
       <LevelSelect value={exerciseToSave.bodyTarget.post} label="Posteriore" name="bodyTarget.post" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />

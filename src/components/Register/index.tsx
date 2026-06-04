@@ -66,7 +66,7 @@ const Register = () => {
       <Card sx={{ width: 360, p: 2 }}>
         <CardContent>
           <Box component="img" src="/logo-intero.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
-          <Typography variant="h6" mb={3} textAlign="center" fontWeight="bold" color="text.secondary">
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 3, textAlign: "center", fontWeight: "bold" }}>
             K9 Cross Training - Exercise
           </Typography>
 
@@ -75,7 +75,7 @@ const Register = () => {
               <Alert severity="success" sx={{ mb: 2 }}>
                 {successMessage}
               </Alert>
-              <Typography variant="body2" textAlign="center" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
                 <Link component={RouterLink} to="/login" color="success.main">
                   Torna al login
                 </Link>
@@ -88,7 +88,7 @@ const Register = () => {
                   {error}
                 </Alert>
               )}
-              <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
+              <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <TextField
                   label="Email"
                   type="email"
@@ -119,7 +119,7 @@ const Register = () => {
                   {submitting ? <CircularProgress size={22} color="inherit" /> : "Registrati"}
                 </Button>
               </Box>
-              <Typography variant="body2" textAlign="center" mt={2} color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", mt: 2 }}>
                 Hai già un account?{" "}
                 <Link component={RouterLink} to="/login" color="success.main">
                   Accedi

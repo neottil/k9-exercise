@@ -103,7 +103,11 @@ const ExerciseTable = ({ rows, loading, error }: ExerciseTableProps) => {
         onFilterModelChange={setDataGridFilterModel}
         sortModel={dataGridState.sortModel}
         onSortModelChange={setDataGridSortModel}
-        rowSelectionModel={selectedRowId ? [selectedRowId] : []}
+        rowSelectionModel={
+          selectedRowId
+            ? { type: "include" as const, ids: new Set([selectedRowId]) }
+            : { type: "include" as const, ids: new Set<string>() }
+        }
         onRowClick={onRowClick}
         loading={loading}
         sx={{

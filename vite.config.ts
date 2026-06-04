@@ -14,10 +14,19 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
-          'vendor-datagrid': ['@mui/x-data-grid'],
+        manualChunks: (id: string) => {
+          if (id.includes('/node_modules/@mui/x-data-grid')) return 'vendor-datagrid';
+          if (
+            id.includes('/node_modules/@mui/material') ||
+            id.includes('/node_modules/@mui/icons-material') ||
+            id.includes('/node_modules/@emotion/react') ||
+            id.includes('/node_modules/@emotion/styled')
+          ) return 'vendor-mui';
+          if (
+            id.includes('/node_modules/react/') ||
+            id.includes('/node_modules/react-dom/') ||
+            id.includes('/node_modules/react-router-dom/')
+          ) return 'vendor-react';
         },
       },
     },

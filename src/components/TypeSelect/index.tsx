@@ -40,11 +40,11 @@ const TypeSelect = ({
   }, []);
 
   const handleChange = (event: SelectChangeEvent) => {
-    onChangeCallback && onChangeCallback(NAME, event.target.value);
+    if (onChangeCallback) onChangeCallback(NAME, event.target.value);
   };
 
   const resetSelection = () => {
-    onChangeCallback && onChangeCallback(NAME, DEFAULT);
+    if (onChangeCallback) onChangeCallback(NAME, DEFAULT);
   };
 
   const renderMenuItems = (

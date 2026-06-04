@@ -25,7 +25,7 @@ const LevelSelectWithOperation = ({
   };
 
   return (
-    <Box display="inline-flex" sx={{ m: 1 }}>
+    <Box sx={{ display: "inline-flex", m: 1 }}>
       <LevelSelect
         value={value.value}
         name={name}
