@@ -1,3 +1,5 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -9,11 +11,17 @@ import exerciseRoutes from "./routes/exercises";
 import authRoutes from "./routes/auth";
 import { requireAuth } from "./middleware/requireAuth";
 
-dotenv.config();
+// Il .env è alla root del monorepo (due livelli sopra server/src/)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/k9-exercise";
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error("MONGODB_URI non è configurata. Aggiungila nel file .env alla root del progetto (o impostala come variabile d'ambiente).");
+  process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json());

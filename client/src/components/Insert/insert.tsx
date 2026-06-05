@@ -4,15 +4,12 @@ import { useParams } from "react-router"
 import { v4 as uuid } from "uuid";
 import { debounce } from "lodash";
 import {
-  Alert,
-  AlertTitle,
   Box,
   Button,
   FormControlLabel,
   InputLabel,
   Switch,
   TextField,
-  Snackbar
 } from "@mui/material";
 import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
@@ -24,36 +21,19 @@ import { validate } from "./validationFunction";
 import { createExercise as createExerciseApi, updateExercise as updateExerciseApi, getExercise as getExerciseApi } from "../../api/exercises";
 import LevelSelect from "../LevelSelect";
 import { deepCopy } from "../../utils/objectUtils";
-
-enum ALERT_TYPE { ERROR = "error", INFO = "info" }
-interface FormAlert extends Error {
-  severity: ALERT_TYPE
-}
+import { useNotification } from "../../contexts/NotificationContext";
 
 const Insert = () => {
   const [exerciseToSave, setExerciseToSave] = useState<Exercise>(deepCopy(defaultExercise));
   const [newType, setNewType] = useState<boolean>(false);
   const [saveAction, setSaveAction] = useState<boolean>(false);
-  const [formAlert, setFormAlert] = useState<FormAlert[]>([]);
   const navigate = useNavigate();
   const { id } = useParams();
+  const { showSuccess, showError, showErrors } = useNotification();
 
   const descriptionInputRef = useRef<HTMLInputElement | null>(null);
   const setupInputRef = useRef<HTMLInputElement | null>(null);
   const variantInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleCloseSnackbar = (name: string) => {
-    setFormAlert((prev) => prev.filter((error) => error.name !== name));
-  };
-
-  useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    formAlert.forEach((alert) => {
-      const timer = setTimeout(() => handleCloseSnackbar(alert.name), 4000);
-      timers.push(timer);
-    });
-    return () => timers.forEach((timer) => clearTimeout(timer));
-  }, [formAlert]);
 
   useEffect(() => {
     const fetchExercise = async () => {
@@ -63,11 +43,12 @@ const Insert = () => {
           setExerciseToSave(data);
         } catch (err) {
           console.error("Errore nel recupero dell'esercizio", err);
-          setFormAlert([{ name: "Errore", message: `Recupero esercizio con id: ${id} fallito`, severity: ALERT_TYPE.ERROR }]);
+          showError(`Recupero esercizio fallito (id: ${id})`);
         }
       }
     };
     fetchExercise();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const save = useCallback(async (): Promise<boolean> => {
@@ -77,14 +58,14 @@ const Insert = () => {
       } else {
         await createExerciseApi(exerciseToSave);
       }
-      setFormAlert([{ name: "Salvato", message: "Esercizio salvato correttamente", severity: ALERT_TYPE.INFO }]);
+      showSuccess("Esercizio salvato correttamente");
       return true;
     } catch (err) {
       console.error("Errore nel salvataggio", err);
-      setFormAlert([{ name: "Errore di salvataggio", message: "Errore imprevisto durante il salvataggio", severity: ALERT_TYPE.ERROR }]);
+      showError("Errore imprevisto durante il salvataggio");
       return false;
     }
-  }, [exerciseToSave, id]);
+  }, [exerciseToSave, id, showSuccess, showError]);
 
   useEffect(() => {
     const handleSave = async () => {
@@ -102,17 +83,17 @@ const Insert = () => {
 
   const validateForm = useCallback((): boolean => {
     const errors: Error[] = validate(exerciseToSave);
-    setFormAlert(errors.map(err => ({ ...err, severity: ALERT_TYPE.ERROR })));
 
     if (errors.length !== 0) {
       console.error("Validation errors:\n", errors.reduce((acc, { name, message }) => {
         const errorLine = `${name}: ${message}`;
         return acc ? `${acc}\n${errorLine}` : errorLine;
       }, ""));
+      showErrors(errors.map((e) => e.message));
     }
 
-    return errors.length == 0;
-  }, [exerciseToSave]);
+    return errors.length === 0;
+  }, [exerciseToSave, showErrors]);
 
   // useMemo is no longer needed for client but kept for id stability
   const finalizeExerciseToSave = useMemo(() => () => {
@@ -292,20 +273,6 @@ const Insert = () => {
 
   return (
     <Box sx={{ m: 1 }}>
-      {!!formAlert.length &&
-        formAlert.map((alert, index) => (
-          <Snackbar
-            anchorOrigin={{ vertical: "top", horizontal: "left" }}
-            open
-            key={alert.name}
-            sx={{ marginTop: index * 10 }}
-          >
-            <Alert onClose={() => handleCloseSnackbar(alert.name)} severity={alert.severity}>
-              <AlertTitle>{alert.name}</AlertTitle>
-              {alert.message}
-            </Alert>
-          </Snackbar>
-        ))}
       {renderDifficultyAndType}
       {renderVariant}
       {renderDescription}

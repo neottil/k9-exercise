@@ -12,6 +12,7 @@ import {
 import { getPending, approveChange, rejectChange } from "../../api/exercises";
 import type { PendingItem } from "../../interfaces/adminInterfaces";
 import ExerciseDiff from "./ExerciseDiff";
+import { useNotification } from "../../contexts/NotificationContext";
 
 const Admin = () => {
   const [items, setItems] = useState<PendingItem[]>([]);
@@ -19,7 +20,8 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+
+  const { showSuccess, showError } = useNotification();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,12 +46,12 @@ const Admin = () => {
   const handleApprove = async (fieldsToApply: Record<string, unknown>) => {
     if (!selected) return;
     setActionLoading(true);
-    setActionError(null);
     try {
       await approveChange(selected.exercise.id, fieldsToApply);
       removeItem(selected.exercise.id);
+      showSuccess("Modifica approvata con successo");
     } catch {
-      setActionError("Errore durante l'approvazione");
+      showError("Errore durante l'approvazione della modifica");
     } finally {
       setActionLoading(false);
     }
@@ -58,12 +60,12 @@ const Admin = () => {
   const handleReject = async () => {
     if (!selected) return;
     setActionLoading(true);
-    setActionError(null);
     try {
       await rejectChange(selected.exercise.id);
       removeItem(selected.exercise.id);
+      showSuccess("Modifica rifiutata");
     } catch {
-      setActionError("Errore durante il rifiuto");
+      showError("Errore durante il rifiuto della modifica");
     } finally {
       setActionLoading(false);
     }
@@ -172,12 +174,6 @@ const Admin = () => {
 
       {/* ── Pannello destro: diff ── */}
       <Box sx={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {actionError && (
-          <Alert severity="error" onClose={() => setActionError(null)} sx={{ m: 1 }}>
-            {actionError}
-          </Alert>
-        )}
-
         {!selected ? (
           <Box
             sx={{

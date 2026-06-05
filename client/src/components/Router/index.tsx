@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, useParams } from "react-router-dom";
 
 import App from "../App";
 import View from "../View";
@@ -7,6 +7,18 @@ import Admin from "../Admin";
 import Login from "../Login";
 import Register from "../Register";
 import ProtectedRoute from "./ProtectedRoute";
+
+/**
+ * Wrapper che forza il rimount di Insert al cambio di route.
+ * key={id ?? "new"} garantisce che:
+ *  - /insert          → key "new"     → form vuoto
+ *  - /update/:id      → key = id      → form caricato con i dati dell'esercizio
+ *  - cambio tra due id diversi        → rimount, form resettato con i nuovi dati
+ */
+const InsertRoute = () => {
+  const { id } = useParams();
+  return <Insert key={id ?? "new"} />;
+};
 
 const router = createBrowserRouter([
   {
@@ -27,11 +39,11 @@ const router = createBrowserRouter([
       },
       {
         path: "insert",
-        element: <Insert />,
+        element: <InsertRoute />,
       },
       {
         path: "update/:id",
-        element: <Insert />,
+        element: <InsertRoute />,
       },
       {
         path: "admin",

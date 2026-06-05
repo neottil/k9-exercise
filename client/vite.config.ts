@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // Legge il file .env dalla root del monorepo (cartella padre di client/)
+  envDir: "../",
   server: {
     proxy: {
       '/api': {
