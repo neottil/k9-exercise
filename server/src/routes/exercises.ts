@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Router, Request, Response, NextFunction } from "express";
 import Exercise from "../models/Exercise";
 import ExerciseChange from "../models/ExerciseChange";
+import { requireDbReady } from "../middleware/requireDbReady";
 
 // Middleware: solo admin — usato sulle route di approvazione
 const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
@@ -13,6 +14,10 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction): void => 
 };
 
 const router = Router();
+
+// Verifica connessione DB su tutte le route di questo router.
+// L'overhead è trascurabile (lettura di una proprietà intera).
+router.use(requireDbReady);
 
 const TO_APPROVE    = "TO_APPROVE"    as const;
 const APPROVED      = "APPROVED"      as const;

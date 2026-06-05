@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
   Box,
   Card,
   CardActionArea,
   CardContent,
-  CircularProgress,
   Divider,
   Typography,
 } from "@mui/material";
+import DataLoader from "../DataLoader";
 import { getPending, approveChange, rejectChange } from "../../api/exercises";
 import type { PendingItem } from "../../interfaces/adminInterfaces";
 import ExerciseDiff from "./ExerciseDiff";
@@ -30,7 +29,7 @@ const Admin = () => {
       const data = await getPending();
       setItems(data);
     } catch {
-      setError("Impossibile caricare le modifiche in attesa");
+      setError("Impossibile caricare le modifiche in attesa.");
     } finally {
       setLoading(false);
     }
@@ -97,27 +96,16 @@ const Admin = () => {
           )}
         </Box>
 
-        {loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-            <CircularProgress size={32} />
-          </Box>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ m: 1 }}>
-            {error}
-          </Alert>
-        )}
-
-        {!loading && !error && items.length === 0 && (
-          <Box sx={{ p: 3, textAlign: "center" }}>
-            <Typography color="text.secondary" variant="body2">
-              Nessuna modifica in attesa
-            </Typography>
-          </Box>
-        )}
-
-        {items.map((item) => {
+        <DataLoader loading={loading} error={error} onRetry={load} minHeight={120}>
+          {items.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: "center" }}>
+              <Typography color="text.secondary" variant="body2">
+                Nessuna modifica in attesa
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              {items.map((item) => {
           const isSelected = selected?.exercise.id === item.exercise.id;
           const modifiedBy = item.change?.userUpdate || item.change?.user;
           const modifiedAt = item.change?.updatedAt
@@ -170,6 +158,9 @@ const Admin = () => {
             </Card>
           );
         })}
+            </>
+          )}
+        </DataLoader>
       </Box>
 
       {/* ── Pannello destro: diff ── */}

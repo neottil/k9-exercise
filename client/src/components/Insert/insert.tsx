@@ -11,6 +11,7 @@ import {
   Switch,
   TextField,
 } from "@mui/material";
+import DataLoader from "../DataLoader";
 import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
 } from "../TypeSelect";
@@ -24,30 +25,32 @@ import { deepCopy } from "../../utils/objectUtils";
 import { useNotification } from "../../contexts/NotificationContext";
 
 const Insert = () => {
-  const [exerciseToSave, setExerciseToSave] = useState<Exercise>(deepCopy(defaultExercise));
-  const [newType, setNewType] = useState<boolean>(false);
-  const [saveAction, setSaveAction] = useState<boolean>(false);
   const navigate = useNavigate();
   const { id } = useParams();
   const { showSuccess, showError, showErrors } = useNotification();
+
+  const [exerciseToSave, setExerciseToSave] = useState<Exercise>(deepCopy(defaultExercise));
+  const [newType, setNewType] = useState<boolean>(false);
+  const [saveAction, setSaveAction] = useState<boolean>(false);
+  // fetchLoading parte true solo in modalità modifica (id presente)
+  const [fetchLoading, setFetchLoading] = useState<boolean>(!!id);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const descriptionInputRef = useRef<HTMLInputElement | null>(null);
   const setupInputRef = useRef<HTMLInputElement | null>(null);
   const variantInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const fetchExercise = async () => {
-      if (id) {
-        try {
-          const data = await getExerciseApi(id);
-          setExerciseToSave(data);
-        } catch (err) {
-          console.error("Errore nel recupero dell'esercizio", err);
-          showError(`Recupero esercizio fallito (id: ${id})`);
-        }
-      }
-    };
-    fetchExercise();
+    if (!id) return;
+    setFetchLoading(true);
+    setFetchError(null);
+    getExerciseApi(id)
+      .then((data) => setExerciseToSave(data))
+      .catch((err) => {
+        console.error("Errore nel recupero dell'esercizio", err);
+        setFetchError("Impossibile caricare i dati dell'esercizio. Verifica la connessione e riprova.");
+      })
+      .finally(() => setFetchLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -272,21 +275,35 @@ const Insert = () => {
   );
 
   return (
-    <Box sx={{ m: 1 }}>
-      {renderDifficultyAndType}
-      {renderVariant}
-      {renderDescription}
-      {renderTools}
-      {renderSetup}
-      {renderMovementPlan}
-      {renderWorkingArea}
-      {renderBodyTarget}
-      <Box sx={{ my: 2 }}>
-        <Button variant="contained" onClick={OnClickSave}>
-          Salva
-        </Button>
+    <DataLoader
+      loading={fetchLoading}
+      error={fetchError}
+      onRetry={id ? () => {
+        setFetchLoading(true);
+        setFetchError(null);
+        getExerciseApi(id)
+          .then((data) => setExerciseToSave(data))
+          .catch(() => setFetchError("Impossibile caricare i dati dell'esercizio."))
+          .finally(() => setFetchLoading(false));
+      } : undefined}
+      minHeight={400}
+    >
+      <Box sx={{ m: 1 }}>
+        {renderDifficultyAndType}
+        {renderVariant}
+        {renderDescription}
+        {renderTools}
+        {renderSetup}
+        {renderMovementPlan}
+        {renderWorkingArea}
+        {renderBodyTarget}
+        <Box sx={{ my: 2 }}>
+          <Button variant="contained" onClick={OnClickSave}>
+            Salva
+          </Button>
+        </Box>
       </Box>
-    </Box>
+    </DataLoader>
   );
 };
 

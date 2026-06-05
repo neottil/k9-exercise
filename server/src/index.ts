@@ -23,6 +23,8 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
+// ── Middleware ─────────────────────────────────────────────────────────────────
+
 app.use(cors());
 app.use(express.json());
 
@@ -33,7 +35,7 @@ app.use(
     secret: process.env.SESSION_SECRET || "dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
-    rolling: true, // sliding window: la scadenza si azzera ad ogni richiesta
+    rolling: true,
     store: MongoStore.create({ mongoUrl: MONGODB_URI, ttl: SESSION_MAX_AGE / 1000 }),
     cookie: {
       httpOnly: true,
@@ -44,22 +46,82 @@ app.use(
   })
 );
 
+// ── Route ─────────────────────────────────────────────────────────────────────
+
 app.use("/api/auth", authRoutes);
 app.use("/api/exercises", requireAuth, exerciseRoutes);
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+  const stateLabel = ["disconnected", "connected", "connecting", "disconnecting"];
+  res.json({
+    status: "ok",
+    db: stateLabel[mongoose.connection.readyState] ?? "unknown",
+  });
 });
 
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => {
-    console.log("Connesso a MongoDB");
-    app.listen(PORT, () => {
-      console.log(`Server avviato sulla porta ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Errore di connessione MongoDB:", err);
-    process.exit(1);
-  });
+// ── Event listeners sulla connessione DB ──────────────────────────────────────
+
+mongoose.connection.on("disconnected", () => {
+  console.warn(
+    `[DB] Connessione persa` +
+    ` | host: ${mongoose.connection.host ?? "n/a"}` +
+    ` | ${new Date().toISOString()}`
+  );
+});
+
+mongoose.connection.on("reconnected", () => {
+  console.log(
+    `[DB] Connessione ripristinata` +
+    ` | host: ${mongoose.connection.host ?? "n/a"}` +
+    ` | ${new Date().toISOString()}`
+  );
+});
+
+mongoose.connection.on("error", (err) => {
+  console.error(
+    `[DB] Errore sulla connessione — ${err.message}` +
+    ` | readyState: ${mongoose.connection.readyState}` +
+    ` | ${new Date().toISOString()}`
+  );
+});
+
+// ── Connessione a MongoDB con retry ───────────────────────────────────────────
+// Non blocca l'avvio del server HTTP. Se il DB non è disponibile al primo
+// tentativo, riprova ogni 5 secondi fino al successo. Le route sono già
+// protette da requireDbReady che risponde 503 finché readyState !== 1.
+
+const RETRY_DELAY_MS = 5000;
+
+const connectWithRetry = async (): Promise<void> => {
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    try {
+      await mongoose.connect(MONGODB_URI);
+      console.log(
+        `[DB] Connesso a MongoDB (tentativo ${attempt})` +
+        ` | ${new Date().toISOString()}`
+      );
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[DB] Connessione fallita (tentativo ${attempt})` +
+        ` — nuovo tentativo tra ${RETRY_DELAY_MS / 1000}s` +
+        `\n  errore    : ${msg}` +
+        `\n  timestamp : ${new Date().toISOString()}`
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+  }
+};
+
+// ── Avvio ─────────────────────────────────────────────────────────────────────
+// Il server HTTP parte immediatamente. La connessione al DB avviene in
+// background: durante il downtime tutte le route API restituiscono 503
+// grazie al middleware requireDbReady.
+
+app.listen(PORT, () => {
+  console.log(`[SERVER] Avviato sulla porta ${PORT} | ${new Date().toISOString()}`);
+  connectWithRetry();
+});

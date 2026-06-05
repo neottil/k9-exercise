@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import User from "../models/User";
+import { requireDbReady } from "../middleware/requireDbReady";
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.get("/me", (req: Request, res: Response): void => {
 });
 
 // POST /api/auth/login
-router.post("/login", async (req: Request, res: Response): Promise<void> => {
+router.post("/login", requireDbReady, async (req: Request, res: Response): Promise<void> => {
   if (process.env.AUTH_ENABLED === "false") {
     req.session.user = DEV_USER;
     res.json(DEV_USER);
@@ -62,7 +63,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/auth/register
-router.post("/register", async (req: Request, res: Response): Promise<void> => {
+router.post("/register", requireDbReady, async (req: Request, res: Response): Promise<void> => {
   if (process.env.AUTH_ENABLED === "false") {
     res.status(403).json({ error: "Registrazione non disponibile in modalità dev" });
     return;
