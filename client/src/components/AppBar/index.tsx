@@ -29,7 +29,7 @@ const SiteAppBar = () => {
         </Box>
 
         <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
-          <Link href="/" underline="none" color="secondary">
+          <Link href="/" underline="none" color="inherit">
             <Typography variant="h5" component="div" sx={{ fontWeight: "bold", whiteSpace: "nowrap" }}>
               K9 Cross Training Exercise Database
             </Typography>

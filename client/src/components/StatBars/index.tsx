@@ -102,6 +102,7 @@ interface StatBarInlineProps {
  * Toggle buttons read-only su riga singola — usato nelle card di confronto
  * del diff admin per i sotto-campi di workingArea e bodyTarget.
  * Usa width:"100%" perché il parent è un Box block (non flex).
+ * Stile neutro (grigio) per non interferire con i colori di diff rosso/verde.
  */
 export const StatBarInline = ({ value }: StatBarInlineProps) => (
   <ToggleButtonGroup
@@ -111,7 +112,17 @@ export const StatBarInline = ({ value }: StatBarInlineProps) => (
     sx={{
       width: "100%",
       pointerEvents: "none",
-      "& .MuiToggleButtonGroup-grouped": { flex: 1, minWidth: 0, py: 0.25 },
+      "& .MuiToggleButtonGroup-grouped": {
+        flex: 1,
+        minWidth: 0,
+        py: 0.25,
+        color: "text.secondary",
+        borderColor: "divider",
+        "&.Mui-selected": {
+          color: "text.primary",
+          backgroundColor: "action.selected",
+        },
+      },
     }}
   >
     {VALUES.map((v) => <ToggleButton key={v} value={v}>{v}</ToggleButton>)}

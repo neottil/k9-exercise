@@ -39,6 +39,7 @@ const ArrayField = ({
         <Chip
           key={index}
           label={value}
+          color="primary"
           onDelete={() => removeItem(index)}
           deleteIcon={<CancelIcon fontSize="small" />}
           sx={{ mr: 0.5, mt: 0.5 }}

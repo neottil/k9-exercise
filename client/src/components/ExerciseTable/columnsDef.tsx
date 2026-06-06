@@ -106,7 +106,7 @@ const tools: GridColDef = {
   renderHeader,
   minWidth: 80,
   renderCell: ({ row }: { row: Exercise }) =>
-    row.tools?.map((tool) => <Chip key={tool} label={tool} sx={{ m: 0.5 }} />),
+    row.tools?.map((tool) => <Chip key={tool} label={tool} color="primary" sx={{ m: 0.5 }} />),
   flex: 0.3,
 };
 
@@ -152,7 +152,7 @@ const movementPlan: GridColDef = {
   renderHeader,
   minWidth: 130,
   renderCell: ({ row }: { row: Exercise }) =>
-    row.movementPlan?.map((plan) => <Chip key={plan} label={plan} sx={{ m: 0.5 }} />),
+    row.movementPlan?.map((plan) => <Chip key={plan} label={plan} color="primary" sx={{ m: 0.5 }} />),
   flex: 0.1,
 };
 
