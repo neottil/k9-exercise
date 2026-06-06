@@ -12,6 +12,7 @@ import {
   TextField,
 } from "@mui/material";
 import DataLoader from "../DataLoader";
+import { StatBarsField, WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatBars";
 import TypeSelect, {
   DEFAULT as TypeSelectDefaultValue,
 } from "../TypeSelect";
@@ -253,24 +254,26 @@ const Insert = () => {
   );
 
   const renderWorkingArea = (
-    <Box component="fieldset" sx={{ my: 1, display: "flex", justifyContent: "space-between", gap: 2 }}>
-      <InputLabel component="legend" required>Area target</InputLabel>
-      <LevelSelect value={exerciseToSave.workingArea.mental} label="Mentale" name="workingArea.mental" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.workingArea.flexibility} label="Flessibilità" name="workingArea.flexibility" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.workingArea.strength} label="Forza" name="workingArea.strength" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.workingArea.balance} label="Equilibrio" name="workingArea.balance" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.workingArea.cardio} label="Cardio" name="workingArea.cardio" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+    <Box sx={{ my: 1 }}>
+      <InputLabel required>Area target</InputLabel>
+      <StatBarsField
+        data={exerciseToSave.workingArea as unknown as Record<string, number>}
+        labels={WORKING_AREA_LABELS}
+        fieldPrefix="workingArea"
+        onChange={updateExerciseToSave}
+      />
     </Box>
   );
 
   const renderBodyTarget = (
-    <Box component="fieldset" sx={{ my: 1, display: "flex", justifyContent: "space-between", gap: 2 }}>
-      <InputLabel component="legend" required>Body target</InputLabel>
-      <LevelSelect value={exerciseToSave.bodyTarget.ant} label="Anteriore" name="bodyTarget.ant" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.bodyTarget.post} label="Posteriore" name="bodyTarget.post" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.bodyTarget.core} label="Core" name="bodyTarget.core" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.bodyTarget.backbone} label="Colonna" name="bodyTarget.backbone" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
-      <LevelSelect value={exerciseToSave.bodyTarget.fullBody} label="Fullbody" name="bodyTarget.fullBody" useZeroValue disableAdornment onChangeCallback={updateExerciseToSave} />
+    <Box sx={{ my: 1 }}>
+      <InputLabel required>Body target</InputLabel>
+      <StatBarsField
+        data={exerciseToSave.bodyTarget as unknown as Record<string, number>}
+        labels={BODY_TARGET_LABELS}
+        fieldPrefix="bodyTarget"
+        onChange={updateExerciseToSave}
+      />
     </Box>
   );
 
@@ -295,8 +298,10 @@ const Insert = () => {
         {renderTools}
         {renderSetup}
         {renderMovementPlan}
-        {renderWorkingArea}
-        {renderBodyTarget}
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+          {renderWorkingArea}
+          {renderBodyTarget}
+        </Box>
         <Box sx={{ my: 2 }}>
           <Button variant="contained" onClick={OnClickSave}>
             Salva

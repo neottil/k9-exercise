@@ -127,7 +127,7 @@ const workingAreas: GridColDef = {
   headerName: "Aree Di Lavoro",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 300,
+  minWidth: 180,
   renderCell: WorkingAreaTable,
   flex: 1,
 };
@@ -139,7 +139,7 @@ const bodyTargets: GridColDef = {
   headerName: "Body Target",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 300,
+  minWidth: 180,
   renderCell: BodyTargetTable,
   flex: 1,
 };

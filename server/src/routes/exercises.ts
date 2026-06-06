@@ -15,9 +15,9 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction): void => 
 
 const router = Router();
 
-// Verifica connessione DB su tutte le route di questo router.
-// L'overhead è trascurabile (lettura di una proprietà intera).
-router.use(requireDbReady);
+// requireDbReady è applicato solo alle route di scrittura (POST / PUT).
+// Le GET possono girare anche con DB in fase di riconnessione: Mongoose
+// bufferizza la query e risponde non appena il DB torna disponibile.
 
 const TO_APPROVE    = "TO_APPROVE"    as const;
 const APPROVED      = "APPROVED"      as const;
@@ -164,7 +164,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 });
 
 // POST / — crea nuovo esercizio, sempre in stato TO_APPROVE
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", requireDbReady, async (req: Request, res: Response) => {
   try {
     const { id, ...rest } = req.body;
     const exercise = new Exercise({
@@ -190,7 +190,7 @@ router.post("/", async (req: Request, res: Response) => {
  *                              Se il diff è vuoto (tutte le modifiche annullate) → elimina
  *                              il change doc e ripristina APPROVED
  */
-router.put("/:id", async (req: Request, res: Response) => {
+router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
   const id = req.params.id;
   console.log(`[PUT /:id] id=${id}`);
   try {
@@ -289,7 +289,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 // POST /:id/approve — applica i campi selezionati sull'esercizio, lo riporta ad APPROVED (solo admin)
 // Body: { fieldsToApply?: Record<string, unknown> }
 // Se fieldsToApply è assente applica tutto il change doc (compatibilità backward).
-router.post("/:id/approve", requireAdmin, async (req: Request, res: Response) => {
+router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { fieldsToApply } = req.body as { fieldsToApply?: Record<string, unknown> };
   const session = await mongoose.startSession();
@@ -325,7 +325,7 @@ router.post("/:id/approve", requireAdmin, async (req: Request, res: Response) =>
 });
 
 // POST /:id/reject — elimina il change doc, riporta l'esercizio ad APPROVED (solo admin)
-router.post("/:id/reject", requireAdmin, async (req: Request, res: Response) => {
+router.post("/:id/reject", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
   const { id } = req.params;
   const session = await mongoose.startSession();
   try {

@@ -16,6 +16,7 @@ import {
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import type { PendingItem } from "../../interfaces/adminInterfaces";
+import { StatBarInline, WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatBars";
 
 const BG_CURRENT  = "#ffebee"; // rosso chiaro — valore attuale (campo modificato)
 const BG_PROPOSED = "#e8f5e9"; // verde chiaro — valore proposto
@@ -38,21 +39,6 @@ const FIELD_LABELS: Record<string, string> = {
   bodyTarget:   "Body target",
 };
 
-const WORKING_AREA_LABELS: Record<string, string> = {
-  mental:      "Mentale",
-  flexibility: "Flessibilità",
-  strength:    "Forza",
-  balance:     "Equilibrio",
-  cardio:      "Cardio",
-};
-
-const BODY_TARGET_LABELS: Record<string, string> = {
-  ant:      "Anteriore",
-  post:     "Posteriore",
-  core:     "Core",
-  backbone: "Colonna",
-  fullBody: "Fullbody",
-};
 
 // Per campo semplice → boolean; per workingArea/bodyTarget → Record<subKey, boolean>
 type FieldSelection = Record<string, boolean | Record<string, boolean>>;
@@ -115,57 +101,92 @@ const ValueCell = ({
   );
 };
 
-// ── Sotto-righe workingArea / bodyTarget ─────────────────────────────────────
+// ── Card per ogni sotto-campo (usate dentro la griglia 2-colonne) ─────────────
 
-const AreaSubRows = ({
-  fieldKey,
-  current,
-  proposed,
-  subLabels,
-  subSelection,
-  onToggleSub,
-}: {
+interface AreaSubCardsProps {
   fieldKey: string;
   current: Record<string, number> | undefined;
   proposed: Record<string, number> | null; // null = campo non in change.fields
   subLabels: Record<string, string>;
   subSelection: Record<string, boolean>;
   onToggleSub: (sub: string) => void;
-}) => (
-  <>
+}
+
+const AreaSubCards = ({
+  fieldKey,
+  current,
+  proposed,
+  subLabels,
+  subSelection,
+  onToggleSub,
+}: AreaSubCardsProps) => (
+  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
     {Object.entries(subLabels).map(([sub, label]) => {
       const cv      = current?.[sub] ?? 0;
       const pv      = proposed?.[sub] ?? 0;
       const changed = proposed !== null && cv !== pv;
       const checked = !!subSelection[sub];
       return (
-        <TableRow key={`${fieldKey}-${sub}`}>
-          <TableCell sx={{ width: 40, px: 0.5 }}>
+        <Box
+          key={`${fieldKey}-${sub}`}
+          sx={{
+            border: 1,
+            borderColor: changed && checked ? "primary.main" : changed ? "warning.light" : "divider",
+            borderRadius: 1,
+            overflow: "hidden",
+          }}
+        >
+          {/* Header card: etichetta + checkbox */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              px: 1,
+              py: 0.5,
+              bgcolor: "grey.50",
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: changed ? 600 : 400,
+                color: changed ? "text.primary" : "text.disabled",
+              }}
+            >
+              {label}
+            </Typography>
             {changed && (
               <Checkbox
                 size="small"
                 checked={checked}
                 onChange={() => onToggleSub(sub)}
+                sx={{ p: 0 }}
               />
             )}
-          </TableCell>
-          <TableCell
-            sx={{
-              pl: 4,
-              fontSize: 13,
-              color: changed ? "text.primary" : "text.disabled",
-              verticalAlign: "top",
-            }}
-          >
-            {label}
-          </TableCell>
-          <TableCell sx={{ p: 0, verticalAlign: "top" }}>
-            <ValueCell current={cv} proposed={pv} isChanged={changed} />
-          </TableCell>
-        </TableRow>
+          </Box>
+
+          {/* Valore / diff */}
+          {!changed ? (
+            <Box sx={{ p: 1, opacity: 0.45 }}>
+              <StatBarInline value={cv} />
+            </Box>
+          ) : (
+            <>
+              <Box sx={{ bgcolor: BG_CURRENT, p: 1, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
+                <StatBarInline value={cv} />
+              </Box>
+              <Box sx={{ bgcolor: BG_PROPOSED, p: 1 }}>
+                <StatBarInline value={pv} />
+              </Box>
+            </>
+          )}
+        </Box>
       );
     })}
-  </>
+  </Box>
 );
 
 // ── Prop types ───────────────────────────────────────────────────────────────
@@ -305,31 +326,66 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
               const current   = exerciseAsMap[field];
               const proposed  = changedAsMap[field];
 
-              // Oggetti annidati: workingArea / bodyTarget
-              if (field === "workingArea" || field === "bodyTarget") {
-                const subLabels = field === "workingArea" ? WORKING_AREA_LABELS : BODY_TARGET_LABELS;
-                const subSel    = (fieldSelection[field] as Record<string, boolean>) ?? {};
+              // workingArea e bodyTarget: una sola riga a 2 colonne affiancate
+              if (field === "workingArea") {
+                const waIsChanged  = isChanged;
+                const btIsChanged  = changedFields.includes("bodyTarget");
+                const waSubSel     = (fieldSelection["workingArea"] as Record<string, boolean>) ?? {};
+                const btSubSel     = (fieldSelection["bodyTarget"]  as Record<string, boolean>) ?? {};
+                const btCurrent    = exerciseAsMap["bodyTarget"];
+                const btProposed   = changedAsMap["bodyTarget"];
                 return (
-                  <Fragment key={field}>
-                    <TableRow>
-                      <TableCell
-                        colSpan={3}
-                        sx={{ fontWeight: "bold", bgcolor: "grey.100", py: 0.75, fontSize: 13 }}
+                  <TableRow key="areas-combined">
+                    <TableCell colSpan={3} sx={{ p: 1 }}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                          gap: 2,
+                        }}
                       >
-                        {FIELD_LABELS[field]}
-                      </TableCell>
-                    </TableRow>
-                    <AreaSubRows
-                      fieldKey={field}
-                      current={current as Record<string, number>}
-                      proposed={isChanged ? (proposed as Record<string, number>) : null}
-                      subLabels={subLabels}
-                      subSelection={subSel}
-                      onToggleSub={(sub) => toggleSubField(field, sub)}
-                    />
-                  </Fragment>
+                        {/* Colonna sinistra: Area target */}
+                        <Box>
+                          <Typography
+                            sx={{ fontWeight: "bold", fontSize: 13, px: 1, py: 0.75,
+                                  bgcolor: "grey.100", borderRadius: 0.5, mb: 1 }}
+                          >
+                            {FIELD_LABELS.workingArea}
+                          </Typography>
+                          <AreaSubCards
+                            fieldKey="workingArea"
+                            current={current as Record<string, number>}
+                            proposed={waIsChanged ? (proposed as Record<string, number>) : null}
+                            subLabels={WORKING_AREA_LABELS}
+                            subSelection={waSubSel}
+                            onToggleSub={(sub) => toggleSubField("workingArea", sub)}
+                          />
+                        </Box>
+                        {/* Colonna destra: Body target */}
+                        <Box>
+                          <Typography
+                            sx={{ fontWeight: "bold", fontSize: 13, px: 1, py: 0.75,
+                                  bgcolor: "grey.100", borderRadius: 0.5, mb: 1 }}
+                          >
+                            {FIELD_LABELS.bodyTarget}
+                          </Typography>
+                          <AreaSubCards
+                            fieldKey="bodyTarget"
+                            current={btCurrent as Record<string, number>}
+                            proposed={btIsChanged ? (btProposed as Record<string, number>) : null}
+                            subLabels={BODY_TARGET_LABELS}
+                            subSelection={btSubSel}
+                            onToggleSub={(sub) => toggleSubField("bodyTarget", sub)}
+                          />
+                        </Box>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
                 );
               }
+
+              // bodyTarget: già renderizzato insieme a workingArea, si salta
+              if (field === "bodyTarget") return null;
 
               // Campo semplice
               const checked = isChanged && !!fieldSelection[field];

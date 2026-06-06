@@ -22,7 +22,6 @@ npm version patch
 
 ## TODO'S
 
-- cambiare visualizzazione aree con diagramma a barre
 - script batch schedulato per segnalare nuovi utenti e esercizi
 
 ---

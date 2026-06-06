@@ -1,66 +1,26 @@
 import { useState } from "react";
 import { WorkingAreaViewFilters } from "../../interfaces/filterInterfaces";
-import {
-  ExpandLess,
-  ExpandMore,
-  Search as SearchIcon,
-} from "@mui/icons-material";
+import { ExpandLess, ExpandMore, Search as SearchIcon } from "@mui/icons-material";
 import { Collapse, Button, Typography, Box } from "@mui/material";
-import LevelSelectWithOperation from "../LevelSelect/WithOperation";
+import { StatBarsFilter, WORKING_AREA_LABELS } from "../StatBars";
 
 const WorkingAreaFilters = ({ value, onChangeCallback, resetCallback }: WorkingAreaViewFilters) => {
   const [isFiltersVisible, setIsFiltersVisible] = useState<boolean>(false);
 
-  const toggleFilters = () => {
-    setIsFiltersVisible(!isFiltersVisible);
-  };
-
   return (
     <Box sx={{ p: 0.5, flexGrow: 1 }}>
-      <Button onClick={toggleFilters} variant="contained" fullWidth>
+      <Button onClick={() => setIsFiltersVisible((v) => !v)} variant="contained" fullWidth>
         <SearchIcon sx={{ mr: 0.5 }} />
         <Typography variant="h6" sx={{ mr: 0.5 }}>
           Area target
         </Typography>
-        {isFiltersVisible ? (
-          <ExpandLess onClick={toggleFilters} />
-        ) : (
-          <ExpandMore onClick={toggleFilters} />
-        )}
+        {isFiltersVisible ? <ExpandLess /> : <ExpandMore />}
       </Button>
       <Collapse in={isFiltersVisible}>
-        <LevelSelectWithOperation
-          value={value.mental}
-          name="workingArea.mental"
-          label="Mentale"
-          onChangeCallback={onChangeCallback}
-          resetCallback={resetCallback}
-        />
-        <LevelSelectWithOperation
-          value={value.flexibility}
-          name="workingArea.flexibility"
-          label="Flessibilità"
-          onChangeCallback={onChangeCallback}
-          resetCallback={resetCallback}
-        />
-        <LevelSelectWithOperation
-          value={value.strength}
-          name="workingArea.strength"
-          label="Forza"
-          onChangeCallback={onChangeCallback}
-          resetCallback={resetCallback}
-        />
-        <LevelSelectWithOperation
-          value={value.balance}
-          name="workingArea.balance"
-          label="Equilibrio"
-          onChangeCallback={onChangeCallback}
-          resetCallback={resetCallback}
-        />
-        <LevelSelectWithOperation
-          value={value.cardio}
-          name="workingArea.cardio"
-          label="Cardio"
+        <StatBarsFilter
+          data={value as unknown as Record<string, { value: number; operation: "eq" | "gte" }>}
+          labels={WORKING_AREA_LABELS}
+          fieldPrefix="workingArea"
           onChangeCallback={onChangeCallback}
           resetCallback={resetCallback}
         />
