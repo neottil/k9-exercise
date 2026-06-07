@@ -7,13 +7,8 @@
     "dev:client": "npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
 
-    "version:client:patch": "node scripts/version.mjs client patch",
-    "version:client:minor": "node scripts/version.mjs client minor",
-    "version:client:major": "node scripts/version.mjs client major",
-
-    "version:server:patch": "node scripts/version.mjs server patch",
-    "version:server:minor": "node scripts/version.mjs server minor",
-    "version:server:major": "node scripts/version.mjs server major"
+    "version:client": "node scripts/version.mjs client",
+    "version:server": "node scripts/version.mjs server"
   },
   "devDependencies": {
     "concurrently": "^10.0.0"

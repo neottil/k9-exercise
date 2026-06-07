@@ -1,11 +1,14 @@
 /**
- * Bumpa la versione di client o server e crea un tag git dedicato.
+ * Legge la versione dal package.json di client o server e crea un tag git.
  *
- * Uso:  node scripts/version.mjs <client|server> <major|minor|patch>
+ * Uso:  node scripts/version.mjs <client|server>
  * Tag:  client-1.2.0  /  server-3.1.2
+ *
+ * Modifica manualmente <pkg>/package.json alla versione desiderata,
+ * poi lancia questo script.
  */
 
-import { execSync }   from "child_process";
+import { execSync }    from "child_process";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath }   from "url";
@@ -13,39 +16,29 @@ import { fileURLToPath }   from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot  = resolve(__dirname, "..");
 
-// ── Argomenti ──────────────────────────────────────────────────────────────────
+// ── Argomento ─────────────────────────────────────────────────────────────────
 
-const [,, pkg, bump] = process.argv;
+const [,, pkg] = process.argv;
 
-const VALID_PKG  = ["client", "server"];
-const VALID_BUMP = ["major", "minor", "patch"];
-
-if (!VALID_PKG.includes(pkg) || !VALID_BUMP.includes(bump)) {
-  console.error(
-    "\nUso: node scripts/version.mjs <client|server> <major|minor|patch>\n"
-  );
+if (!["client", "server"].includes(pkg)) {
+  console.error("\nUso: node scripts/version.mjs <client|server>\n");
   process.exit(1);
 }
 
-const pkgDir      = resolve(repoRoot, pkg);
-const pkgJsonPath = resolve(pkgDir, "package.json");
+// ── Leggi versione dal package.json ──────────────────────────────────────────
 
-const run = (cmd, cwd = repoRoot) =>
-  execSync(cmd, { cwd, stdio: "inherit" });
-
-// ── 1. Bump versione (solo package.json, nessun tag npm) ──────────────────────
-
-run(`npm version ${bump} --no-git-tag-version`, pkgDir);
-
-// ── 2. Leggi la nuova versione ────────────────────────────────────────────────
-
+const pkgJsonPath = resolve(repoRoot, pkg, "package.json");
 const { version } = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+
+if (!version) {
+  console.error(`\nNessuna versione trovata in ${pkg}/package.json\n`);
+  process.exit(1);
+}
+
 const tag = `${pkg}-${version}`;
 
-// ── 3. Commit + tag git ───────────────────────────────────────────────────────
+// ── Tag git ───────────────────────────────────────────────────────────────────
 
-run(`git add ${pkg}/package.json`);
-run(`git commit -m "chore(${pkg}): bump version to ${version}"`);
-run(`git tag ${tag}`);
+execSync(`git tag ${tag}`, { cwd: repoRoot, stdio: "inherit" });
 
 console.log(`\n✓  ${tag}\n`);
