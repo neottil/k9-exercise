@@ -1,0 +1,32 @@
+# Traefik e' l'ingress controller incluso di default in k3s.
+# Le chiamate /api/ passano per il proxy KEDA (conta le richieste e scala).
+# Tutto il resto va al client nginx che serve la React SPA.
+#
+# ${DOMAIN} viene sostituito dalla GitHub Action con envsubst.
+# Imposta la GitHub Variable DOMAIN con il tuo sottodominio (es. k9.tuodominio.com).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: k9-ingress
+  namespace: k9
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+    - host: ${DOMAIN}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: keda-interceptor
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: k9-client
+                port:
+                  number: 80

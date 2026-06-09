@@ -1,0 +1,14 @@
+# ExternalName service che espone l'interceptor HTTP di KEDA (namespace keda)
+# nel namespace k9, cosi' l'Ingress puo' instradare /api/ attraverso KEDA
+# senza uscire dal cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keda-interceptor
+  namespace: k9
+spec:
+  type: ExternalName
+  externalName: keda-add-ons-http-interceptor-proxy.keda.svc.cluster.local
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -2,6 +2,24 @@
 
 ## Set up local env
 
+**Prerequisiti**: Node.js 22+, Docker
+
+```bash
+# 1. Copia le variabili d'ambiente
+cp .env.example .env
+# Modifica MONGODB_URI, SESSION_SECRET ecc. nel file .env
+
+# 2. Avvia MongoDB locale con replica set
+docker compose -f local/docker-compose.yml up -d
+
+# 3. Server (porta 3001)
+cd server && npm install && npm run dev
+
+# 4. Client (porta 5173) — in un altro terminale
+cd client && npm install && npm run dev
+```
+
+---
 
 ## Check before push
 
@@ -23,6 +41,306 @@ npm version patch
 ## TODO'S
 
 - script batch schedulato per segnalare nuovi utenti e esercizi
+
+---
+
+## Deploy in produzione
+
+### Architettura
+
+```
+Browser
+   │
+   ▼
+Traefik  (ingress controller incluso in k3s)
+   │
+   ├─ /api/*  ──▶  KEDA HTTP Interceptor
+   │                      │  conta richieste in coda
+   │                      │  scala automaticamente 1 → 4 pod
+   │                      ▼
+   │               k9-server pods (Express + Node.js)
+   │                      │
+   │                      ▼
+   │               MongoDB Atlas
+   │
+   └─ /*     ──▶  k9-client pod (nginx — serve React SPA)
+```
+
+Il client nginx è una replica fissa: gestisce 10.000+ connessioni concorrenti
+con ~50 MB di RAM, non è mai il collo di bottiglia. Solo il server scala.
+
+---
+
+### Configurazione VPS (Hetzner Cloud)
+
+#### 1. Generazione chiave SSH
+
+La stessa coppia di chiavi serve per due cose:
+- La chiave **pubblica** → Hetzner (per autenticarti sul VPS)
+- La chiave **privata** → GitHub Secret `VPS_SSH_KEY` (per permettere alla Action di fare SSH sul VPS)
+
+```
+┌──────────────┐    chiave pubblica     ┌─────────────┐
+│  Il tuo PC   │ ──────────────────────▶│   Hetzner   │
+│              │                        │     VPS     │
+│  chiave      │    chiave privata      │             │
+│  privata     │ ──────────────────────▶│  GitHub     │
+│              │    (GitHub Secret)     │  Action     │
+└──────────────┘                        └─────────────┘
+```
+
+**Su Windows** (PowerShell o Git Bash):
+
+```powershell
+# Genera la coppia di chiavi — premi Invio a tutte le domande
+# (lascia la passphrase vuota: la Action non può inserirla)
+ssh-keygen -t ed25519 -C "k9-deploy" -f "$env:USERPROFILE\.ssh\k9_deploy"
+
+# Mostra la chiave PUBBLICA (da copiare su Hetzner)
+Get-Content "$env:USERPROFILE\.ssh\k9_deploy.pub"
+
+# Mostra la chiave PRIVATA (da copiare nel segreto GitHub VPS_SSH_KEY)
+Get-Content "$env:USERPROFILE\.ssh\k9_deploy"
+```
+
+**Su macOS / Linux:**
+
+```bash
+ssh-keygen -t ed25519 -C "k9-deploy" -f ~/.ssh/k9_deploy
+
+cat ~/.ssh/k9_deploy.pub   # → Hetzner
+cat ~/.ssh/k9_deploy        # → GitHub Secret VPS_SSH_KEY
+```
+
+Vengono creati due file:
+| File | Contenuto | Dove va |
+|------|-----------|---------|
+| `k9_deploy.pub` | Chiave pubblica | Hetzner → Security → SSH Keys |
+| `k9_deploy` | Chiave privata | GitHub → Secrets → `VPS_SSH_KEY` |
+
+> **Importante**: la chiave privata non va mai condivisa né committata nel repository.
+> Lascia la passphrase vuota durante la generazione: la GitHub Action non può
+> inserire password interattive.
+
+#### 2. Creazione VPS
+
+1. Crea account su [hetzner.com/cloud](https://www.hetzner.com/cloud)
+2. Aggiungi la chiave pubblica: **Security → SSH Keys → Add SSH Key**
+   → incolla il contenuto di `k9_deploy.pub`
+3. Crea un server:
+   - **Location**: Nuremberg o Helsinki
+   - **Image**: Ubuntu 24.04
+   - **Type**: `CAX11` — ARM, 2 vCPU, 4 GB RAM, €4.15/mese *(consigliato)*
+     oppure `CX22` — x86, 2 vCPU, 4 GB RAM, €4.85/mese
+4. Annota l'IP del server
+5. Crea un **Firewall** e apri solo le regole **inbound**:
+
+   | Porta | Protocollo | Sorgente | Scopo |
+   |-------|------------|----------|-------|
+   | 22 | TCP | Il tuo IP | SSH |
+   | 80 | TCP | Any | HTTP |
+   | 443 | TCP | Any | HTTPS |
+
+   > Le regole **outbound non servono**: Hetzner non filtra il traffico in
+   > uscita dal VPS. Il server può connettersi liberamente a MongoDB Atlas
+   > e a qualsiasi altro servizio esterno.
+
+6. **MongoDB Atlas — IP Access List**: Atlas ha il proprio firewall che blocca
+   tutto di default. Aggiungi l'IP del VPS alla whitelist altrimenti il server
+   non riuscirà a connettersi al database:
+   - Apri il progetto su [cloud.mongodb.com](https://cloud.mongodb.com)
+   - **Network Access → Add IP Address**
+   - Inserisci l'IP del VPS Hetzner
+   - Clicca **Confirm**
+
+   > Se in futuro aggiungi un secondo nodo al cluster k3s, ricorda di aggiungere
+   > anche il suo IP alla whitelist Atlas.
+
+#### 2. Inizializzazione automatica con cloud-init
+
+Hetzner permette di incollare uno script nel campo **"User data"** durante
+la creazione del server. Lo script viene eseguito automaticamente al primo
+avvio — nessun intervento manuale necessario.
+
+Lo script si trova in `scripts/cloud-init.sh` nel repository.
+Copiane il contenuto e incollalo nel campo "User data" su Hetzner.
+
+**Cosa fa lo script:**
+
+| Step | Operazione |
+|------|-----------|
+| 1 | Aggiornamento sistema + installazione `curl`, `gettext-base` |
+| 2 | Creazione utente `deploy` (SSH e kubectl senza root) |
+| 3 | Installazione k3s (Kubernetes + Traefik + CoreDNS) |
+| 4 | Installazione KEDA (controller autoscaling) |
+| 5 | Installazione KEDA HTTP Add-on (scaling su richieste HTTP) |
+| 6 | Installazione Kubernetes Dashboard (UI per pod, risorse, log) |
+
+Al termine, lo script scrive `/opt/k9/.init-complete` come marker di completamento
+e stampa i prossimi passi nel log `/var/log/k9-init.log`.
+
+**Verifica dopo il primo avvio** (attendi 3-5 minuti, poi):
+
+```bash
+ssh root@<IP_VPS>
+
+# Controlla che lo script sia terminato
+cat /opt/k9/.init-complete   # deve esistere
+
+# Verifica il cluster
+kubectl get nodes             # STATUS: Ready
+kubectl get pods -A           # tutti i pod Running
+```
+
+> Se preferisci eseguire lo script manualmente su un server già avviato:
+> ```bash
+> bash scripts/cloud-init.sh
+> ```
+
+#### 3. Configurazione dominio
+
+Il dominio è gestito tramite la GitHub Variable `DOMAIN` (vedere sezione successiva).
+Non serve modificare i file YAML manualmente: la GitHub Action sostituisce
+`${DOMAIN}` in `k8s/ingress.yaml` e `k8s/server/hso.yaml` ad ogni deploy.
+
+Aggiungi un record DNS sul tuo provider (es. Route 53 su AWS):
+
+| Tipo | Nome | Valore |
+|------|------|--------|
+| `A` | `k9` (o il sottodominio che preferisci) | IP del VPS Hetzner |
+
+Poi imposta la Variable `DOMAIN` su GitHub con il sottodominio completo
+(es. `k9.tuodominio.com`) e fai push — il deploy applica la modifica automaticamente.
+
+#### 4. HTTPS con cert-manager (opzionale)
+
+```bash
+# Installa cert-manager
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.0/cert-manager.yaml
+
+# Crea ClusterIssuer per Let's Encrypt
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: tua@email.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            class: traefik
+EOF
+```
+
+Poi aggiungi in `k8s/ingress.yaml`:
+```yaml
+annotations:
+  cert-manager.io/cluster-issuer: letsencrypt-prod
+  traefik.ingress.kubernetes.io/router.entrypoints: websecure
+```
+
+---
+
+### GitHub Actions — Segreti e variabili
+
+Vai su **GitHub → Settings → Secrets and variables → Actions**.
+
+#### Secrets (valori sensibili — cifrati, non visibili nei log)
+
+| Nome | Valore | Note |
+|------|--------|------|
+| `VPS_HOST` | `178.105.245.252` | IP del VPS Hetzner |
+| `VPS_USER` | `deploy` | Utente SSH creato da cloud-init |
+| `VPS_SSH_KEY` | Contenuto di `~/.ssh/k9_deploy` | Chiave **privata** — non il `.pub` |
+| `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/k9` | Stringa connessione Atlas |
+| `SESSION_SECRET` | Output di `openssl rand -hex 32` | Stringa random per le sessioni |
+| `GHCR_PAT` | Personal Access Token GitHub | Serve al VPS per fare pull delle immagini ¹ |
+
+> ¹ **Come creare il GHCR_PAT**: GitHub → foto profilo → **Settings** (del profilo, non del repo)
+> → in fondo a sinistra → **Developer settings** → **Personal access tokens → Tokens (classic)**
+> → **Generate new token** → spunta solo `read:packages` → copia il token generato.
+>
+> `GITHUB_TOKEN` (usato per il push delle immagini nella Action) è automatico — non va configurato.
+
+#### Variables (valori non sensibili — visibili nei log di build)
+
+| Nome | Valore | Effetto |
+|------|--------|---------|
+| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress Traefik e KEDA HTTPScaledObject |
+| `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server Node.js |
+| `VITE_ENABLE_WITH_OPERATION_FILTER` | `true` / `false` | Feature flag baked nel bundle React al momento del build |
+
+> **Secrets vs Variables**: i Secrets sono cifrati e mascherati nei log.
+> Le Variables sono in chiaro — usarle solo per valori non sensibili come feature flag e domini.
+
+---
+
+### Deploy e rollback
+
+**Deploy automatico**: ogni push su `main` avvia la Action che:
+1. Legge le versioni da `server/package.json` e `client/package.json`
+2. Build immagini Docker (linux/amd64)
+3. Push su `ghcr.io` con tag versione (es. `k9-server:1.1.0`)
+4. Applica i manifest k8s sul VPS con `kubectl`
+5. Attende il completamento del rollout
+
+**Rollback**:
+```bash
+# Torna al deploy precedente (Kubernetes mantiene la history)
+kubectl rollout undo deployment/k9-server -n k9
+kubectl rollout undo deployment/k9-client -n k9
+
+# Torna a una revisione specifica
+kubectl rollout history deployment/k9-server -n k9   # vedi lista revisioni
+kubectl rollout undo deployment/k9-server -n k9 --to-revision=2
+
+# Rollback a un tag specifico
+kubectl set image deployment/k9-server \
+  server=ghcr.io/<owner>/k9-server:1.0.0 -n k9
+```
+
+---
+
+### Scaling
+
+#### Autoscaling server (KEDA HTTP)
+
+Il server scala da 1 a 4 pod in base alle richieste `/api` in coda.
+Parametri in `k8s/server/hso.yaml`:
+
+| Parametro | Default | Significato |
+|-----------|---------|-------------|
+| `targetPendingRequests` | `100` | Richieste in attesa per replica che triggerano un nuovo pod |
+| `scaledownPeriod` | `300` | Secondi di traffico basso prima di ridurre i pod |
+| `replicas.min` | `1` | Pod sempre attivi — nessun cold start |
+| `replicas.max` | `4` | Massimo 4 × 0.5 CPU = 2 vCPU totali (CAX11/CX22) |
+
+#### Scaling verticale (resize VPS)
+
+Da Hetzner Cloud Console: **Server → Rescale → piano superiore**.
+Richiede reboot (~2 minuti di downtime).
+
+#### Scaling orizzontale (secondo nodo)
+
+```bash
+# Sul VPS principale — recupera il token di join
+cat /var/lib/rancher/k3s/server/node-token
+
+# Sul nuovo VPS — entra nel cluster
+curl -sfL https://get.k3s.io | \
+  K3S_URL=https://<IP_VPS_PRINCIPALE>:6443 \
+  K3S_TOKEN=<TOKEN> sh -
+
+# Verifica dal VPS principale
+kubectl get nodes   # mostra entrambi i nodi
+```
+
+KEDA distribuisce automaticamente i pod sui nodi disponibili.
 
 ---
 

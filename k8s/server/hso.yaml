@@ -1,0 +1,31 @@
+# HTTPScaledObject — KEDA HTTP Add-on
+#
+# Logica di scaling:
+#   - min 1 replica sempre attiva (nessun cold start)
+#   - scala verso l'alto quando le richieste /api in coda superano
+#     targetPendingRequests PER replica (es. 100 richieste in attesa → 2a replica)
+#   - scala verso il basso dopo scaledownPeriod secondi di traffico calato
+#   - massimo 4 repliche (4 × 0.5 CPU = 2 vCPU totali su CAX11/CX22)
+#
+# ${DOMAIN} viene sostituito dalla GitHub Action con envsubst (stesso valore di ingress.yaml).
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: k9-server
+  namespace: k9
+spec:
+  hosts:
+    - ${DOMAIN}
+  pathPrefixes:
+    - /api
+  targetPendingRequests: 100
+  scaledownPeriod: 300
+  replicas:
+    min: 1
+    max: 4
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: k9-server
+    service: k9-server
+    port: 3001

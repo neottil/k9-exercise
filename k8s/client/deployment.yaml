@@ -1,0 +1,38 @@
+# ${CLIENT_IMAGE} viene sostituito dalla GitHub Action con envsubst.
+# Il client e' nginx statico — non ha autoscaling, 1 replica e' sufficiente.
+# Rollback manuale: kubectl rollout undo deployment/k9-client -n k9
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k9-client
+  namespace: k9
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k9-client
+  template:
+    metadata:
+      labels:
+        app: k9-client
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: client
+          image: ${CLIENT_IMAGE}
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
