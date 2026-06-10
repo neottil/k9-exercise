@@ -168,13 +168,19 @@ jobs:
 
       # ── 4. Deploy ─────────────────────────────────────────────────────────────
 
+      - name: Write SSH key
+        if: steps.analyze.outputs.deploy == 'true'
+        run: |
+          echo "${{ secrets.VPS_SSH_KEY }}" > /tmp/vps_key
+          chmod 600 /tmp/vps_key
+
       - name: Copy k8s manifests to VPS
         if: steps.analyze.outputs.deploy == 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ vars.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key_path: /tmp/vps_key
           source: k8s/
           target: /opt/k9/
 
@@ -184,7 +190,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ vars.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key_path: /tmp/vps_key
           script: |
             kubectl apply -f /opt/k9/k8s/namespace.yaml
 

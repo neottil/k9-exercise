@@ -38,21 +38,9 @@ cd client && npm install && npm run dev
 
 ---
 
-## Check before push
+## Automatic versioning from github action
 
-Run "npm run build" before push to verify if build run correctly.
-
-Update version with
-
-```
-# Incrementa la versione maggiore
-npm version major
-
-# Incrementa la versione minore
-npm version minor
-
-# Incrementa la patch
-npm version patch
+La action github configurata crea tag automaticamente in base al bump type (calcolato con conventional commit) allo scope della commit. Anche build e deploy seguono bump e scope.
 ```
 
 ---
