@@ -3,49 +3,131 @@ name: Build & Deploy
 on:
   push:
     branches: [main]
-    tags:
-      - 'server-*'
-      - 'client-*'
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
+      contents: write   # necessario per il commit di bump versione
       packages: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          # fetch-tags necessario per leggere i tag git sul commit corrente
-          fetch-tags: true
+          fetch-depth: 2   # necessario per git diff HEAD~1
 
-      # Cerca i tag server-x.y.z e client-x.y.z che puntano a questo commit.
-      # Se non ce ne sono la Action termina con un warning e salta tutto il resto.
-      - name: Detect deploy tags
-        id: tags
+      # ── 1. Analisi commit ─────────────────────────────────────────────────────
+      #
+      # Conventional commit → bump type:
+      #   tipo!: / tipo(scope)!: / BREAKING CHANGE nel body  →  major
+      #   feat: / feat(scope):                               →  minor
+      #   tutto il resto (fix, chore, docs, ...)             →  patch
+      #
+      # File modificati → flag indipendenti (possono coesistere):
+      #   client/  →  has_client=true  →  bump client/package.json + tag client-x.y.z
+      #   server/  →  has_server=true  →  bump server/package.json + tag server-x.y.z
+      #   k8s/     →  has_k8s=true     →  bump package.json radice  + tag k8s-x.y.z
+      #
+      # deploy=true solo se has_client o has_server (k8s-only non triggera il cluster)
+
+      - name: Analyze commit
+        id: analyze
         run: |
-          SERVER_TAG=$(git tag --points-at HEAD | grep '^server-' | head -1)
-          CLIENT_TAG=$(git tag --points-at HEAD | grep '^client-' | head -1)
+          COMMIT_MSG=$(git log -1 --format=%s)
+          COMMIT_BODY=$(git log -1 --format=%b)
 
-          echo "server_tag=$SERVER_TAG"   >> $GITHUB_OUTPUT
-          echo "client_tag=$CLIENT_TAG"   >> $GITHUB_OUTPUT
-          echo "server_version=${SERVER_TAG#server-}" >> $GITHUB_OUTPUT
-          echo "client_version=${CLIENT_TAG#client-}" >> $GITHUB_OUTPUT
-
-          if [ -z "$SERVER_TAG" ] && [ -z "$CLIENT_TAG" ]; then
-            echo "::warning::Nessun tag server-* o client-* trovato su questo commit. Build e deploy saltati."
-            echo "deploy=false" >> $GITHUB_OUTPUT
+          # Bump type da conventional commit
+          if echo "$COMMIT_MSG" | grep -qE '^[a-z]+(\(.+\))?!:' || \
+             echo "$COMMIT_BODY" | grep -q 'BREAKING CHANGE'; then
+            BUMP="major"
+          elif echo "$COMMIT_MSG" | grep -qE '^feat(\(.+\))?:'; then
+            BUMP="minor"
           else
-            echo "deploy=true" >> $GITHUB_OUTPUT
-            [ -n "$SERVER_TAG" ] && echo "  → server: $SERVER_TAG"
-            [ -n "$CLIENT_TAG" ] && echo "  → client: $CLIENT_TAG"
+            BUMP="patch"
           fi
 
+          # File modificati (fallback per il primo commit del repo)
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null \
+                    || git show --name-only --format='' HEAD)
+
+          HAS_CLIENT=false; HAS_SERVER=false; HAS_K8S=false
+
+          echo "$CHANGED" | grep -qE '^client/' && HAS_CLIENT=true || true
+          echo "$CHANGED" | grep -qE '^server/' && HAS_SERVER=true || true
+          echo "$CHANGED" | grep -qE '^k8s/'    && HAS_K8S=true    || true
+
+          if $HAS_CLIENT || $HAS_SERVER; then DEPLOY=true; else DEPLOY=false; fi
+
+          if ! $HAS_CLIENT && ! $HAS_SERVER && ! $HAS_K8S; then
+            echo "::warning::Nessuna modifica in client/, server/ o k8s/. Saltato."
+          fi
+
+          echo "bump=$BUMP"             >> $GITHUB_OUTPUT
+          echo "has_client=$HAS_CLIENT" >> $GITHUB_OUTPUT
+          echo "has_server=$HAS_SERVER" >> $GITHUB_OUTPUT
+          echo "has_k8s=$HAS_K8S"       >> $GITHUB_OUTPUT
+          echo "deploy=$DEPLOY"         >> $GITHUB_OUTPUT
+          echo "→ client=$HAS_CLIENT  server=$HAS_SERVER  k8s=$HAS_K8S  bump=$BUMP  deploy=$DEPLOY"
+
+      # ── 2. Bump versione e commit ─────────────────────────────────────────────
+      #
+      # Ogni flag attivo bumpa il package.json corrispondente:
+      #   has_client → client/package.json
+      #   has_server → server/package.json
+      #   has_k8s    → package.json (radice, traccia versione infrastruttura)
+      #
+      # Il commit usa [skip ci] per non innescare un nuovo run.
+      # I tag vengono pushati insieme al commit con --follow-tags.
+
+      - name: Bump versions
+        if: |
+          steps.analyze.outputs.has_client == 'true' ||
+          steps.analyze.outputs.has_server == 'true' ||
+          steps.analyze.outputs.has_k8s    == 'true'
+        id: versions
+        run: |
+          BUMP="${{ steps.analyze.outputs.bump }}"
+          HAS_CLIENT="${{ steps.analyze.outputs.has_client }}"
+          HAS_SERVER="${{ steps.analyze.outputs.has_server }}"
+          HAS_K8S="${{ steps.analyze.outputs.has_k8s }}"
+
+          bump() { npm --prefix "$1" version "$BUMP" --no-git-tag-version; }
+
+          [ "$HAS_CLIENT" = "true" ] && bump client || true
+          [ "$HAS_SERVER" = "true" ] && bump server || true
+          [ "$HAS_K8S"    = "true" ] && npm version "$BUMP" --no-git-tag-version || true
+
+          echo "client_version=$(node -p "require('./client/package.json').version")" >> $GITHUB_OUTPUT
+          echo "server_version=$(node -p "require('./server/package.json').version")" >> $GITHUB_OUTPUT
+          echo "k8s_version=$(node -p "require('./package.json').version")"           >> $GITHUB_OUTPUT
+
+      - name: Commit and push version bump
+        if: |
+          steps.analyze.outputs.has_client == 'true' ||
+          steps.analyze.outputs.has_server == 'true' ||
+          steps.analyze.outputs.has_k8s    == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git diff --cached --quiet || git commit -m "chore: bump version [skip ci]"
+
+          HAS_CLIENT="${{ steps.analyze.outputs.has_client }}"
+          HAS_SERVER="${{ steps.analyze.outputs.has_server }}"
+          HAS_K8S="${{ steps.analyze.outputs.has_k8s }}"
+
+          [ "$HAS_CLIENT" = "true" ] && git tag "client-${{ steps.versions.outputs.client_version }}" || true
+          [ "$HAS_SERVER" = "true" ] && git tag "server-${{ steps.versions.outputs.server_version }}" || true
+          [ "$HAS_K8S"    = "true" ] && git tag "k8s-${{ steps.versions.outputs.k8s_version }}"      || true
+
+          git push --follow-tags
+
+      # ── 3. Docker build ───────────────────────────────────────────────────────
+
       - name: Login to GitHub Container Registry
-        if: steps.tags.outputs.deploy == 'true'
+        if: steps.analyze.outputs.deploy == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -53,28 +135,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        if: steps.tags.outputs.deploy == 'true'
+        if: steps.analyze.outputs.deploy == 'true'
         uses: docker/setup-buildx-action@v3
 
-      # ── Server ────────────────────────────────────────────────────────────────
-
       - name: Build and push server image
-        if: steps.tags.outputs.server_tag != ''
+        if: steps.analyze.outputs.has_server == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./server
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.tags.outputs.server_version }}
+            ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}
             ghcr.io/${{ github.repository_owner }}/k9-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ── Client ────────────────────────────────────────────────────────────────
-
       - name: Build and push client image
-        if: steps.tags.outputs.client_tag != ''
+        if: steps.analyze.outputs.has_client == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./client
@@ -83,49 +161,44 @@ jobs:
           build-args: |
             VITE_ENABLE_WITH_OPERATION_FILTER=${{ vars.VITE_ENABLE_WITH_OPERATION_FILTER }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.tags.outputs.client_version }}
+            ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}
             ghcr.io/${{ github.repository_owner }}/k9-client:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ── Deploy ────────────────────────────────────────────────────────────────
+      # ── 4. Deploy ─────────────────────────────────────────────────────────────
 
       - name: Copy k8s manifests to VPS
-        if: steps.tags.outputs.deploy == 'true'
+        if: steps.analyze.outputs.deploy == 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ vars.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: k8s/
           target: /opt/k9/
 
       - name: Deploy to k3s
-        if: steps.tags.outputs.deploy == 'true'
+        if: steps.analyze.outputs.deploy == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ vars.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # --- Namespace (deve esistere prima di tutto il resto) ---
             kubectl apply -f /opt/k9/k8s/namespace.yaml
 
-            # --- Secrets (crea o aggiorna in modo idempotente) ---
             kubectl create secret generic k9-secrets \
               --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
               --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
-              --namespace=k9 \
-              --dry-run=client -o yaml | kubectl apply -f -
+              --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
             kubectl create secret docker-registry ghcr-secret \
               --docker-server=ghcr.io \
               --docker-username=${{ github.repository_owner }} \
               --docker-password="${{ secrets.GHCR_PAT }}" \
-              --namespace=k9 \
-              --dry-run=client -o yaml | kubectl apply -f -
+              --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
-            # --- Risorse infrastruttura (sempre aggiornate) ---
             export DOMAIN="${{ vars.DOMAIN }}"
             export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
 
@@ -135,20 +208,16 @@ jobs:
             envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
             envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
 
-            # --- Deploy server (solo se il tag server-* è presente) ---
-            SERVER_VERSION="${{ steps.tags.outputs.server_version }}"
-            if [ -n "$SERVER_VERSION" ]; then
-              echo "→ Deploy server:${SERVER_VERSION}"
-              export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${SERVER_VERSION}"
+            if [ "${{ steps.analyze.outputs.has_server }}" = "true" ]; then
+              echo "→ Deploy server:${{ steps.versions.outputs.server_version }}"
+              export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}"
               envsubst '${SERVER_IMAGE} ${AUTH_ENABLED}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
               kubectl rollout status deployment/k9-server -n k9 --timeout=120s
             fi
 
-            # --- Deploy client (solo se il tag client-* è presente) ---
-            CLIENT_VERSION="${{ steps.tags.outputs.client_version }}"
-            if [ -n "$CLIENT_VERSION" ]; then
-              echo "→ Deploy client:${CLIENT_VERSION}"
-              export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${CLIENT_VERSION}"
+            if [ "${{ steps.analyze.outputs.has_client }}" = "true" ]; then
+              echo "→ Deploy client:${{ steps.versions.outputs.client_version }}"
+              export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}"
               envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
               kubectl rollout status deployment/k9-client -n k9 --timeout=120s
             fi

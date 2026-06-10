@@ -1,5 +1,10 @@
 # K9-EXERCISE-APP
 
+## TODO'S
+
+- script batch schedulato per segnalare nuovi utenti e esercizi
+- versione server su frontend. Spostare in una modale da menu info
+
 ## Set up local env
 
 **Prerequisiti**: Node.js 22+, Docker
@@ -37,10 +42,6 @@ npm version minor
 # Incrementa la patch
 npm version patch
 ```
-
-## TODO'S
-
-- script batch schedulato per segnalare nuovi utenti e esercizi
 
 ---
 
