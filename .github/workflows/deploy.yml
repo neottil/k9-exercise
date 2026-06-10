@@ -118,9 +118,9 @@ jobs:
           HAS_SERVER="${{ steps.analyze.outputs.has_server }}"
           HAS_K8S="${{ steps.analyze.outputs.has_k8s }}"
 
-          [ "$HAS_CLIENT" = "true" ] && git tag "client-${{ steps.versions.outputs.client_version }}" || true
-          [ "$HAS_SERVER" = "true" ] && git tag "server-${{ steps.versions.outputs.server_version }}" || true
-          [ "$HAS_K8S"    = "true" ] && git tag "k8s-${{ steps.versions.outputs.k8s_version }}"      || true
+          [ "$HAS_CLIENT" = "true" ] && git tag -a "client-${{ steps.versions.outputs.client_version }}" -m "client ${{ steps.versions.outputs.client_version }}" || true
+          [ "$HAS_SERVER" = "true" ] && git tag -a "server-${{ steps.versions.outputs.server_version }}" -m "server ${{ steps.versions.outputs.server_version }}" || true
+          [ "$HAS_K8S"    = "true" ] && git tag -a "k8s-${{ steps.versions.outputs.k8s_version }}" -m "k8s ${{ steps.versions.outputs.k8s_version }}"            || true
 
           git push --follow-tags
 

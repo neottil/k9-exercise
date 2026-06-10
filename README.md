@@ -1,4 +1,16 @@
-# K9-EXERCISE-APP
+# K9 Exercise Database
+
+Database di esercizi per il cross-training cinofilo. Permette di consultare, filtrare e gestire un catalogo strutturato di esercizi per cani, organizzati per tipologia, difficoltà, attrezzi necessari, area di lavoro e target corporeo.
+
+**Stack**: React + Vite (client) · Express + TypeScript (server) · MongoDB Atlas
+
+**Funzionalità principali**:
+- Catalogo esercizi con filtri multipli e visualizzazione a tabella
+- Pannello admin per aggiungere, modificare e approvare esercizi con diff visuale delle modifiche proposte
+- Autenticazione nativa con ruoli `viewer` / `admin`, integrabile con WordPress via JWT
+- Autoscaling automatico del server in base al traffico HTTP (KEDA su Kubernetes)
+
+---
 
 ## TODO'S
 
