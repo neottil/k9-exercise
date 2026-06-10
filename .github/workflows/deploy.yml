@@ -176,54 +176,53 @@ jobs:
 
       - name: Copy k8s manifests to VPS
         if: steps.analyze.outputs.deploy == 'true'
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ vars.VPS_USER }}
-          key_path: /tmp/vps_key
-          source: k8s/
-          target: /opt/k9/
+        run: |
+          scp -i /tmp/vps_key \
+              -r \
+              -o StrictHostKeyChecking=no \
+              k8s \
+              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/k9/
 
       - name: Deploy to k3s
         if: steps.analyze.outputs.deploy == 'true'
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ vars.VPS_USER }}
-          key_path: /tmp/vps_key
-          script: |
-            kubectl apply -f /opt/k9/k8s/namespace.yaml
+        run: |
+          ssh -i /tmp/vps_key \
+              -o StrictHostKeyChecking=no \
+              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
+          export KUBECONFIG=/home/deploy/.kube/config
+          kubectl apply -f /opt/k9/k8s/namespace.yaml
 
-            kubectl create secret generic k9-secrets \
-              --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
-              --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
-              --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic k9-secrets \
+            --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+            --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
-            kubectl create secret docker-registry ghcr-secret \
-              --docker-server=ghcr.io \
-              --docker-username=${{ github.repository_owner }} \
-              --docker-password="${{ secrets.GHCR_PAT }}" \
-              --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.repository_owner }} \
+            --docker-password="${{ secrets.GHCR_PAT }}" \
+            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
-            export DOMAIN="${{ vars.DOMAIN }}"
-            export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
+          export DOMAIN="${{ vars.DOMAIN }}"
+          export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
 
-            kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
-            kubectl apply -f /opt/k9/k8s/server/service.yaml
-            kubectl apply -f /opt/k9/k8s/client/service.yaml
-            envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
-            envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
+          kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
+          kubectl apply -f /opt/k9/k8s/server/service.yaml
+          kubectl apply -f /opt/k9/k8s/client/service.yaml
+          envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
+          envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
 
-            if [ "${{ steps.analyze.outputs.has_server }}" = "true" ]; then
-              echo "→ Deploy server:${{ steps.versions.outputs.server_version }}"
-              export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}"
-              envsubst '${SERVER_IMAGE} ${AUTH_ENABLED}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
-              kubectl rollout status deployment/k9-server -n k9 --timeout=120s
-            fi
+          if [ "${{ steps.analyze.outputs.has_server }}" = "true" ]; then
+            echo "→ Deploy server:${{ steps.versions.outputs.server_version }}"
+            export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}"
+            envsubst '${SERVER_IMAGE} ${AUTH_ENABLED}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
+            kubectl rollout status deployment/k9-server -n k9 --timeout=120s
+          fi
 
-            if [ "${{ steps.analyze.outputs.has_client }}" = "true" ]; then
-              echo "→ Deploy client:${{ steps.versions.outputs.client_version }}"
-              export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}"
-              envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
-              kubectl rollout status deployment/k9-client -n k9 --timeout=120s
-            fi
+          if [ "${{ steps.analyze.outputs.has_client }}" = "true" ]; then
+            echo "→ Deploy client:${{ steps.versions.outputs.client_version }}"
+            export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}"
+            envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
+            kubectl rollout status deployment/k9-client -n k9 --timeout=120s
+          fi
+          ENDSSH
