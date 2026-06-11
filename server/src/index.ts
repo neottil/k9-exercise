@@ -16,6 +16,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const app = express();
+
+// Traefik termina TLS e parla HTTP con Express internamente.
+// Senza trust proxy, req.secure = false e express-session salta Set-Cookie
+// quando cookie.secure = true. Con trust proxy = 1, Express legge
+// X-Forwarded-Proto: https da Traefik e req.secure diventa true.
+app.set("trust proxy", 1);
+
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
