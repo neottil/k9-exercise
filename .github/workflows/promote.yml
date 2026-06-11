@@ -1,0 +1,127 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_version:
+        description: 'Versione server da promuovere (vuoto = ultima da package.json)'
+        required: false
+        default: ''
+      client_version:
+        description: 'Versione client da promuovere (vuoto = ultima da package.json)'
+        required: false
+        default: ''
+
+jobs:
+  # ── Deploy production ──────────────────────────────────────────────────────────
+  #
+  # Deploya su production le immagini già buildante da deploy.yml (staging),
+  # senza rebuild. Usa i secret/variabili dell'environment "production" di GitHub.
+  #
+  # Le versioni si specificano come input del workflow_dispatch.
+  # Se omesse, usa le versioni correnti in package.json (ultima versione su staging).
+  # Il deploy aggiorna sempre sia server che client.
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve versions
+        id: versions
+        run: |
+          SERVER_VERSION="${{ inputs.server_version }}"
+          CLIENT_VERSION="${{ inputs.client_version }}"
+
+          if [ -z "$SERVER_VERSION" ]; then
+            SERVER_VERSION=$(node -p "require('./server/package.json').version")
+          fi
+          if [ -z "$CLIENT_VERSION" ]; then
+            CLIENT_VERSION=$(node -p "require('./client/package.json').version")
+          fi
+
+          echo "server_version=$SERVER_VERSION" >> $GITHUB_OUTPUT
+          echo "client_version=$CLIENT_VERSION" >> $GITHUB_OUTPUT
+          echo "→ server=$SERVER_VERSION  client=$CLIENT_VERSION"
+
+      - name: Write SSH key
+        run: |
+          echo "${{ secrets.VPS_SSH_KEY }}" > /tmp/vps_key
+          chmod 600 /tmp/vps_key
+
+      - name: Copy k8s manifests to VPS
+        run: |
+          scp -i /tmp/vps_key \
+              -r \
+              -o StrictHostKeyChecking=no \
+              k8s \
+              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/k9/
+
+      - name: Deploy to k3s
+        run: |
+          ssh -i /tmp/vps_key \
+              -o StrictHostKeyChecking=no \
+              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
+          export KUBECONFIG=/home/deploy/.kube/config
+          kubectl apply -f /opt/k9/k8s/namespace.yaml
+
+          kubectl create secret generic k9-secrets \
+            --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+            --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.repository_owner }} \
+            --docker-password="${{ secrets.GHCR_PAT }}" \
+            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
+
+          export DOMAIN="${{ vars.DOMAIN }}"
+          export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
+          export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
+
+          kubectl apply -f /opt/k9/k8s/traefik-config.yaml
+
+          if kubectl get crd clusterissuers.cert-manager.io &>/dev/null; then
+            kubectl wait --for=condition=available deployment \
+              --all --namespace cert-manager --timeout=60s || true
+            envsubst '${LETSENCRYPT_EMAIL}' < /opt/k9/k8s/cert-manager/clusterissuer.yaml | kubectl apply -f -
+          fi
+
+          kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
+          kubectl apply -f /opt/k9/k8s/server/service.yaml
+          kubectl apply -f /opt/k9/k8s/client/service.yaml
+          envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
+          envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
+
+          echo "→ Deploy server:${{ steps.versions.outputs.server_version }}"
+          export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}"
+          envsubst '${SERVER_IMAGE} ${AUTH_ENABLED}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
+          kubectl rollout status deployment/k9-server -n k9 --timeout=120s
+
+          echo "→ Deploy client:${{ steps.versions.outputs.client_version }}"
+          export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}"
+          envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
+          kubectl rollout status deployment/k9-client -n k9 --timeout=120s
+          ENDSSH
+
+      - name: Job summary
+        if: always()
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          {
+            echo "## Promote to Production — $SHORT_SHA"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Avviato da** | ${{ github.actor }} |"
+            echo "| **Dominio** | ${{ vars.DOMAIN }} |"
+            echo ""
+            echo "### Versioni deployate"
+            echo ""
+            echo "| Componente | Versione |"
+            echo "|---|---|"
+            echo "| server | \`${{ steps.versions.outputs.server_version }}\` |"
+            echo "| client | \`${{ steps.versions.outputs.client_version }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
