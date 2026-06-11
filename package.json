@@ -1,13 +1,12 @@
 {
   "name": "k9-exercise",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
     "build": "npm run build --prefix client && npm run build --prefix server",
     "dev:client": "npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
-
     "version:client": "node scripts/version.mjs client",
     "version:server": "node scripts/version.mjs server"
   },
