@@ -181,14 +181,14 @@ jobs:
               -r \
               -o StrictHostKeyChecking=no \
               k8s \
-              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/k9/
+              ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/k9/
 
       - name: Deploy to k3s
         if: steps.analyze.outputs.deploy == 'true'
         run: |
           ssh -i /tmp/vps_key \
               -o StrictHostKeyChecking=no \
-              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
+              ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
           export KUBECONFIG=/home/deploy/.kube/config
           kubectl apply -f /opt/k9/k8s/namespace.yaml
 
