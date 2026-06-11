@@ -4,14 +4,23 @@
 #
 # ${DOMAIN} viene sostituito dalla GitHub Action con envsubst.
 # Imposta la GitHub Variable DOMAIN con il tuo sottodominio (es. k9.tuodominio.com).
+#
+# TLS: cert-manager richiede automaticamente il certificato Let's Encrypt.
+# Durante il provisioning iniziale il sito risponde anche su HTTP (web,websecure).
+# Dopo che il certificato e' emesso, HTTPS e' attivo automaticamente.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: k9-ingress
   namespace: k9
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
+  tls:
+    - hosts:
+        - ${DOMAIN}
+      secretName: k9-tls
   rules:
     - host: ${DOMAIN}
       http:

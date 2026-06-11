@@ -14,7 +14,8 @@
 #   3. k3s — Kubernetes leggero con Traefik e CoreDNS inclusi
 #   4. KEDA — controller autoscaling
 #   5. KEDA HTTP Add-on — scaling su richieste HTTP in ingresso
-#   6. Kubernetes Dashboard — UI per pod, risorse ed eventi di scaling
+#   6. cert-manager — provisioning automatico certificati TLS (Let's Encrypt)
+#   7. Kubernetes Dashboard — UI per pod, risorse ed eventi di scaling
 #
 # Monitoring infrastruttura: usa i Grafici built-in di Hetzner (tab "Graphs")
 #
@@ -119,8 +120,19 @@ kubectl wait --for=condition=available deployment \
   --all --namespace keda --timeout=300s
 log "      KEDA HTTP Add-on pronto"
 
+# ── 6. cert-manager ──────────────────────────────────────────────────────────
+log "[6/7] Installazione cert-manager..."
+kubectl apply -f "https://github.com/cert-manager/cert-manager/releases/download/v1.16.0/cert-manager.yaml"
+
+log "      Attendo che i deployment cert-manager siano disponibili..."
+kubectl wait --for=condition=available deployment \
+  --all --namespace cert-manager --timeout=300s
+log "      cert-manager pronto"
+log "      Nota: il ClusterIssuer letsencrypt-prod viene applicato"
+log "      dalla GitHub Action al primo deploy (richiede la Variable LETSENCRYPT_EMAIL)"
+
 # ── 7. Kubernetes Dashboard ───────────────────────────────────────────────────
-log "[6/6] Installazione Kubernetes Dashboard..."
+log "[7/7] Installazione Kubernetes Dashboard..."
 # Dashboard leggera (~50MB) per visualizzare pod, risorse e log.
 kubectl apply -f "https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml"
 

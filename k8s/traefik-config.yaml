@@ -1,0 +1,13 @@
+# Configura Traefik (installato da k3s) per permettere ExternalName services
+# nell'Ingress. Necessario per il service keda-interceptor che punta
+# all'interceptor KEDA in un namespace diverso.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      kubernetesIngress:
+        allowExternalNameServices: true

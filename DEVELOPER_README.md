@@ -152,6 +152,7 @@ Configurare in **GitHub → Settings → Secrets and variables → Actions**.
 | `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) |
 | `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject |
 | `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server |
+| `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) |
 | `VITE_ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
 
 ---
@@ -277,34 +278,43 @@ Aggiungi un record DNS sul tuo provider:
 
 Poi imposta la Variable `DOMAIN` su GitHub con il sottodominio completo (es. `k9.tuodominio.com`) e fai push — il deploy applica la modifica automaticamente tramite `envsubst`.
 
-#### 5. HTTPS con cert-manager (opzionale)
+#### 5. HTTPS con cert-manager
+
+cert-manager è già incluso in `cloud-init.sh` — viene installato automaticamente su nuovi VPS.
+
+**Su un VPS già esistente** (senza cloud-init), installalo manualmente:
 
 ```bash
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.0/cert-manager.yaml
-
-kubectl apply -f - <<EOF
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: tua@email.com
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-      - http01:
-          ingress:
-            class: traefik
-EOF
+kubectl wait --for=condition=available deployment --all -n cert-manager --timeout=300s
 ```
 
-Poi aggiungi in `k8s/ingress.yaml`:
+Poi configura le GitHub Variables richieste:
+
+| Variable | Valore |
+|----------|--------|
+| `LETSENCRYPT_EMAIL` | La tua email (riceve avvisi di scadenza da Let's Encrypt) |
+| `COOKIE_SECURE` | `true` |
+
+Al prossimo push, la GitHub Action applica automaticamente:
+- Il `ClusterIssuer` letsencrypt-prod (da `k8s/cert-manager/clusterissuer.yaml`)
+- L'ingress aggiornato con TLS e entrypoint `web,websecure`
+
+Il certificato viene emesso da cert-manager in ~1-2 minuti tramite sfida HTTP-01. Puoi monitorare:
+
+```bash
+kubectl get certificate -n k9         # Ready: True quando il cert è emesso
+kubectl describe certificate k9-tls -n k9   # dettaglio eventi
+```
+
+**HTTP → HTTPS redirect** (opzionale, dopo che il certificato è attivo):
+
+Aggiorna `k8s/traefik-config.yaml` aggiungendo:
 ```yaml
-annotations:
-  cert-manager.io/cluster-issuer: letsencrypt-prod
-  traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    ports:
+      web:
+        redirectTo:
+          port: websecure
 ```
 
 ---

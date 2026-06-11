@@ -209,6 +209,15 @@ jobs:
 
           export DOMAIN="${{ vars.DOMAIN }}"
           export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
+          export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
+
+          kubectl apply -f /opt/k9/k8s/traefik-config.yaml
+
+          if kubectl get crd clusterissuers.cert-manager.io &>/dev/null; then
+            kubectl wait --for=condition=available deployment \
+              --all --namespace cert-manager --timeout=60s || true
+            envsubst '${LETSENCRYPT_EMAIL}' < /opt/k9/k8s/cert-manager/clusterissuer.yaml | kubectl apply -f -
+          fi
 
           kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
           kubectl apply -f /opt/k9/k8s/server/service.yaml
