@@ -141,6 +141,8 @@ jobs:
       - name: Build and push server image
         if: steps.analyze.outputs.has_server == 'true'
         uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: ./server
           push: true
@@ -154,6 +156,8 @@ jobs:
       - name: Build and push client image
         if: steps.analyze.outputs.has_client == 'true'
         uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: ./client
           push: true
@@ -226,3 +230,52 @@ jobs:
             kubectl rollout status deployment/k9-client -n k9 --timeout=120s
           fi
           ENDSSH
+
+      # ── 5. Riepilogo ─────────────────────────────────────────────────────────
+
+      - name: Job summary
+        if: always()
+        run: |
+          HAS_CLIENT="${{ steps.analyze.outputs.has_client }}"
+          HAS_SERVER="${{ steps.analyze.outputs.has_server }}"
+          HAS_K8S="${{ steps.analyze.outputs.has_k8s }}"
+          DEPLOY="${{ steps.analyze.outputs.deploy }}"
+          BUMP="${{ steps.analyze.outputs.bump }}"
+
+          {
+            echo "## Build & Deploy — ${{ github.sha_short || github.sha }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Commit** | \`${{ github.event.head_commit.message }}\` |"
+            echo "| **Bump type** | \`$BUMP\` |"
+            echo "| **Autore** | ${{ github.actor }} |"
+            echo ""
+
+            if [ "$HAS_CLIENT" = "true" ] || [ "$HAS_SERVER" = "true" ] || [ "$HAS_K8S" = "true" ]; then
+              echo "### Versioni"
+              echo ""
+              echo "| Componente | Versione | Tag |"
+              echo "|---|---|---|"
+              [ "$HAS_CLIENT" = "true" ] && echo "| client | \`${{ steps.versions.outputs.client_version }}\` | \`client-${{ steps.versions.outputs.client_version }}\` |"
+              [ "$HAS_SERVER" = "true" ] && echo "| server | \`${{ steps.versions.outputs.server_version }}\` | \`server-${{ steps.versions.outputs.server_version }}\` |"
+              [ "$HAS_K8S"    = "true" ] && echo "| k8s    | \`${{ steps.versions.outputs.k8s_version }}\`    | \`k8s-${{ steps.versions.outputs.k8s_version }}\` |"
+              echo ""
+            fi
+
+            if [ "$DEPLOY" = "true" ]; then
+              echo "### Immagini Docker"
+              echo ""
+              [ "$HAS_SERVER" = "true" ] && echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}\`"
+              [ "$HAS_CLIENT" = "true" ] && echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}\`"
+              echo ""
+              echo "### Deploy"
+              echo ""
+              [ "$HAS_SERVER" = "true" ] && echo "- server **${{ steps.versions.outputs.server_version }}** deployato su k9 namespace"
+              [ "$HAS_CLIENT" = "true" ] && echo "- client **${{ steps.versions.outputs.client_version }}** deployato su k9 namespace"
+            elif [ "$HAS_K8S" = "true" ]; then
+              echo "> Solo manifest k8s aggiornati — nessun build Docker, nessun deploy."
+            else
+              echo "> Nessuna modifica rilevante — build e deploy saltati."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

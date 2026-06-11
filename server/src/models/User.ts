@@ -17,7 +17,7 @@ const UserSchema = new Schema<IUser>(
     role: { type: String, enum: ["viewer", "admin"], default: "viewer" },
     state: { type: String, enum: ["TO_APPROVE", "APPROVED"], default: "TO_APPROVE" },
   },
-  { timestamps: true, versionKey: false }
+  { timestamps: true, versionKey: false, collection: "k9_users" }
 );
 
 export default mongoose.model<IUser>("User", UserSchema);

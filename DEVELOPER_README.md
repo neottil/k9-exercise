@@ -14,6 +14,7 @@ Database di esercizi per il cross-training cinofilo. Permette di consultare, fil
 
 ## TODO'S
 
+- aggiungere ingress per certficato https (4)
 - script batch schedulato per segnalare nuovi utenti e esercizi
 - versione server su frontend. Spostare in una modale da menu info
 
