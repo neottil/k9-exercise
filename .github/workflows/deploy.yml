@@ -242,8 +242,10 @@ jobs:
           DEPLOY="${{ steps.analyze.outputs.deploy }}"
           BUMP="${{ steps.analyze.outputs.bump }}"
 
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
           {
-            echo "## Build & Deploy — ${{ github.sha_short || github.sha }}"
+            echo "## Build & Deploy — $SHORT_SHA"
             echo ""
             echo "| | |"
             echo "|---|---|"
@@ -257,22 +259,22 @@ jobs:
               echo ""
               echo "| Componente | Versione | Tag |"
               echo "|---|---|---|"
-              [ "$HAS_CLIENT" = "true" ] && echo "| client | \`${{ steps.versions.outputs.client_version }}\` | \`client-${{ steps.versions.outputs.client_version }}\` |"
-              [ "$HAS_SERVER" = "true" ] && echo "| server | \`${{ steps.versions.outputs.server_version }}\` | \`server-${{ steps.versions.outputs.server_version }}\` |"
-              [ "$HAS_K8S"    = "true" ] && echo "| k8s    | \`${{ steps.versions.outputs.k8s_version }}\`    | \`k8s-${{ steps.versions.outputs.k8s_version }}\` |"
+              if [ "$HAS_CLIENT" = "true" ]; then echo "| client | \`${{ steps.versions.outputs.client_version }}\` | \`client-${{ steps.versions.outputs.client_version }}\` |"; fi
+              if [ "$HAS_SERVER" = "true" ]; then echo "| server | \`${{ steps.versions.outputs.server_version }}\` | \`server-${{ steps.versions.outputs.server_version }}\` |"; fi
+              if [ "$HAS_K8S"    = "true" ]; then echo "| k8s    | \`${{ steps.versions.outputs.k8s_version }}\`    | \`k8s-${{ steps.versions.outputs.k8s_version }}\` |"; fi
               echo ""
             fi
 
             if [ "$DEPLOY" = "true" ]; then
               echo "### Immagini Docker"
               echo ""
-              [ "$HAS_SERVER" = "true" ] && echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}\`"
-              [ "$HAS_CLIENT" = "true" ] && echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}\`"
+              if [ "$HAS_SERVER" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}\`"; fi
+              if [ "$HAS_CLIENT" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}\`"; fi
               echo ""
               echo "### Deploy"
               echo ""
-              [ "$HAS_SERVER" = "true" ] && echo "- server **${{ steps.versions.outputs.server_version }}** deployato su k9 namespace"
-              [ "$HAS_CLIENT" = "true" ] && echo "- client **${{ steps.versions.outputs.client_version }}** deployato su k9 namespace"
+              if [ "$HAS_SERVER" = "true" ]; then echo "- server **${{ steps.versions.outputs.server_version }}** deployato su k9 namespace"; fi
+              if [ "$HAS_CLIENT" = "true" ]; then echo "- client **${{ steps.versions.outputs.client_version }}** deployato su k9 namespace"; fi
             elif [ "$HAS_K8S" = "true" ]; then
               echo "> Solo manifest k8s aggiornati — nessun build Docker, nessun deploy."
             else

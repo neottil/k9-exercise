@@ -1,26 +1,25 @@
-# K9 Exercise Database
+# K9 Exercise — Developer Guide
 
-Database di esercizi per il cross-training cinofilo. Permette di consultare, filtrare e gestire un catalogo strutturato di esercizi per cani, organizzati per tipologia, difficoltà, attrezzi necessari, area di lavoro e target corporeo.
-
-**Stack**: React + Vite (client) · Express + TypeScript (server) · MongoDB Atlas
-
-**Funzionalità principali**:
-- Catalogo esercizi con filtri multipli e visualizzazione a tabella
-- Pannello admin per aggiungere, modificare e approvare esercizi con diff visuale delle modifiche proposte
-- Autenticazione nativa con ruoli `viewer` / `admin`, integrabile con WordPress via JWT
-- Autoscaling automatico del server in base al traffico HTTP (KEDA su Kubernetes)
+Guida tecnica per chi lavora sul codice o deve rimettere in piedi l'infrastruttura.
+Per la descrizione del progetto e il setup produzione completo vedere [README.md](README.md).
 
 ---
 
-## TODO'S
+## Indice
 
-- aggiungere ingress per certficato https (4)
-- script batch schedulato per segnalare nuovi utenti e esercizi
-- versione server su frontend. Spostare in una modale da menu info
+1. [Setup locale](#setup-locale)
+2. [Struttura progetto](#struttura-progetto)
+3. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
+4. [CI/CD pipeline](#cicd-pipeline)
+5. [Deploy in produzione](#deploy-in-produzione)
+6. [Integrazione con WordPress](#integrazione-con-wordpress)
+7. [TODO](#todos)
 
-## Set up local env
+---
 
-**Prerequisiti**: Node.js 22+, Docker
+## Setup locale
+
+**Prerequisiti**: Node.js 24+, Docker
 
 ```bash
 # 1. Copia le variabili d'ambiente
@@ -39,14 +38,127 @@ cd client && npm install && npm run dev
 
 ---
 
-## Automatic versioning from github action
+## Struttura progetto
 
-La action github configurata crea tag automaticamente in base al bump type (calcolato con conventional commit) allo scope della commit. Anche build e deploy seguono bump e scope.
+```
+k9-exercise/
+├── client/             # React + Vite (SPA)
+│   └── src/
+│       ├── components/ # Componenti UI
+│       └── ...
+├── server/             # Express + TypeScript
+│   └── src/
+│       ├── models/     # Schema Mongoose (Exercise, ExerciseChange, User)
+│       ├── routes/     # API REST (exercises, auth)
+│       └── middleware/ # requireAuth, requireDbReady
+├── k8s/                # Manifest Kubernetes
+│   ├── client/         # Deployment + Service nginx
+│   ├── server/         # Deployment + Service + HTTPScaledObject KEDA
+│   ├── namespace.yaml
+│   ├── ingress.yaml    # Traefik ingress (usa ${DOMAIN})
+│   └── keda-interceptor-svc.yaml
+├── scripts/
+│   └── cloud-init.sh   # Inizializzazione VPS (k3s, KEDA, dashboard)
+├── local/
+│   └── docker-compose.yml  # MongoDB locale con replica set
+└── .github/workflows/
+    └── deploy.yml      # CI/CD: build, versioning, deploy
 ```
 
 ---
 
+## Conventional commits e versioning automatico
+
+La GitHub Action calcola il tipo di bump dalla commit message e i tag vengono creati e pushati automaticamente.
+
+### Formato commit
+
+```
+<tipo>(<scope>): <descrizione>
+
+[body opzionale]
+```
+
+### Regole di bump
+
+| Commit | Bump | Esempio |
+|--------|------|---------|
+| `tipo!:` oppure `BREAKING CHANGE` nel body | **major** | `feat!: nuovo schema autenticazione` |
+| `feat:` | **minor** | `feat(client): filtro per difficoltà` |
+| Tutto il resto (`fix`, `chore`, `docs`, ...) | **patch** | `fix(server): gestione errore 404` |
+
+### Scope e tag generati
+
+La action analizza quali cartelle sono cambiate nella commit e crea i tag di conseguenza:
+
+| File modificati | Tag creato | Package.json bumped |
+|----------------|------------|---------------------|
+| `client/**` | `client-X.Y.Z` | `client/package.json` |
+| `server/**` | `server-X.Y.Z` | `server/package.json` |
+| `k8s/**` | `k8s-X.Y.Z` | `package.json` (root) |
+
+Gli scope sono **indipendenti**: una commit che tocca `client/` e `k8s/` genera entrambi i tag.
+Solo le modifiche a `client/` o `server/` triggerano un build Docker e deploy sul cluster.
+
+---
+
+## CI/CD pipeline
+
+Ogni push su `main` esegue la GitHub Action `.github/workflows/deploy.yml`:
+
+```
+push su main
+    │
+    ▼
+Analyze commit
+    │  rileva scope (client/server/k8s) e bump type
+    │
+    ▼
+Bump versions + tag
+    │  aggiorna package.json, crea tag annotati, push con --follow-tags
+    │
+    ▼
+Build Docker  ←─ solo se client o server sono cambiati
+    │  docker/build-push-action → ghcr.io/<owner>/k9-{client,server}:<version>
+    │
+    ▼
+Deploy su k3s  ←─ solo se client o server sono cambiati
+    │  scp manifest → ssh kubectl apply → rollout status
+    │
+    ▼
+Job summary  ←─ sempre (anche se step precedenti falliscono)
+```
+
+### Secrets e Variables richiesti
+
+Configurare in **GitHub → Settings → Secrets and variables → Actions**.
+
+#### Secrets
+
+| Nome | Descrizione |
+|------|-------------|
+| `VPS_HOST` | IP del VPS Hetzner |
+| `VPS_SSH_KEY` | Chiave privata SSH (`~/.ssh/k9_deploy`) — non il `.pub` |
+| `MONGODB_URI` | Stringa di connessione MongoDB Atlas |
+| `SESSION_SECRET` | Stringa random — `openssl rand -hex 32` |
+| `GHCR_PAT` | Personal Access Token GitHub con scope `read:packages` ¹ |
+
+> ¹ Serve al VPS per fare `imagePullSecrets` da GHCR. Crearlo in: profilo GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → `read:packages`.
+
+#### Variables
+
+| Nome | Valore esempio | Descrizione |
+|------|---------------|-------------|
+| `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) |
+| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject |
+| `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server |
+| `VITE_ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
+
+---
+
 ## Deploy in produzione
+
+Per il setup completo dell'infrastruttura (VPS Hetzner, DNS, HTTPS, scaling) vedere [README.md](README.md).
 
 ### Architettura
 
@@ -68,11 +180,6 @@ Traefik  (ingress controller incluso in k3s)
    └─ /*     ──▶  k9-client pod (nginx — serve React SPA)
 ```
 
-Il client nginx è una replica fissa: gestisce 10.000+ connessioni concorrenti
-con ~50 MB di RAM, non è mai il collo di bottiglia. Solo il server scala.
-
----
-
 ### Configurazione VPS (Hetzner Cloud)
 
 #### 1. Generazione chiave SSH
@@ -81,28 +188,14 @@ La stessa coppia di chiavi serve per due cose:
 - La chiave **pubblica** → Hetzner (per autenticarti sul VPS)
 - La chiave **privata** → GitHub Secret `VPS_SSH_KEY` (per permettere alla Action di fare SSH sul VPS)
 
-```
-┌──────────────┐    chiave pubblica     ┌─────────────┐
-│  Il tuo PC   │ ──────────────────────▶│   Hetzner   │
-│              │                        │     VPS     │
-│  chiave      │    chiave privata      │             │
-│  privata     │ ──────────────────────▶│  GitHub     │
-│              │    (GitHub Secret)     │  Action     │
-└──────────────┘                        └─────────────┘
-```
-
 **Su Windows** (PowerShell o Git Bash):
 
 ```powershell
-# Genera la coppia di chiavi — premi Invio a tutte le domande
-# (lascia la passphrase vuota: la Action non può inserirla)
+# Lascia la passphrase vuota: la Action non può inserirla
 ssh-keygen -t ed25519 -C "k9-deploy" -f "$env:USERPROFILE\.ssh\k9_deploy"
 
-# Mostra la chiave PUBBLICA (da copiare su Hetzner)
-Get-Content "$env:USERPROFILE\.ssh\k9_deploy.pub"
-
-# Mostra la chiave PRIVATA (da copiare nel segreto GitHub VPS_SSH_KEY)
-Get-Content "$env:USERPROFILE\.ssh\k9_deploy"
+Get-Content "$env:USERPROFILE\.ssh\k9_deploy.pub"  # → Hetzner
+Get-Content "$env:USERPROFILE\.ssh\k9_deploy"       # → GitHub Secret VPS_SSH_KEY
 ```
 
 **Su macOS / Linux:**
@@ -114,7 +207,6 @@ cat ~/.ssh/k9_deploy.pub   # → Hetzner
 cat ~/.ssh/k9_deploy        # → GitHub Secret VPS_SSH_KEY
 ```
 
-Vengono creati due file:
 | File | Contenuto | Dove va |
 |------|-----------|---------|
 | `k9_deploy.pub` | Chiave pubblica | Hetzner → Security → SSH Keys |
@@ -135,7 +227,7 @@ Vengono creati due file:
    - **Type**: `CAX11` — ARM, 2 vCPU, 4 GB RAM, €4.15/mese *(consigliato)*
      oppure `CX22` — x86, 2 vCPU, 4 GB RAM, €4.85/mese
 4. Annota l'IP del server
-5. Crea un **Firewall** e apri solo le regole **inbound**:
+5. Crea un **Firewall** con solo queste regole inbound:
 
    | Porta | Protocollo | Sorgente | Scopo |
    |-------|------------|----------|-------|
@@ -143,29 +235,15 @@ Vengono creati due file:
    | 80 | TCP | Any | HTTP |
    | 443 | TCP | Any | HTTPS |
 
-   > Le regole **outbound non servono**: Hetzner non filtra il traffico in
-   > uscita dal VPS. Il server può connettersi liberamente a MongoDB Atlas
-   > e a qualsiasi altro servizio esterno.
+6. **MongoDB Atlas — IP Access List**: aggiungi l'IP del VPS alla whitelist altrimenti il server non si connette al database:
+   - [cloud.mongodb.com](https://cloud.mongodb.com) → **Network Access → Add IP Address**
+   - Inserisci l'IP del VPS Hetzner → **Confirm**
 
-6. **MongoDB Atlas — IP Access List**: Atlas ha il proprio firewall che blocca
-   tutto di default. Aggiungi l'IP del VPS alla whitelist altrimenti il server
-   non riuscirà a connettersi al database:
-   - Apri il progetto su [cloud.mongodb.com](https://cloud.mongodb.com)
-   - **Network Access → Add IP Address**
-   - Inserisci l'IP del VPS Hetzner
-   - Clicca **Confirm**
+#### 3. Inizializzazione automatica con cloud-init
 
-   > Se in futuro aggiungi un secondo nodo al cluster k3s, ricorda di aggiungere
-   > anche il suo IP alla whitelist Atlas.
+Hetzner permette di incollare uno script nel campo **"User data"** durante la creazione del server. Viene eseguito automaticamente al primo avvio.
 
-#### 2. Inizializzazione automatica con cloud-init
-
-Hetzner permette di incollare uno script nel campo **"User data"** durante
-la creazione del server. Lo script viene eseguito automaticamente al primo
-avvio — nessun intervento manuale necessario.
-
-Lo script si trova in `scripts/cloud-init.sh` nel repository.
-Copiane il contenuto e incollalo nel campo "User data" su Hetzner.
+Lo script si trova in [`scripts/cloud-init.sh`](scripts/cloud-init.sh). Copiane il contenuto e incollalo nel campo "User data" su Hetzner.
 
 **Cosa fa lo script:**
 
@@ -176,51 +254,34 @@ Copiane il contenuto e incollalo nel campo "User data" su Hetzner.
 | 3 | Installazione k3s (Kubernetes + Traefik + CoreDNS) |
 | 4 | Installazione KEDA (controller autoscaling) |
 | 5 | Installazione KEDA HTTP Add-on (scaling su richieste HTTP) |
-| 6 | Installazione Kubernetes Dashboard (UI per pod, risorse, log) |
+| 6 | Installazione Kubernetes Dashboard |
 
-Al termine, lo script scrive `/opt/k9/.init-complete` come marker di completamento
-e stampa i prossimi passi nel log `/var/log/k9-init.log`.
+Al termine scrive `/opt/k9/.init-complete` come marker e log in `/var/log/k9-init.log`.
 
-**Verifica dopo il primo avvio** (attendi 3-5 minuti, poi):
+**Verifica dopo il primo avvio** (attendi 3-5 minuti):
 
 ```bash
 ssh root@<IP_VPS>
-
-# Controlla che lo script sia terminato
 cat /opt/k9/.init-complete   # deve esistere
-
-# Verifica il cluster
 kubectl get nodes             # STATUS: Ready
 kubectl get pods -A           # tutti i pod Running
 ```
 
-> Se preferisci eseguire lo script manualmente su un server già avviato:
-> ```bash
-> bash scripts/cloud-init.sh
-> ```
+#### 4. Configurazione dominio
 
-#### 3. Configurazione dominio
-
-Il dominio è gestito tramite la GitHub Variable `DOMAIN` (vedere sezione successiva).
-Non serve modificare i file YAML manualmente: la GitHub Action sostituisce
-`${DOMAIN}` in `k8s/ingress.yaml` e `k8s/server/hso.yaml` ad ogni deploy.
-
-Aggiungi un record DNS sul tuo provider (es. Route 53 su AWS):
+Aggiungi un record DNS sul tuo provider:
 
 | Tipo | Nome | Valore |
 |------|------|--------|
-| `A` | `k9` (o il sottodominio che preferisci) | IP del VPS Hetzner |
+| `A` | `k9` (o il sottodominio preferito) | IP del VPS Hetzner |
 
-Poi imposta la Variable `DOMAIN` su GitHub con il sottodominio completo
-(es. `k9.tuodominio.com`) e fai push — il deploy applica la modifica automaticamente.
+Poi imposta la Variable `DOMAIN` su GitHub con il sottodominio completo (es. `k9.tuodominio.com`) e fai push — il deploy applica la modifica automaticamente tramite `envsubst`.
 
-#### 4. HTTPS con cert-manager (opzionale)
+#### 5. HTTPS con cert-manager (opzionale)
 
 ```bash
-# Installa cert-manager
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.0/cert-manager.yaml
 
-# Crea ClusterIssuer per Let's Encrypt
 kubectl apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -248,194 +309,86 @@ annotations:
 
 ---
 
-### GitHub Actions — Segreti e variabili
+### Rollback
 
-Vai su **GitHub → Settings → Secrets and variables → Actions**.
-
-#### Secrets (valori sensibili — cifrati, non visibili nei log)
-
-| Nome | Valore | Note |
-|------|--------|------|
-| `VPS_HOST` | `178.105.245.252` | IP del VPS Hetzner |
-| `VPS_USER` | `deploy` | Utente SSH creato da cloud-init |
-| `VPS_SSH_KEY` | Contenuto di `~/.ssh/k9_deploy` | Chiave **privata** — non il `.pub` |
-| `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/k9` | Stringa connessione Atlas |
-| `SESSION_SECRET` | Output di `openssl rand -hex 32` | Stringa random per le sessioni |
-| `GHCR_PAT` | Personal Access Token GitHub | Serve al VPS per fare pull delle immagini ¹ |
-
-> ¹ **Come creare il GHCR_PAT**: GitHub → foto profilo → **Settings** (del profilo, non del repo)
-> → in fondo a sinistra → **Developer settings** → **Personal access tokens → Tokens (classic)**
-> → **Generate new token** → spunta solo `read:packages` → copia il token generato.
->
-> `GITHUB_TOKEN` (usato per il push delle immagini nella Action) è automatico — non va configurato.
-
-#### Variables (valori non sensibili — visibili nei log di build)
-
-| Nome | Valore | Effetto |
-|------|--------|---------|
-| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress Traefik e KEDA HTTPScaledObject |
-| `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server Node.js |
-| `VITE_ENABLE_WITH_OPERATION_FILTER` | `true` / `false` | Feature flag baked nel bundle React al momento del build |
-
-> **Secrets vs Variables**: i Secrets sono cifrati e mascherati nei log.
-> Le Variables sono in chiaro — usarle solo per valori non sensibili come feature flag e domini.
-
----
-
-### Deploy e rollback
-
-**Deploy automatico**: ogni push su `main` avvia la Action che:
-1. Legge le versioni da `server/package.json` e `client/package.json`
-2. Build immagini Docker (linux/amd64)
-3. Push su `ghcr.io` con tag versione (es. `k9-server:1.1.0`)
-4. Applica i manifest k8s sul VPS con `kubectl`
-5. Attende il completamento del rollout
-
-**Rollback**:
 ```bash
-# Torna al deploy precedente (Kubernetes mantiene la history)
+# Torna al deploy precedente
 kubectl rollout undo deployment/k9-server -n k9
 kubectl rollout undo deployment/k9-client -n k9
 
 # Torna a una revisione specifica
-kubectl rollout history deployment/k9-server -n k9   # vedi lista revisioni
+kubectl rollout history deployment/k9-server -n k9
 kubectl rollout undo deployment/k9-server -n k9 --to-revision=2
 
-# Rollback a un tag specifico
+# Rollback a un'immagine specifica
 kubectl set image deployment/k9-server \
   server=ghcr.io/<owner>/k9-server:1.0.0 -n k9
 ```
 
----
-
-### Scaling
-
-#### Autoscaling server (KEDA HTTP)
-
-Il server scala da 1 a 4 pod in base alle richieste `/api` in coda.
-Parametri in `k8s/server/hso.yaml`:
-
-| Parametro | Default | Significato |
-|-----------|---------|-------------|
-| `targetPendingRequests` | `100` | Richieste in attesa per replica che triggerano un nuovo pod |
-| `scaledownPeriod` | `300` | Secondi di traffico basso prima di ridurre i pod |
-| `replicas.min` | `1` | Pod sempre attivi — nessun cold start |
-| `replicas.max` | `4` | Massimo 4 × 0.5 CPU = 2 vCPU totali (CAX11/CX22) |
-
-#### Scaling verticale (resize VPS)
-
-Da Hetzner Cloud Console: **Server → Rescale → piano superiore**.
-Richiede reboot (~2 minuti di downtime).
-
-#### Scaling orizzontale (secondo nodo)
+### Kubernetes Dashboard (accesso locale)
 
 ```bash
-# Sul VPS principale — recupera il token di join
-cat /var/lib/rancher/k3s/server/node-token
-
-# Sul nuovo VPS — entra nel cluster
-curl -sfL https://get.k3s.io | \
-  K3S_URL=https://<IP_VPS_PRINCIPALE>:6443 \
-  K3S_TOKEN=<TOKEN> sh -
-
-# Verifica dal VPS principale
-kubectl get nodes   # mostra entrambi i nodi
-```
-
-KEDA distribuisce automaticamente i pod sui nodi disponibili.
-
----
-
-### Kubernetes Dashboard
-
-La dashboard è installata da `cloud-init.sh` e gira solo internamente al cluster — non è esposta su internet.
-Per aprirla dal browser del tuo PC si usa un tunnel SSH che porta la porta 8001 dal VPS alla macchina locale.
-
-#### Aprire il tunnel
-
-**Step 1** — Sul VPS, avvia il proxy kubectl (lascialo girare in background):
-
-```bash
+# 1. Sul VPS — avvia proxy (lascialo girare)
 ssh -i ~/.ssh/k9_deploy deploy@<IP_VPS>
 kubectl proxy --address='127.0.0.1' --port=8001 &
-```
 
-**Step 2** — Sul tuo PC (in un altro terminale), apri il tunnel SSH e tienilo aperto:
-
-```bash
+# 2. Sul tuo PC — apri tunnel SSH
 ssh -i ~/.ssh/k9_deploy -L 8001:localhost:8001 -N deploy@<IP_VPS>
-```
 
-**Step 3** — Nel browser del tuo PC apri:
+# 3. Browser
+# http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
 
-```
-http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
-```
-
-**Step 4** — Nella schermata di login seleziona **Token** e generalo dal VPS:
-
-```bash
+# 4. Genera il token di accesso (scade dopo 1h)
 kubectl create token dashboard-admin -n kubernetes-dashboard
 ```
 
-Copia il token nel campo e clicca **Sign In**.
-
-#### Comandi utili dalla dashboard (o da CLI)
+### Comandi kubectl utili
 
 ```bash
-# Stato pod e repliche
 kubectl get pods -n k9
-kubectl get hso -n k9                           # scaling KEDA
-
-# Log del server in tempo reale
-kubectl logs -f deployment/k9-server -n k9
-
-# Tutti gli eventi del namespace (utile per debug scheduling)
+kubectl get hso -n k9                            # stato scaling KEDA
+kubectl logs -f deployment/k9-server -n k9       # log server live
 kubectl get events -n k9 --sort-by='.lastTimestamp'
-
-# Dettaglio eventi di scaling KEDA
-kubectl describe hso k9-server -n k9
+kubectl describe hso k9-server -n k9             # eventi scaling dettaglio
 ```
 
 ---
 
 ## Integrazione con WordPress
 
-Questa sezione descrive come collegare l'app a un sito WordPress esistente, delegando interamente la gestione dell'autenticazione a WP e disabilitando la login nativa dell'app.
+Permette di delegare l'autenticazione a WordPress: WP genera un JWT firmato e l'app Node lo valida per creare la sessione. La login nativa dell'app può essere disabilitata completamente.
 
-### Panoramica del flusso
+### Flusso
 
 ```
-Utente → WordPress (login) → genera JWT firmato → redirect verso l'app con ?token=...
-                                                        │
-                                                        ▼
-                                              App Node (valida JWT)
-                                              crea sessione cookie
-                                              redirect interno (URL pulito)
-                                                        │
-                                                        ▼
-                                              App React (usa sessione)
+Utente → WordPress (login) → genera JWT → redirect ?token=...
+                                                    │
+                                                    ▼
+                                          App Node: valida JWT
+                                          crea sessione cookie
+                                          redirect / (URL pulito)
+                                                    │
+                                                    ▼
+                                          App React (usa sessione)
 ```
 
-Il token nell'URL è **usa e getta**: serve solo per l'handshake iniziale. Una volta creata la sessione, l'app funziona esattamente come con la login nativa.
+Il token nell'URL è **usa e getta**: serve solo per l'handshake iniziale.
 
 ---
 
 ### Parte 1 — Configurazione WordPress
 
-#### 1.1 Installare una libreria JWT per PHP
-
-Aggiungere via Composer al tema o a un plugin custom:
+#### 1.1 Libreria JWT per PHP
 
 ```bash
 composer require firebase/php-jwt
 ```
 
-oppure includere il file singolo dalla release ufficiale: https://github.com/firebase/php-jwt
+Oppure includere il file singolo dalla release ufficiale: https://github.com/firebase/php-jwt
 
-#### 1.2 Generare il JWT al momento del redirect
+#### 1.2 Generare il JWT al redirect
 
-Creare una funzione (in `functions.php` o in un plugin custom) che intercetta il click sul link verso l'app, genera il token e fa il redirect:
+In `functions.php` o in un plugin custom:
 
 ```php
 use Firebase\JWT\JWT;
@@ -454,7 +407,7 @@ function k9_redirect_to_app() {
         'iat'   => $issued_at,
         'exp'   => $issued_at + 300, // token valido 5 minuti
         'email' => $user->user_email,
-        'role'  => k9_get_role( $user ), // vedere §1.3
+        'role'  => k9_get_role( $user ),
     ];
 
     $token = JWT::encode( $payload, $secret, 'HS256' );
@@ -463,7 +416,6 @@ function k9_redirect_to_app() {
     exit;
 }
 
-// Aggancio a una shortcode o a un endpoint WP
 add_action( 'template_redirect', function() {
     if ( isset($_GET['k9_redirect']) ) {
         k9_redirect_to_app();
@@ -471,19 +423,16 @@ add_action( 'template_redirect', function() {
 });
 ```
 
-Il link da mostrare agli utenti autorizzati nel menu/pagina WP diventa quindi:
+Link da esporre agli utenti nel menu WP:
 
 ```
 https://miodominio.com/?k9_redirect=1
 ```
 
-#### 1.3 Mappare i ruoli WordPress sui ruoli dell'app
-
-L'app ha due ruoli: `viewer` e `admin`. La funzione di mapping va adattata ai ruoli WP del proprio sito:
+#### 1.3 Mapping ruoli WP → ruoli app
 
 ```php
 function k9_get_role( WP_User $user ): string {
-    // Esempio: gli amministratori WP diventano admin dell'app
     if ( in_array('administrator', $user->roles) || in_array('editor', $user->roles) ) {
         return 'admin';
     }
@@ -491,38 +440,35 @@ function k9_get_role( WP_User $user ): string {
 }
 ```
 
-#### 1.4 Definire il segreto condiviso in `wp-config.php`
+#### 1.4 Segreto condiviso in `wp-config.php`
 
 ```php
-// wp-config.php
-define( 'K9_JWT_SECRET', 'una-stringa-lunga-e-casuale-identica-a-quella-nel-env-dellapp' );
+define( 'K9_JWT_SECRET', 'stringa-lunga-e-casuale-identica-a-quella-nel-env-app' );
 ```
-
-Lo stesso valore va messo nella variabile `SESSION_SECRET` del `.env` dell'app Node (vedere §2.1).
 
 ---
 
 ### Parte 2 — Modifiche all'app Node.js
 
-#### 2.1 Aggiungere la variabile d'ambiente
+#### 2.1 Variabile d'ambiente
 
 Nel file `.env`:
 
 ```
-# Segreto condiviso con WordPress per validare i JWT in entrata
-SESSION_SECRET=una-stringa-lunga-e-casuale-identica-a-quella-in-wp-config
+K9_JWT_SECRET=stringa-lunga-e-casuale-identica-a-quella-in-wp-config
 ```
 
-Installare la libreria JWT per Node se non già presente:
+Installa la libreria JWT:
 
 ```bash
+cd server
 npm install jsonwebtoken
 npm install -D @types/jsonwebtoken
 ```
 
-#### 2.2 Aggiungere la route `/api/auth/wp-callback`
+#### 2.2 Route `/api/auth/wp-callback`
 
-In `server/src/routes/auth.ts`, aggiungere sotto le route esistenti:
+In `server/src/routes/auth.ts`:
 
 ```typescript
 import jwt from "jsonwebtoken";
@@ -547,12 +493,9 @@ router.get("/wp-callback", (req: Request, res: Response): void => {
         const payload = jwt.verify(token, secret) as {
             email: string;
             role: string;
-            exp: number;
         };
 
         req.session.user = { email: payload.email, role: payload.role };
-
-        // Redirect verso la SPA con URL pulito (niente token visibile)
         res.redirect("/");
     } catch (err) {
         console.error("[wp-callback] token non valido:", err);
@@ -561,29 +504,54 @@ router.get("/wp-callback", (req: Request, res: Response): void => {
 });
 ```
 
-#### 2.3 Disabilitare la login nativa
+#### 2.3 Disabilitare la login nativa (opzionale)
 
-Una volta che l'integrazione WP è attiva e testata, nel `.env` dell'app impostare:
-
-```
+```env
 AUTH_ENABLED=false
 ```
 
-Con questa impostazione:
-- La pagina `/login` dell'app non viene mai raggiunta (l'utente arriva già autenticato via WP)
-- `requireAuth` bypassa il controllo sessione in sviluppo locale
-- La route `/api/auth/wp-callback` continua a funzionare indipendentemente da `AUTH_ENABLED`
+Con questa impostazione la pagina `/login` non è raggiungibile. La route `/api/auth/wp-callback` funziona indipendentemente da `AUTH_ENABLED`.
 
 ---
 
-### Parte 4 — Sicurezza checklist
+### Parte 3 — Test dell'integrazione
+
+1. **Locale**: avviare il server con `K9_JWT_SECRET` nel `.env` e generare un token di test:
+
+```bash
+node -e "
+const jwt = require('jsonwebtoken');
+const token = jwt.sign(
+  { email: 'test@esempio.com', role: 'admin' },
+  process.env.K9_JWT_SECRET,
+  { expiresIn: '5m' }
+);
+console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
+" 
+```
+
+2. **Produzione**: verificare che il dominio WP e quello dell'app usino HTTPS — il token viaggia nell'URL.
+
+3. **Scadenza**: il token ha `exp` a 5 minuti. Se il redirect impiega troppo, aumentare il valore in WP (`$issued_at + 300`).
+
+---
+
+### Sicurezza checklist
 
 | Punto | Dettaglio |
-|---|---|
-| **Segreto JWT lungo** | Usare almeno 32 caratteri casuali. Generare con `openssl rand -base64 32` |
+|-------|-----------|
+| **Segreto JWT lungo** | Minimo 32 caratteri — `openssl rand -base64 32` |
 | **Scadenza token breve** | 5 minuti (`exp: now + 300`) sono sufficienti per il redirect |
 | **HTTPS obbligatorio** | Il token viaggia nell'URL: senza HTTPS è intercettabile |
-| **`SESSION_SECRET` diverso da `K9_JWT_SECRET`** | Sono due segreti con scopi diversi, non riutilizzare lo stesso valore |
-| **Rimuovere `ADMIN_SEED_*` dal `.env`** | Dopo il primo avvio, eliminare o commentare le variabili di seed |
-| **Rate limiting su `/api/auth/login`** | Aggiungere `express-rate-limit` per prevenire brute-force sulla login nativa |
-| **Token one-time (opzionale)** | Per massima sicurezza, WordPress può salvare il token in DB e invalidarlo dopo il primo uso; l'app chiama un endpoint WP per validarlo prima di creare la sessione |
+| **`SESSION_SECRET` ≠ `K9_JWT_SECRET`** | Segreti con scopi diversi, non riutilizzare lo stesso valore |
+| **Rimuovere `ADMIN_SEED_*` dal `.env`** | Dopo il primo avvio eliminare o commentare le variabili di seed |
+| **Rate limiting su `/api/auth/login`** | Aggiungere `express-rate-limit` per prevenire brute-force |
+| **Token one-time (opzionale)** | WP salva il token in DB e lo invalida dopo il primo uso |
+
+---
+
+## TODOs
+
+- Script batch schedulato per segnalare nuovi utenti e nuovi esercizi in attesa di approvazione
+- Versione server su frontend — spostare in una modale dal menu info
+- Aggiungere ingress per certificato HTTPS (cert-manager + Let's Encrypt)
