@@ -1,535 +1,464 @@
-# K9 Exercise Database
-
-Database di esercizi per il cross-training cinofilo. Permette di consultare, filtrare e gestire un catalogo strutturato di esercizi per cani, organizzati per tipologia, difficoltà, attrezzi necessari, area di lavoro e target corporeo.
-
-**Stack**: React + Vite (client) · Express + TypeScript (server) · MongoDB Atlas
-
-**Funzionalità principali**:
-- Catalogo esercizi con filtri multipli e visualizzazione a tabella
-- Pannello admin per aggiungere, modificare e approvare esercizi con diff visuale delle modifiche proposte
-- Autenticazione nativa con ruoli `viewer` / `admin`, integrabile con WordPress via JWT
-- Autoscaling automatico del server in base al traffico HTTP (KEDA su Kubernetes)
+# K9 Cross Training – Exercise Database
+## Manuale utente
 
 ---
 
-## TODO'S
+## Indice
 
-- script batch schedulato per segnalare nuovi utenti e esercizi
-- versione server su frontend. Spostare in una modale da menu info
-
-## Set up local env
-
-**Prerequisiti**: Node.js 22+, Docker
-
-```bash
-# 1. Copia le variabili d'ambiente
-cp .env.example .env
-# Modifica MONGODB_URI, SESSION_SECRET ecc. nel file .env
-
-# 2. Avvia MongoDB locale con replica set
-docker compose -f local/docker-compose.yml up -d
-
-# 3. Server (porta 3001)
-cd server && npm install && npm run dev
-
-# 4. Client (porta 5173) — in un altro terminale
-cd client && npm install && npm run dev
-```
+1. [Introduzione](#1-introduzione)
+2. [Accesso e registrazione](#2-accesso-e-registrazione)
+3. [Interfaccia principale](#3-interfaccia-principale)
+4. [Visualizzazione esercizi (Home)](#4-visualizzazione-esercizi-home)
+5. [Filtri di ricerca](#5-filtri-di-ricerca)
+6. [Inserimento nuovo esercizio](#6-inserimento-nuovo-esercizio)
+7. [Modifica di un esercizio](#7-modifica-di-un-esercizio)
+8. [Flusso di approvazione](#8-flusso-di-approvazione)
+9. [Pannello Admin](#9-pannello-admin)
+10. [Glossario dei campi](#10-glossario-dei-campi)
 
 ---
 
-## Automatic versioning from github action
+## 1. Introduzione
 
-La action github configurata crea tag automaticamente in base al bump type (calcolato con conventional commit) allo scope della commit. Anche build e deploy seguono bump e scope.
-```
+**K9 Cross Training – Exercise Database** è un'applicazione web per la gestione di una libreria di esercizi di k9 cross training. Permette di catalogare ogni esercizio con informazioni dettagliate sulle aree di lavoro coinvolte, i muscoli target, gli attrezzi necessari e il piano di movimento.
 
----
+### Ruoli utente
 
-## Deploy in produzione
+| Ruolo | Cosa può fare |
+|-------|---------------|
+| **Utente** | Visualizzare, filtrare, inserire nuovi esercizi e proporre modifiche a quelli esistenti |
+| **Admin** | Tutto quanto sopra, più approvare o rifiutare le modifiche proposte dagli utenti |
 
-### Architettura
-
-```
-Browser
-   │
-   ▼
-Traefik  (ingress controller incluso in k3s)
-   │
-   ├─ /api/*  ──▶  KEDA HTTP Interceptor
-   │                      │  conta richieste in coda
-   │                      │  scala automaticamente 1 → 4 pod
-   │                      ▼
-   │               k9-server pods (Express + Node.js)
-   │                      │
-   │                      ▼
-   │               MongoDB Atlas
-   │
-   └─ /*     ──▶  k9-client pod (nginx — serve React SPA)
-```
-
-Il client nginx è una replica fissa: gestisce 10.000+ connessioni concorrenti
-con ~50 MB di RAM, non è mai il collo di bottiglia. Solo il server scala.
+> Le modifiche agli esercizi già approvati non sono applicate immediatamente: rimangono in stato **"in attesa"** fino a quando un admin le approva o le rifiuta.
 
 ---
 
-### Configurazione VPS (Hetzner Cloud)
+## 2. Accesso e registrazione
 
-#### 1. Generazione chiave SSH
+### 2.1 Login
 
-La stessa coppia di chiavi serve per due cose:
-- La chiave **pubblica** → Hetzner (per autenticarti sul VPS)
-- La chiave **privata** → GitHub Secret `VPS_SSH_KEY` (per permettere alla Action di fare SSH sul VPS)
+All'apertura dell'applicazione viene mostrata la pagina di login.
 
 ```
-┌──────────────┐    chiave pubblica     ┌─────────────┐
-│  Il tuo PC   │ ──────────────────────▶│   Hetzner   │
-│              │                        │     VPS     │
-│  chiave      │    chiave privata      │             │
-│  privata     │ ──────────────────────▶│  GitHub     │
-│              │    (GitHub Secret)     │  Action     │
-└──────────────┘                        └─────────────┘
+┌─────────────────────────────┐
+│        [Logo K9]            │
+│  K9 Cross Training - Exercise│
+│                             │
+│  ┌───────────────────────┐  │
+│  │ Email                 │  │
+│  └───────────────────────┘  │
+│  ┌───────────────────────┐  │
+│  │ Password              │  │
+│  └───────────────────────┘  │
+│                             │
+│  ┌───────────────────────┐  │
+│  │       ACCEDI          │  │
+│  └───────────────────────┘  │
+│                             │
+│  Non hai un account?        │
+│  Registrati                 │
+└─────────────────────────────┘
 ```
 
-**Su Windows** (PowerShell o Git Bash):
+1. Inserisci la tua **email** e **password**
+2. Clicca **Accedi**
+3. In caso di credenziali errate, viene mostrato un messaggio di errore rosso
 
-```powershell
-# Genera la coppia di chiavi — premi Invio a tutte le domande
-# (lascia la passphrase vuota: la Action non può inserirla)
-ssh-keygen -t ed25519 -C "k9-deploy" -f "$env:USERPROFILE\.ssh\k9_deploy"
+> **Sessione scaduta** — Se la sessione è scaduta (dopo 2 ore di inattività), alla riapertura della pagina compare un avviso giallo: *"Sessione scaduta. Effettua nuovamente il login."*
 
-# Mostra la chiave PUBBLICA (da copiare su Hetzner)
-Get-Content "$env:USERPROFILE\.ssh\k9_deploy.pub"
+### 2.2 Registrazione
 
-# Mostra la chiave PRIVATA (da copiare nel segreto GitHub VPS_SSH_KEY)
-Get-Content "$env:USERPROFILE\.ssh\k9_deploy"
-```
+Clicca su **Registrati** nella pagina di login per creare un nuovo account. Inserisci email e password, poi conferma.
 
-**Su macOS / Linux:**
+> I nuovi account vengono creati con ruolo **utente** standard. Il ruolo admin deve essere assegnato manualmente da chi gestisce il database.
 
-```bash
-ssh-keygen -t ed25519 -C "k9-deploy" -f ~/.ssh/k9_deploy
+### 2.3 Logout
 
-cat ~/.ssh/k9_deploy.pub   # → Hetzner
-cat ~/.ssh/k9_deploy        # → GitHub Secret VPS_SSH_KEY
-```
-
-Vengono creati due file:
-| File | Contenuto | Dove va |
-|------|-----------|---------|
-| `k9_deploy.pub` | Chiave pubblica | Hetzner → Security → SSH Keys |
-| `k9_deploy` | Chiave privata | GitHub → Secrets → `VPS_SSH_KEY` |
-
-> **Importante**: la chiave privata non va mai condivisa né committata nel repository.
-> Lascia la passphrase vuota durante la generazione: la GitHub Action non può
-> inserire password interattive.
-
-#### 2. Creazione VPS
-
-1. Crea account su [hetzner.com/cloud](https://www.hetzner.com/cloud)
-2. Aggiungi la chiave pubblica: **Security → SSH Keys → Add SSH Key**
-   → incolla il contenuto di `k9_deploy.pub`
-3. Crea un server:
-   - **Location**: Nuremberg o Helsinki
-   - **Image**: Ubuntu 24.04
-   - **Type**: `CAX11` — ARM, 2 vCPU, 4 GB RAM, €4.15/mese *(consigliato)*
-     oppure `CX22` — x86, 2 vCPU, 4 GB RAM, €4.85/mese
-4. Annota l'IP del server
-5. Crea un **Firewall** e apri solo le regole **inbound**:
-
-   | Porta | Protocollo | Sorgente | Scopo |
-   |-------|------------|----------|-------|
-   | 22 | TCP | Il tuo IP | SSH |
-   | 80 | TCP | Any | HTTP |
-   | 443 | TCP | Any | HTTPS |
-
-   > Le regole **outbound non servono**: Hetzner non filtra il traffico in
-   > uscita dal VPS. Il server può connettersi liberamente a MongoDB Atlas
-   > e a qualsiasi altro servizio esterno.
-
-6. **MongoDB Atlas — IP Access List**: Atlas ha il proprio firewall che blocca
-   tutto di default. Aggiungi l'IP del VPS alla whitelist altrimenti il server
-   non riuscirà a connettersi al database:
-   - Apri il progetto su [cloud.mongodb.com](https://cloud.mongodb.com)
-   - **Network Access → Add IP Address**
-   - Inserisci l'IP del VPS Hetzner
-   - Clicca **Confirm**
-
-   > Se in futuro aggiungi un secondo nodo al cluster k3s, ricorda di aggiungere
-   > anche il suo IP alla whitelist Atlas.
-
-#### 2. Inizializzazione automatica con cloud-init
-
-Hetzner permette di incollare uno script nel campo **"User data"** durante
-la creazione del server. Lo script viene eseguito automaticamente al primo
-avvio — nessun intervento manuale necessario.
-
-Lo script si trova in `scripts/cloud-init.sh` nel repository.
-Copiane il contenuto e incollalo nel campo "User data" su Hetzner.
-
-**Cosa fa lo script:**
-
-| Step | Operazione |
-|------|-----------|
-| 1 | Aggiornamento sistema + installazione `curl`, `gettext-base` |
-| 2 | Creazione utente `deploy` (SSH e kubectl senza root) |
-| 3 | Installazione k3s (Kubernetes + Traefik + CoreDNS) |
-| 4 | Installazione KEDA (controller autoscaling) |
-| 5 | Installazione KEDA HTTP Add-on (scaling su richieste HTTP) |
-| 6 | Installazione Kubernetes Dashboard (UI per pod, risorse, log) |
-
-Al termine, lo script scrive `/opt/k9/.init-complete` come marker di completamento
-e stampa i prossimi passi nel log `/var/log/k9-init.log`.
-
-**Verifica dopo il primo avvio** (attendi 3-5 minuti, poi):
-
-```bash
-ssh root@<IP_VPS>
-
-# Controlla che lo script sia terminato
-cat /opt/k9/.init-complete   # deve esistere
-
-# Verifica il cluster
-kubectl get nodes             # STATUS: Ready
-kubectl get pods -A           # tutti i pod Running
-```
-
-> Se preferisci eseguire lo script manualmente su un server già avviato:
-> ```bash
-> bash scripts/cloud-init.sh
-> ```
-
-#### 3. Configurazione dominio
-
-Il dominio è gestito tramite la GitHub Variable `DOMAIN` (vedere sezione successiva).
-Non serve modificare i file YAML manualmente: la GitHub Action sostituisce
-`${DOMAIN}` in `k8s/ingress.yaml` e `k8s/server/hso.yaml` ad ogni deploy.
-
-Aggiungi un record DNS sul tuo provider (es. Route 53 su AWS):
-
-| Tipo | Nome | Valore |
-|------|------|--------|
-| `A` | `k9` (o il sottodominio che preferisci) | IP del VPS Hetzner |
-
-Poi imposta la Variable `DOMAIN` su GitHub con il sottodominio completo
-(es. `k9.tuodominio.com`) e fai push — il deploy applica la modifica automaticamente.
-
-#### 4. HTTPS con cert-manager (opzionale)
-
-```bash
-# Installa cert-manager
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.0/cert-manager.yaml
-
-# Crea ClusterIssuer per Let's Encrypt
-kubectl apply -f - <<EOF
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: tua@email.com
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-      - http01:
-          ingress:
-            class: traefik
-EOF
-```
-
-Poi aggiungi in `k8s/ingress.yaml`:
-```yaml
-annotations:
-  cert-manager.io/cluster-issuer: letsencrypt-prod
-  traefik.ingress.kubernetes.io/router.entrypoints: websecure
-```
+In qualsiasi momento è possibile fare logout cliccando l'icona **→ (porta d'uscita)** in alto a destra nella barra di navigazione. Un tooltip mostra l'email dell'utente connesso.
 
 ---
 
-### GitHub Actions — Segreti e variabili
+## 3. Interfaccia principale
 
-Vai su **GitHub → Settings → Secrets and variables → Actions**.
+Dopo il login si accede alla schermata principale, strutturata in tre aree:
 
-#### Secrets (valori sensibili — cifrati, non visibili nei log)
+```
+┌──────────────────────────────────────────────────────────┐
+│ [≡ Menu]    K9 Cross Training Exercise Database    [→ ]  │  ← AppBar
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│               CONTENUTO DELLA PAGINA                    │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
 
-| Nome | Valore | Note |
-|------|--------|------|
-| `VPS_HOST` | `178.105.245.252` | IP del VPS Hetzner |
-| `VPS_USER` | `deploy` | Utente SSH creato da cloud-init |
-| `VPS_SSH_KEY` | Contenuto di `~/.ssh/k9_deploy` | Chiave **privata** — non il `.pub` |
-| `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/k9` | Stringa connessione Atlas |
-| `SESSION_SECRET` | Output di `openssl rand -hex 32` | Stringa random per le sessioni |
-| `GHCR_PAT` | Personal Access Token GitHub | Serve al VPS per fare pull delle immagini ¹ |
+### 3.1 Menu burger (≡)
 
-> ¹ **Come creare il GHCR_PAT**: GitHub → foto profilo → **Settings** (del profilo, non del repo)
-> → in fondo a sinistra → **Developer settings** → **Personal access tokens → Tokens (classic)**
-> → **Generate new token** → spunta solo `read:packages` → copia il token generato.
->
-> `GITHUB_TOKEN` (usato per il push delle immagini nella Action) è automatico — non va configurato.
+Cliccando l'icona **≡** in alto a sinistra si apre un menu a tendina con le voci di navigazione:
 
-#### Variables (valori non sensibili — visibili nei log di build)
+| Icona | Voce | Destinazione |
+|-------|------|--------------|
+| 🏠 | **Home** | Torna alla lista degli esercizi |
+| ➕ | **Inserisci** | Apre il form per un nuovo esercizio |
+| 🛡️ | **Admin** | Pannello di gestione modifiche *(solo admin)* |
 
-| Nome | Valore | Effetto |
-|------|--------|---------|
-| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress Traefik e KEDA HTTPScaledObject |
-| `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server Node.js |
-| `VITE_ENABLE_WITH_OPERATION_FILTER` | `true` / `false` | Feature flag baked nel bundle React al momento del build |
-
-> **Secrets vs Variables**: i Secrets sono cifrati e mascherati nei log.
-> Le Variables sono in chiaro — usarle solo per valori non sensibili come feature flag e domini.
+> La voce **Admin** è visibile e accessibile solo agli utenti con ruolo amministratore.
 
 ---
 
-### Deploy e rollback
+## 4. Visualizzazione esercizi (Home)
 
-**Deploy automatico**: ogni push su `main` avvia la Action che:
-1. Legge le versioni da `server/package.json` e `client/package.json`
-2. Build immagini Docker (linux/amd64)
-3. Push su `ghcr.io` con tag versione (es. `k9-server:1.1.0`)
-4. Applica i manifest k8s sul VPS con `kubectl`
-5. Attende il completamento del rollout
+La pagina Home mostra la **tabella di tutti gli esercizi approvati** nel database.
 
-**Rollback**:
-```bash
-# Torna al deploy precedente (Kubernetes mantiene la history)
-kubectl rollout undo deployment/k9-server -n k9
-kubectl rollout undo deployment/k9-client -n k9
-
-# Torna a una revisione specifica
-kubectl rollout history deployment/k9-server -n k9   # vedi lista revisioni
-kubectl rollout undo deployment/k9-server -n k9 --to-revision=2
-
-# Rollback a un tag specifico
-kubectl set image deployment/k9-server \
-  server=ghcr.io/<owner>/k9-server:1.0.0 -n k9
 ```
+┌─────────────────────────────────────────────────────────────────┐
+│ [🔍 Area target ▼]  [🔍 Body target ▼]                         │  ← Filtri
+├──────────┬──────────┬───────────────┬──────────┬───────────────┤
+│ Tipologia│ Variante │ Descrizione   │ Attrezzi │ Difficoltà ... │  ← Header tabella
+├──────────┼──────────┼───────────────┼──────────┼───────────────┤
+│ Sit      │          │ Il cane ...   │          │ 2             │
+│ [✎]      │          │               │          │               │
+├──────────┼──────────┼───────────────┼──────────┼───────────────┤
+│ Down     │ Su piano │ Il cane ...   │ [Tappeto]│ 1             │
+│ [✎]      │ inclinato│               │          │               │
+└──────────┴──────────┴───────────────┴──────────┴───────────────┘
+```
+
+### 4.1 Colonne della tabella
+
+| Colonna | Contenuto |
+|---------|-----------|
+| **Tipologia** | Categoria dell'esercizio. Contiene il pulsante ✎ per modificare |
+| **Variante** | Eventuale variante o sottotipo dell'esercizio |
+| **Descrizione** | Testo descrittivo dell'esercizio |
+| **Attrezzi** | Elenco degli attrezzi necessari, mostrati come chip colorati |
+| **Setup** | Istruzioni di preparazione (spazio, posizione, ecc.) |
+| **Aree Di Lavoro** | Istogramma visuale delle 5 aree cognitive/fisiche (0–5) |
+| **Body Target** | Istogramma visuale delle 5 zone corporee (0–5) |
+| **Piano di Movimento** | Chip con i piani di movimento attivi (Mediano/Trasverso/Dorsale) |
+| **Difficoltà** | Valore numerico da 1 a 5, difficoltà della variante all'interno della tipologia |
+
+### 4.2 Pulsante modifica (✎)
+
+- **Desktop**: il pulsante ✎ appare automaticamente quando si passa il mouse sopra una riga
+- **Mobile/tablet**: tocca la riga per selezionarla, poi clicca il pulsante ✎ che compare
+
+Cliccando ✎ si apre il form di modifica precompilato con i dati dell'esercizio selezionato.
+
+### 4.3 Ordinamento e filtri colonna
+
+La tabella supporta ordinamento e filtraggio nativo:
+- Clicca sull'intestazione di una colonna per **ordinare** (asc/desc)
+- Usa i controlli nativi della tabella per **filtrare per testo** sulle colonne testuali
 
 ---
 
-### Scaling
+## 5. Filtri di ricerca
 
-#### Autoscaling server (KEDA HTTP)
+Nella parte superiore della Home sono presenti due pannelli di filtro collassabili.
 
-Il server scala da 1 a 4 pod in base alle richieste `/api` in coda.
-Parametri in `k8s/server/hso.yaml`:
+### 5.1 Area target
 
-| Parametro | Default | Significato |
-|-----------|---------|-------------|
-| `targetPendingRequests` | `100` | Richieste in attesa per replica che triggerano un nuovo pod |
-| `scaledownPeriod` | `300` | Secondi di traffico basso prima di ridurre i pod |
-| `replicas.min` | `1` | Pod sempre attivi — nessun cold start |
-| `replicas.max` | `4` | Massimo 4 × 0.5 CPU = 2 vCPU totali (CAX11/CX22) |
+Clicca **🔍 Area target ▼** per espandere il pannello.
 
-#### Scaling verticale (resize VPS)
-
-Da Hetzner Cloud Console: **Server → Rescale → piano superiore**.
-Richiede reboot (~2 minuti di downtime).
-
-#### Scaling orizzontale (secondo nodo)
-
-```bash
-# Sul VPS principale — recupera il token di join
-cat /var/lib/rancher/k3s/server/node-token
-
-# Sul nuovo VPS — entra nel cluster
-curl -sfL https://get.k3s.io | \
-  K3S_URL=https://<IP_VPS_PRINCIPALE>:6443 \
-  K3S_TOKEN=<TOKEN> sh -
-
-# Verifica dal VPS principale
-kubectl get nodes   # mostra entrambi i nodi
+```
+┌─────────────────────────────────────────┐
+│ 🔍 Area target  ▲                       │
+│                                         │
+│  Mentale      [1 ▼] [⊗]               │
+│  Flessibilità [  ▼] [⊗]               │
+│  Forza        [3 ▼] [⊗]               │
+│  Equilibrio   [  ▼] [⊗]               │
+│  Cardio       [  ▼] [⊗]               │
+└─────────────────────────────────────────┘
 ```
 
-KEDA distribuisce automaticamente i pod sui nodi disponibili.
+Per ogni dimensione puoi impostare un **valore minimo** (1–5):
+- Seleziona un valore dal menu a tendina per filtrare gli esercizi che hanno almeno quel punteggio in quell'area
+- Clicca **⊗** (X) per resettare il singolo filtro
+- Gli esercizi privi di valore in quella dimensione sono inclusi nei risultati
+
+> La lista degli esercizi si aggiorna automaticamente ad ogni modifica del filtro, senza necessità di conferma.
+
+### 5.2 Body target
+
+Identico ad Area target, ma per le zone corporee: Anteriore, Posteriore, Core, Colonna, Fullbody.
 
 ---
 
-## Integrazione con WordPress
+## 6. Inserimento nuovo esercizio
 
-Questa sezione descrive come collegare l'app a un sito WordPress esistente, delegando interamente la gestione dell'autenticazione a WP e disabilitando la login nativa dell'app.
-
-### Panoramica del flusso
+Dal menu burger → **Inserisci** (oppure naviga su `/insert`).
 
 ```
-Utente → WordPress (login) → genera JWT firmato → redirect verso l'app con ?token=...
-                                                        │
-                                                        ▼
-                                              App Node (valida JWT)
-                                              crea sessione cookie
-                                              redirect interno (URL pulito)
-                                                        │
-                                                        ▼
-                                              App React (usa sessione)
+┌──────────────────────────────────────────────────────┐
+│                                                      │
+│  Difficoltà*   Tipologia*                            │
+│  [1  ▼]        [Select... ▼]  [ Nuova 🔘 ]          │
+│                                                      │
+│  Variante                                            │
+│  [                                              ]    │
+│                                                      │
+│  Descrizione*                                        │
+│  [                                              ]    │
+│  [                                              ]    │
+│                                                      │
+│  Attrezzi                                            │
+│  [                     ] [Aggiungi]                  │
+│  [Tappeto ✕] [Cono ✕]                               │
+│                                                      │
+│  Setup (richiesto se ci sono attrezzi)               │
+│  [                                              ]    │
+│  [                                              ]    │
+│                                                      │
+│  Piano di movimento*                                 │
+│  [Select... ▼] [Aggiungi]                            │
+│  [Mediano ✕] [Trasverso ✕]                          │
+│                                                      │
+│  ╔══ Area target* ═══════════════════════════════╗   │
+│  ║ Mentale[0▼] Flessib.[0▼] Forza[0▼] Equil.[0▼] Cardio[0▼] ║ │
+│  ╚════════════════════════════════════════════════╝   │
+│                                                      │
+│  ╔══ Body target* ════════════════════════════════╗   │
+│  ║ Anter.[0▼] Poster.[0▼] Core[0▼] Colonna[0▼] Fullbody[0▼] ║ │
+│  ╚════════════════════════════════════════════════╝   │
+│                                                      │
+│  [ SALVA ]                                           │
+└──────────────────────────────────────────────────────┘
 ```
 
-Il token nell'URL è **usa e getta**: serve solo per l'handshake iniziale. Una volta creata la sessione, l'app funziona esattamente come con la login nativa.
+### 6.1 Guida ai campi
+
+#### Difficoltà *(obbligatorio)*
+Seleziona un valore da **1** (facile) a **5** (molto difficile). La difficoltà non va intesa come assolua, ma della variante proposta rispetto alla tipologia di esercizio.
+
+#### Tipologia *(obbligatorio)*
+Indica la categoria dell'esercizio (es. *Sit*, *Down*, *Recall*…).
+
+- **Tipologia esistente**: seleziona dal menu a tendina che mostra le tipologie già presenti nel database
+- **Nuova tipologia**: attiva lo switch **"Nuova"** per passare a un campo di testo libero e digitare una categoria inedita
+
+#### Variante *(facoltativo)*
+Specifica una variante o sottotipo dell'esercizio base (es. *"con distrattore"*, *"su piano inclinato"*).
+
+#### Descrizione *(obbligatorio)*
+Testo libero che spiega come si esegue l'esercizio. Supporta testo su più righe.
+
+#### Attrezzi *(facoltativo)*
+Lista degli strumenti o materiali necessari.
+
+1. Digita il nome dell'attrezzo nel campo di testo
+2. Clicca **Aggiungi**
+3. Il valore appare come chip con la **✕** per rimuoverlo
+4. Ripeti per ogni attrezzo
+
+#### Setup *(obbligatorio se sono presenti attrezzi)*
+Descrizione di come posizionare gli attrezzi e preparare l'ambiente prima di iniziare l'esercizio.
+
+#### Piano di movimento *(obbligatorio)*
+Indica su quale piano anatomico si svolge il movimento. Seleziona dal menu e clicca **Aggiungi**. Puoi selezionare più piani.
+
+| Valore | Significato |
+|--------|-------------|
+| **Mediano** | Piano sagittale (movimenti avanti/indietro) |
+| **Dorsale** | Piano frontale (movimenti laterali) |
+| **Trasverso** | Piano orizzontale (rotazioni) |
+
+#### Area target *(obbligatorio — almeno uno > 0)*
+Indica con un valore da **0 a 5** l'intensità di lavoro per ciascuna delle 5 dimensioni cognitive/fisiche.
+
+| Dimensione | Descrizione |
+|------------|-------------|
+| **Mentale** | Concentrazione, attenzione, elaborazione cognitiva |
+| **Flessibilità** | Ampiezza di movimento, stretching |
+| **Forza** | Lavoro muscolare, resistenza |
+| **Equilibrio** | Propriocezione, stabilità |
+| **Cardio** | Frequenza cardiaca, resistenza cardiovascolare |
+
+> **0** = dimensione non coinvolta · **5** = massima intensità
+
+#### Body target *(obbligatorio — almeno uno > 0)*
+Indica con un valore da **0 a 5** l'intensità di lavoro per ciascuna zona corporea.
+
+| Zona | Descrizione |
+|------|-------------|
+| **Anteriore** | Arti anteriori, spalle, petto |
+| **Posteriore** | Arti posteriori, posteriore |
+| **Core** | Addome, stabilizzatori del tronco |
+| **Colonna** | Rachide, muscolatura paravertebrale |
+| **Fullbody** | Coinvolge tutto il corpo uniformemente |
+
+### 6.2 Salvataggio
+
+Clicca **SALVA**. Se la validazione ha successo:
+- Compare un messaggio verde *"Esercizio salvato correttamente"*
+- Dopo 1 secondo l'applicazione torna automaticamente alla Home
+
+Se ci sono errori di validazione, compaiono avvisi rossi in alto a sinistra con il dettaglio del problema.
+
+> **Nuovo esercizio**: viene salvato in stato **TO_APPROVE** (in attesa di approvazione admin). Non sarà visibile nella lista finché un admin non lo approva.
 
 ---
 
-### Parte 1 — Configurazione WordPress
+## 7. Modifica di un esercizio
 
-#### 1.1 Installare una libreria JWT per PHP
+Per modificare un esercizio esistente, clicca il pulsante **✎** sulla riga corrispondente nella tabella. Si apre lo stesso form di inserimento, precompilato con i dati attuali.
 
-Aggiungere via Composer al tema o a un plugin custom:
+### 7.1 Comportamento in base allo stato
 
-```bash
-composer require firebase/php-jwt
-```
+Il comportamento al salvataggio dipende dallo **stato corrente** dell'esercizio:
 
-oppure includere il file singolo dalla release ufficiale: https://github.com/firebase/php-jwt
+| Stato attuale | Cosa succede al salvataggio |
+|---------------|------------------------------|
+| **TO_APPROVE** | I campi vengono aggiornati direttamente (l'esercizio non era ancora pubblico) |
+| **APPROVED** | Viene creata una **richiesta di modifica** in attesa di approvazione; l'esercizio rimane visibile con i valori originali finché l'admin non approva |
+| **PENDING_UPDATE** | La richiesta di modifica esistente viene aggiornata con le nuove modifiche |
 
-#### 1.2 Generare il JWT al momento del redirect
-
-Creare una funzione (in `functions.php` o in un plugin custom) che intercetta il click sul link verso l'app, genera il token e fa il redirect:
-
-```php
-use Firebase\JWT\JWT;
-
-function k9_redirect_to_app() {
-    if ( ! is_user_logged_in() ) {
-        wp_redirect( wp_login_url( home_url('/k9-app') ) );
-        exit;
-    }
-
-    $user      = wp_get_current_user();
-    $secret    = defined('K9_JWT_SECRET') ? K9_JWT_SECRET : 'fallback-dev-secret';
-    $issued_at = time();
-
-    $payload = [
-        'iat'   => $issued_at,
-        'exp'   => $issued_at + 300, // token valido 5 minuti
-        'email' => $user->user_email,
-        'role'  => k9_get_role( $user ), // vedere §1.3
-    ];
-
-    $token = JWT::encode( $payload, $secret, 'HS256' );
-
-    wp_redirect( 'https://app.miodominio.com/api/auth/wp-callback?token=' . urlencode($token) );
-    exit;
-}
-
-// Aggancio a una shortcode o a un endpoint WP
-add_action( 'template_redirect', function() {
-    if ( isset($_GET['k9_redirect']) ) {
-        k9_redirect_to_app();
-    }
-});
-```
-
-Il link da mostrare agli utenti autorizzati nel menu/pagina WP diventa quindi:
-
-```
-https://miodominio.com/?k9_redirect=1
-```
-
-#### 1.3 Mappare i ruoli WordPress sui ruoli dell'app
-
-L'app ha due ruoli: `viewer` e `admin`. La funzione di mapping va adattata ai ruoli WP del proprio sito:
-
-```php
-function k9_get_role( WP_User $user ): string {
-    // Esempio: gli amministratori WP diventano admin dell'app
-    if ( in_array('administrator', $user->roles) || in_array('editor', $user->roles) ) {
-        return 'admin';
-    }
-    return 'viewer';
-}
-```
-
-#### 1.4 Definire il segreto condiviso in `wp-config.php`
-
-```php
-// wp-config.php
-define( 'K9_JWT_SECRET', 'una-stringa-lunga-e-casuale-identica-a-quella-nel-env-dellapp' );
-```
-
-Lo stesso valore va messo nella variabile `SESSION_SECRET` del `.env` dell'app Node (vedere §2.1).
+> **Annullare una modifica**: Se stai modificando un esercizio in stato PENDING_UPDATE e riporti tutti i valori a quelli originali, la richiesta di modifica viene automaticamente eliminata e l'esercizio torna ad APPROVED.
 
 ---
 
-### Parte 2 — Modifiche all'app Node.js
+## 8. Flusso di approvazione
 
-#### 2.1 Aggiungere la variabile d'ambiente
-
-Nel file `.env`:
+Gli esercizi transitano attraverso i seguenti stati:
 
 ```
-# Segreto condiviso con WordPress per validare i JWT in entrata
-SESSION_SECRET=una-stringa-lunga-e-casuale-identica-a-quella-in-wp-config
+                    Utente crea
+                        │
+                        ▼
+                  ┌──────────┐
+                  │TO_APPROVE│  ← Nuovo esercizio, non visibile in lista
+                  └──────────┘
+                        │
+                 Admin approva
+                        │
+                        ▼
+                  ┌──────────┐
+              ┌──▶│ APPROVED │◀─────────────────────┐
+              │   └──────────┘                       │
+              │         │                            │
+              │   Utente modifica                    │
+              │         │                            │
+              │         ▼                            │
+              │   ┌─────────────┐   Admin approva    │
+              │   │PENDING_UPDATE│──────────────────▶│
+              │   └─────────────┘                    
+              │         │                            
+              └─────────┘                            
+          Admin rifiuta                              
+          (o utente annulla)                         
 ```
 
-Installare la libreria JWT per Node se non già presente:
-
-```bash
-npm install jsonwebtoken
-npm install -D @types/jsonwebtoken
-```
-
-#### 2.2 Aggiungere la route `/api/auth/wp-callback`
-
-In `server/src/routes/auth.ts`, aggiungere sotto le route esistenti:
-
-```typescript
-import jwt from "jsonwebtoken";
-
-// GET /api/auth/wp-callback?token=<JWT>
-router.get("/wp-callback", (req: Request, res: Response): void => {
-    const { token } = req.query as { token?: string };
-
-    if (!token) {
-        res.status(400).send("Token mancante");
-        return;
-    }
-
-    const secret = process.env.K9_JWT_SECRET;
-    if (!secret) {
-        console.error("[wp-callback] K9_JWT_SECRET non configurato");
-        res.status(500).send("Configurazione server mancante");
-        return;
-    }
-
-    try {
-        const payload = jwt.verify(token, secret) as {
-            email: string;
-            role: string;
-            exp: number;
-        };
-
-        req.session.user = { email: payload.email, role: payload.role };
-
-        // Redirect verso la SPA con URL pulito (niente token visibile)
-        res.redirect("/");
-    } catch (err) {
-        console.error("[wp-callback] token non valido:", err);
-        res.status(401).send("Token non valido o scaduto");
-    }
-});
-```
-
-#### 2.3 Disabilitare la login nativa
-
-Una volta che l'integrazione WP è attiva e testata, nel `.env` dell'app impostare:
-
-```
-AUTH_ENABLED=false
-```
-
-Con questa impostazione:
-- La pagina `/login` dell'app non viene mai raggiunta (l'utente arriva già autenticato via WP)
-- `requireAuth` bypassa il controllo sessione in sviluppo locale
-- La route `/api/auth/wp-callback` continua a funzionare indipendentemente da `AUTH_ENABLED`
+- **TO_APPROVE** → esercizio non compare nella Home
+- **APPROVED** → esercizio visibile nella Home
+- **PENDING_UPDATE** → esercizio visibile nella Home con i valori originali; la modifica proposta è visibile solo nell'area Admin
 
 ---
 
-### Parte 4 — Sicurezza checklist
+## 9. Pannello Admin
 
-| Punto | Dettaglio |
+> Accessibile solo agli utenti con ruolo **admin**, dalla voce **Admin** nel menu burger.
+
+Il pannello è diviso in due aree affiancate:
+
+```
+┌──────────────────────┬──────────────────────────────────────────────┐
+│  Modifiche in attesa │  □  Campo         Valore                     │
+│  3 esercizi          │  ─────────────────────────────────────────    │
+│ ─────────────────────│     Tipologia     Sit              (grigio)  │
+│ ┌──────────────────┐ │  ☑  Difficoltà   ┌────────────────────────┐ │
+│ │ Sit              │ │                  │ 2  (rosso — attuale)   │ │
+│ │ variante...      │ │                  │ 3  (verde — proposto)  │ │
+│ │ Da: user@mail.it │ │                  └────────────────────────┘ │
+│ │ Il 04/06/2026    │ │  ─────────────────────────────────────────    │
+│ └──────────────────┘ │     Area target                              │
+│ ┌──────────────────┐ │       Mentale     2                (grigio)  │
+│ │ Down             │ │    ☑  Forza      ┌────────────────────────┐ │
+│ │ Da: altro@x.it   │ │                  │ 1  (rosso — attuale)   │ │
+│ └──────────────────┘ │                  │ 3  (verde — proposto)  │ │
+│                      │                  └────────────────────────┘ │
+│                      │  ─────────────────────────────────────────    │
+│                      │           [✕ RIFIUTA]  [✓ APPROVA]          │
+└──────────────────────┴──────────────────────────────────────────────┘
+```
+
+### 9.1 Pannello sinistro – Lista modifiche
+
+Mostra tutti gli esercizi che hanno una modifica in attesa (stato PENDING_UPDATE).
+
+Per ogni voce vengono visualizzati:
+- **Nome dell'esercizio** (Tipologia)
+- **Variante** *(in corsivo, se presente)*
+- **Utente** che ha proposto la modifica
+- **Data** dell'ultima modifica
+
+Clicca su una voce per visualizzare il dettaglio nel pannello destro. La voce selezionata è evidenziata con un bordo colorato a sinistra.
+
+### 9.2 Pannello destro – Visualizzazione dell'esercizio
+
+Il pannello mostra **tutti i campi dell'esercizio** in ordine fisso, in una tabella a due colonne (Campo · Valore).
+
+- I campi **non modificati** sono visualizzati con opacità ridotta (grigi)
+- I campi **modificati** mostrano i due valori impilati verticalmente:
+  - **Riga rossa** — valore attuale dell'esercizio approvato
+  - **Riga verde** — valore proposto dalla modifica
+
+Per i campi **Area target** e **Body target** ogni dimensione (Mentale, Forza, ecc.) compare come sotto-riga distinta, con la stessa logica rosso/verde se modificata, oppure grigia se invariata.
+
+### 9.3 Approvare una modifica (totale o parziale)
+
+Ogni campo modificato ha una **checkbox** alla sua sinistra, spuntata di default.
+L'admin può deselezionare singolarmente le modifiche che non vuole accettare prima di premere Approva.
+
+| Stato checkbox | Effetto al click su Approva |
 |---|---|
-| **Segreto JWT lungo** | Usare almeno 32 caratteri casuali. Generare con `openssl rand -base64 32` |
-| **Scadenza token breve** | 5 minuti (`exp: now + 300`) sono sufficienti per il redirect |
-| **HTTPS obbligatorio** | Il token viaggia nell'URL: senza HTTPS è intercettabile |
-| **`SESSION_SECRET` diverso da `K9_JWT_SECRET`** | Sono due segreti con scopi diversi, non riutilizzare lo stesso valore |
-| **Rimuovere `ADMIN_SEED_*` dal `.env`** | Dopo il primo avvio, eliminare o commentare le variabili di seed |
-| **Rate limiting su `/api/auth/login`** | Aggiungere `express-rate-limit` per prevenire brute-force sulla login nativa |
-| **Token one-time (opzionale)** | Per massima sicurezza, WordPress può salvare il token in DB e invalidarlo dopo il primo uso; l'app chiama un endpoint WP per validarlo prima di creare la sessione |
+| ☑ spuntata | La modifica viene applicata all'esercizio |
+| ☐ deselezionata | Il campo rimane con il valore originale |
+
+Per i campi **Area target** e **Body target** la granularità è a livello di singola dimensione (es. si può accettare la modifica su *Forza* e rifiutare quella su *Mentale*).
+
+Clicca il pulsante verde **✓ APPROVA** (abilitato solo se almeno una checkbox è spuntata):
+- Solo i campi selezionati vengono applicati all'esercizio
+- Il documento di modifica viene eliminato
+- L'esercizio torna in stato **APPROVED**
+- La voce sparisce dalla lista di sinistra
+
+### 9.4 Rifiutare una modifica
+
+Clicca il pulsante rosso **✕ RIFIUTA** per scartare l'intera modifica senza applicare nulla:
+- Il documento di modifica viene eliminato
+- L'esercizio rimane con i valori originali in stato **APPROVED**
+- La voce sparisce dalla lista di sinistra
+
+> Entrambe le azioni usano transazioni atomiche: non è possibile che l'operazione si completi parzialmente.
+
+---
+
+## 10. Glossario dei campi
+
+| Campo | Tipo | Obbligatorio | Note |
+|-------|------|:---:|------|
+| **Tipologia** | Testo | ✓ | Categoria principale dell'esercizio |
+| **Variante** | Testo | — | Variante o sottotipo |
+| **Descrizione** | Testo lungo | ✓ | Come si esegue l'esercizio |
+| **Difficoltà** | Numero 1–5 | ✓ | Livello di difficoltà complessivo |
+| **Attrezzi** | Lista di tag | — | Materiali necessari |
+| **Setup** | Testo lungo | ✓ se attrezzi | Preparazione dell'ambiente |
+| **Piano di movimento** | Lista | ✓ | Mediano / Trasverso / Dorsale |
+| **Mentale** | Numero 0–5 | ✓¹ | Componente cognitiva |
+| **Flessibilità** | Numero 0–5 | ✓¹ | Lavoro sulla mobilità |
+| **Forza** | Numero 0–5 | ✓¹ | Lavoro muscolare |
+| **Equilibrio** | Numero 0–5 | ✓¹ | Propriocezione e stabilità |
+| **Cardio** | Numero 0–5 | ✓¹ | Componente cardiovascolare |
+| **Anteriore** | Numero 0–5 | ✓² | Arti e muscolatura anteriore |
+| **Posteriore** | Numero 0–5 | ✓² | Arti e muscolatura posteriore |
+| **Core** | Numero 0–5 | ✓² | Stabilizzatori addominali |
+| **Colonna** | Numero 0–5 | ✓² | Rachide e paravertebrali |
+| **Fullbody** | Numero 0–5 | ✓² | Coinvolgimento totale |
+
+> ¹ Almeno un campo di **Area target** deve essere > 0  
+> ² Almeno un campo di **Body target** deve essere > 0
+
+---
+
+*Manuale aggiornato al 04/06/2026*

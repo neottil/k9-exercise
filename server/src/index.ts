@@ -7,9 +7,9 @@ import dotenv from "dotenv";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 
-import exerciseRoutes from "./routes/exercises";
-import authRoutes from "./routes/auth";
-import { requireAuth } from "./middleware/requireAuth";
+import exerciseRoutes from "./routes/exercises.js";
+import authRoutes from "./routes/auth.js";
+import { requireAuth } from "./middleware/requireAuth.js";
 
 // Il .env è alla root del monorepo (due livelli sopra server/src/)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

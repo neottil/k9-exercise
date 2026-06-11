@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 import { Router, Request, Response, NextFunction } from "express";
-import Exercise from "../models/Exercise";
-import ExerciseChange from "../models/ExerciseChange";
-import { requireDbReady } from "../middleware/requireDbReady";
+import Exercise from "../models/Exercise.js";
+import ExerciseChange from "../models/ExerciseChange.js";
+import { requireDbReady } from "../middleware/requireDbReady.js";
 
 // Middleware: solo admin — usato sulle route di approvazione
 const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {

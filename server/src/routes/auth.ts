@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import User from "../models/User";
-import { requireDbReady } from "../middleware/requireDbReady";
+import User from "../models/User.js";
+import { requireDbReady } from "../middleware/requireDbReady.js";
 
 const router = Router();
 
