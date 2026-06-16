@@ -1,6 +1,7 @@
 import { createBrowserRouter, useParams } from "react-router-dom";
 
 import App from "../App";
+import About from "../About";
 import View from "../View";
 import Insert from "../Insert";
 import Admin from "../Admin";
@@ -52,6 +53,10 @@ const router = createBrowserRouter([
             <Admin />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "about",
+        element: <About />,
       },
     ],
   },

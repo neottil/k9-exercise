@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import express from "express";
@@ -13,6 +14,9 @@ import { requireAuth } from "./middleware/requireAuth.js";
 
 // Il .env è alla root del monorepo (due livelli sopra server/src/)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const serverVersion = (JSON.parse(
+  readFileSync(path.resolve(__dirname, "../package.json"), "utf8")
+) as { version: string }).version;
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const app = express();
@@ -57,6 +61,10 @@ app.use(
 
 app.use("/api/auth", authRoutes);
 app.use("/api/exercises", requireAuth, exerciseRoutes);
+
+app.get("/api/info", (_req, res) => {
+  res.json({ version: serverVersion });
+});
 
 app.get("/health", (_req, res) => {
   const stateLabel = ["disconnected", "connected", "connecting", "disconnecting"];

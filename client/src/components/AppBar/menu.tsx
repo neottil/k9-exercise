@@ -7,6 +7,7 @@ import MenuItem from '@mui/material/MenuItem';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import HomeIcon from '@mui/icons-material/Home';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import MenuIcon from "@mui/icons-material/Menu";
 
 import { OverridableComponent } from '@mui/material/OverridableComponent';
@@ -77,6 +78,7 @@ const MainMenu = () => {
         {user?.role === "admin" && (
           <MainMenuItem link="/admin" label="Admin" IconComponent={AdminPanelSettingsIcon} onNavigate={handleNavigate} />
         )}
+        <MainMenuItem link="/about" label="Info" IconComponent={InfoOutlinedIcon} onNavigate={handleNavigate} />
       </Menu>
     </>
   );

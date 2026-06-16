@@ -563,5 +563,3 @@ console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
 ## TODOs
 
 - Script batch schedulato per segnalare nuovi utenti e nuovi esercizi in attesa di approvazione
-- Versione server su frontend — spostare in una modale dal menu info
-- Aggiungere ingress per certificato HTTPS (cert-manager + Let's Encrypt)
