@@ -186,19 +186,17 @@ jobs:
           envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
           envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
 
-          if [ "${{ needs.analyze.outputs.has_server }}" = "true" ]; then
-            echo "→ Deploy server:${{ needs.build.outputs.server_version }}"
-            export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.build.outputs.server_version }}"
-            envsubst '${SERVER_IMAGE} ${AUTH_ENABLED}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
-            kubectl rollout status deployment/k9-server -n k9 --timeout=120s
-          fi
+          echo "→ Deploy server:${{ needs.build.outputs.server_version }}"
+          export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.build.outputs.server_version }}"
+          envsubst '${SERVER_IMAGE} ${AUTH_ENABLED}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
+          kubectl rollout restart deployment/k9-server -n k9
+          kubectl rollout status deployment/k9-server -n k9 --timeout=120s
 
-          if [ "${{ needs.analyze.outputs.has_client }}" = "true" ]; then
-            echo "→ Deploy client:${{ needs.build.outputs.client_version }}"
-            export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.build.outputs.client_version }}"
-            envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
-            kubectl rollout status deployment/k9-client -n k9 --timeout=120s
-          fi
+          echo "→ Deploy client:${{ needs.build.outputs.client_version }}"
+          export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.build.outputs.client_version }}"
+          envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
+          kubectl rollout restart deployment/k9-client -n k9
+          kubectl rollout status deployment/k9-client -n k9 --timeout=120s
           ENDSSH
 
       - name: Job summary
