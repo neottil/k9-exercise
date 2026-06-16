@@ -1,0 +1,47 @@
+# CronJob che chiama POST /api/admin/notify sul server ogni giorno alle 8:00.
+# Modifica spec.schedule per cambiare la frequenza (formato cron standard).
+# Richiede il secret k9-notify-secret con la chiave NOTIFY_API_KEY.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k9-notify
+  namespace: k9
+spec:
+  schedule: "0 6,9,12,15,18,21 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: notify
+              image: curlimages/curl:latest
+              env:
+                - name: NOTIFY_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: k9-notify-secret
+                      key: NOTIFY_API_KEY
+              resources:
+                requests:
+                  cpu: "5m"
+                  memory: "8Mi"
+                limits:
+                  cpu: "10m"
+                  memory: "16Mi"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "→ Invio notifica pending..."
+                  RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST \
+                    -H "Authorization: Bearer $NOTIFY_API_KEY" \
+                    -H "Content-Type: application/json" \
+                    http://k9-server.k9.svc.cluster.local:3001/api/admin/notify)
+                  HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+                  BODY=$(echo "$RESPONSE" | head -1)
+                  echo "Status: $HTTP_CODE — $BODY"
+                  [ "$HTTP_CODE" = "200" ] || exit 1

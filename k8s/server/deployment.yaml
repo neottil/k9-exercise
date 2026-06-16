@@ -41,6 +41,26 @@ spec:
                 secretKeyRef:
                   name: k9-secrets
                   key: SESSION_SECRET
+            - name: NOTIFY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: k9-notify-secret
+                  key: NOTIFY_API_KEY
+            - name: SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: k9-notify-secret
+                  key: SMTP_PASS
+            - name: SMTP_HOST
+              value: "${SMTP_HOST}"
+            - name: SMTP_PORT
+              value: "${SMTP_PORT}"
+            - name: SMTP_USER
+              value: "${SMTP_USER}"
+            - name: NOTIFY_RECIPIENTS
+              value: "${NOTIFY_RECIPIENTS}"
+            - name: APP_URL
+              value: "${APP_URL}"
           resources:
             requests:
               cpu: "250m"

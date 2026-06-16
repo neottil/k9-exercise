@@ -135,15 +135,31 @@ Configurare in **GitHub → Settings → Secrets and variables → Actions**.
 
 #### Secrets
 
+I secret sono configurati **per environment** (staging / production) in GitHub → Settings → Environments.
+
 | Nome | Descrizione |
 |------|-------------|
-| `VPS_HOST` | IP del VPS Hetzner |
+| `VPS_HOST` | IP del VPS |
 | `VPS_SSH_KEY` | Chiave privata SSH (`~/.ssh/k9_deploy`) — non il `.pub` |
 | `MONGODB_URI` | Stringa di connessione MongoDB Atlas |
 | `SESSION_SECRET` | Stringa random — `openssl rand -hex 32` |
 | `GHCR_PAT` | Personal Access Token GitHub con scope `read:packages` ¹ |
+| `NOTIFY_API_KEY` | Token per autenticare il CronJob sulla route `/api/admin/notify` ² |
+| `SMTP_PASS` | Password SMTP / App Password Gmail ³ |
 
 > ¹ Serve al VPS per fare `imagePullSecrets` da GHCR. Crearlo in: profilo GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → `read:packages`.
+>
+> ² Generarlo con uno di questi comandi:
+> ```bash
+> # bash / macOS / Linux
+> openssl rand -hex 32
+> ```
+> ```powershell
+> # PowerShell / Windows
+> node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+> ```
+>
+> ³ Gmail richiede un **App Password** (non la password dell'account). Abilitare prima la verifica in due passaggi, poi: Google Account → Sicurezza → Verifica in 2 passaggi → App password.
 
 #### Variables
 
@@ -154,6 +170,10 @@ Configurare in **GitHub → Settings → Secrets and variables → Actions**.
 | `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) |
 | `VITE_ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
+| `SMTP_HOST` | `smtp.gmail.com` | Host SMTP per le notifiche email |
+| `SMTP_PORT` | `587` | Porta SMTP |
+| `SMTP_USER` | `tuagmail@gmail.com` | Indirizzo email mittente |
+| `NOTIFY_RECIPIENTS` | `a@esempio.com,b@esempio.com` | Destinatari notifiche, separati da virgola |
 
 ---
 
@@ -562,4 +582,5 @@ console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
 
 ## TODOs
 
-- Script batch schedulato per segnalare nuovi utenti e nuovi esercizi in attesa di approvazione
+- Rate limiting su `/api/auth/login` per prevenire brute-force
+- indagare retention immagini docker. Idea: tag versione+latest-test ogni build. Nuova action che sposta tag production su versione portata in prod e mette prev-prod su quella che era prod.

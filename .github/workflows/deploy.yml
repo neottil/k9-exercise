@@ -162,6 +162,11 @@ jobs:
             --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
             --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
+          kubectl create secret generic k9-notify-secret \
+            --from-literal=NOTIFY_API_KEY="${{ secrets.NOTIFY_API_KEY }}" \
+            --from-literal=SMTP_PASS="${{ secrets.SMTP_PASS }}" \
+            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
+
           kubectl create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
             --docker-username=${{ github.repository_owner }} \
@@ -171,6 +176,11 @@ jobs:
           export DOMAIN="${{ vars.DOMAIN }}"
           export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
           export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
+          export SMTP_HOST="${{ vars.SMTP_HOST }}"
+          export SMTP_PORT="${{ vars.SMTP_PORT }}"
+          export SMTP_USER="${{ vars.SMTP_USER }}"
+          export NOTIFY_RECIPIENTS="${{ vars.NOTIFY_RECIPIENTS }}"
+          export APP_URL="https://${{ vars.DOMAIN }}"
 
           kubectl apply -f /opt/k9/k8s/traefik-config.yaml
 
@@ -188,7 +198,7 @@ jobs:
 
           echo "→ Deploy server:${{ needs.build.outputs.server_version }}"
           export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.build.outputs.server_version }}"
-          envsubst '${SERVER_IMAGE} ${AUTH_ENABLED}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
+          envsubst '${SERVER_IMAGE} ${AUTH_ENABLED} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
           kubectl rollout restart deployment/k9-server -n k9
           kubectl rollout status deployment/k9-server -n k9 --timeout=120s
 
@@ -197,6 +207,8 @@ jobs:
           envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
           kubectl rollout restart deployment/k9-client -n k9
           kubectl rollout status deployment/k9-client -n k9 --timeout=120s
+
+          kubectl apply -f /opt/k9/k8s/notify/cronjob.yaml
           ENDSSH
 
       - name: Job summary

@@ -10,6 +10,7 @@ import MongoStore from "connect-mongo";
 
 import exerciseRoutes from "./routes/exercises.js";
 import authRoutes from "./routes/auth.js";
+import notifyRoutes from "./routes/notify.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 
 // Il .env è alla root del monorepo (due livelli sopra server/src/)
@@ -61,6 +62,7 @@ app.use(
 
 app.use("/api/auth", authRoutes);
 app.use("/api/exercises", requireAuth, exerciseRoutes);
+app.use("/api/admin/notify", notifyRoutes);
 
 app.get("/api/info", (_req, res) => {
   res.json({ version: serverVersion });
