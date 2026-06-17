@@ -73,7 +73,7 @@ const ArrayField = ({
         </Select>
       )}
       <Button onClick={addItem} variant="text">
-        Aggiugi
+        Aggiungi
       </Button>
       {arraySection}
     </>
