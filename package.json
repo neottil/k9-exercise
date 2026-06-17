@@ -1,12 +1,13 @@
 {
   "name": "k9-exercise",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
     "build": "npm run build --prefix client && npm run build --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "dev:server": "npm run dev --prefix server"
+    "dev:server": "npm run dev --prefix server",
+    "lock:docker": "bash scripts/docker-lock.sh"
   },
   "devDependencies": {
     "concurrently": "^10.0.0"

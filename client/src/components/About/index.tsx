@@ -23,7 +23,7 @@ const About = () => {
       <Paper elevation={3} sx={{ maxWidth: 440, width: "100%", overflow: "hidden" }}>
 
         <Box sx={{ px: 3, py: 3 }}>
-          <Typography variant="h6" fontWeight="bold" color="primary" sx={{ mb: 3 }}>
+          <Typography variant="h6" color="primary" sx={{ mb: 3, fontWeight: "bold" }}>
             Info
           </Typography>
 

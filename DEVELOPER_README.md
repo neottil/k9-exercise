@@ -129,6 +129,21 @@ Deploy su k3s  ←─ solo se client o server sono cambiati
 Job summary  ←─ sempre (anche se step precedenti falliscono)
 ```
 
+### Aggiornamento dipendenze e package-lock.json
+
+I Dockerfile usano `npm ci` che installa **esattamente** le versioni nel `package-lock.json`. Il problema è che un lockfile generato su Windows non include i pacchetti nativi linux/amd64 (es. `@emnapi/core`, varianti esbuild per Linux), causando un errore di build in CI.
+
+**Ogni volta che aggiorni le dipendenze** (`npm install <pacchetto>`, `npm audit fix`, ecc.) devi rigenerare il lockfile su Linux prima di committare:
+
+```bash
+# Da eseguire in WSL nella directory root del progetto
+npm run lock:docker
+```
+
+Lo script (`scripts/docker-lock.sh`) avvia un container `node:24-alpine` per ciascun package (`client/`, `server/`) e rigenera il relativo `package-lock.json` con i pacchetti corretti per linux/amd64 usando `npm install --package-lock-only`: aggiorna **solo il lockfile**, senza toccare `node_modules`, quindi il dev su Windows continua a funzionare normalmente. Al termine committa i lockfile aggiornati.
+
+> **Prerequisito**: Docker deve essere disponibile nella sessione WSL (`docker --version` deve rispondere). Se si usa Docker Desktop su Windows con integrazione WSL2, è sufficiente che Docker Desktop sia avviato.
+
 ### Secrets e Variables richiesti
 
 Configurare in **GitHub → Settings → Secrets and variables → Actions**.
