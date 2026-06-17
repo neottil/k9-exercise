@@ -37,6 +37,7 @@ const ExerciseSchema = new Schema(
     state: String,
     user: String,
     userUpdate: String,
+    lastNotifiedAt: { type: Date },
   },
   {
     timestamps: true,

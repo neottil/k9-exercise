@@ -27,12 +27,24 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
       return;
     }
 
-    const [pendingUsers, pendingExercises, pendingUpdates] = await Promise.all([
-      User.countDocuments({ state: "TO_APPROVE" }),
-      Exercise.countDocuments({ state: "TO_APPROVE" }),
-      Exercise.countDocuments({ state: "PENDING_UPDATE" }),
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const now = new Date();
+
+    // Documenti da notificare: in attesa E non ancora notificati oggi
+    const newFilter = {
+      $or: [{ lastNotifiedAt: null }, { lastNotifiedAt: { $lt: startOfToday } }],
+    };
+
+    const [usersResult, newExercisesResult, updatedExercisesResult] = await Promise.all([
+      User.updateMany({ state: "TO_APPROVE", ...newFilter }, { $set: { lastNotifiedAt: now } }),
+      Exercise.updateMany({ state: "TO_APPROVE", ...newFilter }, { $set: { lastNotifiedAt: now } }),
+      Exercise.updateMany({ state: "PENDING_UPDATE", ...newFilter }, { $set: { lastNotifiedAt: now } }),
     ]);
 
+    const pendingUsers = usersResult.modifiedCount;
+    const pendingExercises = newExercisesResult.modifiedCount;
+    const pendingUpdates = updatedExercisesResult.modifiedCount;
     const total = pendingUsers + pendingExercises + pendingUpdates;
 
     if (total === 0) {

@@ -582,5 +582,9 @@ console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
 
 ## TODOs
 
+- job deve segnare documenti già processati con una data. Solo giorno dopo reinvia. La data viene pulita al cambio di stato.
+- redesign pagina admin per cell
+- pannello admin per approvazione user e esercizi nuovi
+- nome cognome alla registrazione?
 - Rate limiting su `/api/auth/login` per prevenire brute-force
 - indagare retention immagini docker. Idea: tag versione+latest-test ogni build. Nuova action che sposta tag production su versione portata in prod e mette prev-prod su quella che era prod.

@@ -8,6 +8,7 @@ export interface IUser extends Document {
   passwordHash: string;
   role: UserRole;
   state: UserState;
+  lastNotifiedAt?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -16,6 +17,7 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["viewer", "admin"], default: "viewer" },
     state: { type: String, enum: ["TO_APPROVE", "APPROVED"], default: "TO_APPROVE" },
+    lastNotifiedAt: { type: Date },
   },
   { timestamps: true, versionKey: false, collection: "k9_users" }
 );

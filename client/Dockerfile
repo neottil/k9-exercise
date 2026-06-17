@@ -1,7 +1,7 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 # VITE_ vars sono baked al build time — passarle come ARG
 ARG VITE_ENABLE_WITH_OPERATION_FILTER=false
