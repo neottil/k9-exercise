@@ -2,7 +2,7 @@ import { Chip } from "@mui/material";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
-import { GridColDef, GridColumnHeaderParams } from "@mui/x-data-grid";
+import { GridColDef, GridColumnHeaderParams, GridRenderCellParams } from "@mui/x-data-grid";
 import { NavigateFunction } from "react-router-dom";
 import { Exercise } from "../../interfaces/exerciseInterfaces";
 import WorkingAreaTable from "./WorkingAreaTable";
@@ -13,6 +13,11 @@ export const renderHeader = (params: GridColumnHeaderParams) => (
     {params.colDef.headerName}
   </strong>
 );
+
+// Evita che DataGrid aggiunga il tooltip nativo (title) sulle celle di testo semplice.
+// Il title viene impostato solo quando renderCell non è definita; wrappare in un
+// fragment è sufficiente a segnalare che children non è undefined.
+const noTooltip = ({ value }: GridRenderCellParams) => <>{value}</>;
 
 const id: GridColDef = {
   field: "id",
@@ -84,6 +89,7 @@ const variant: GridColDef = {
   headerName: "Variante",
   headerClassName: "super-app-theme--header",
   renderHeader,
+  renderCell: noTooltip,
   minWidth: 110,
   flex: 0.1,
 };
@@ -94,6 +100,7 @@ const description: GridColDef = {
   headerName: "Descrizione",
   headerClassName: "super-app-theme--header",
   renderHeader,
+  renderCell: noTooltip,
   minWidth: 300,
   flex: 0.1,
 };
@@ -116,6 +123,7 @@ const setup: GridColDef = {
   headerName: "Setup",
   headerClassName: "super-app-theme--header",
   renderHeader,
+  renderCell: noTooltip,
   minWidth: 300,
   flex: 0.1,
 };
@@ -161,6 +169,7 @@ const difficultyLevel: GridColDef = {
   headerName: "Difficoltà",
   headerClassName: "super-app-theme--header",
   renderHeader,
+  renderCell: noTooltip,
   minWidth: 80,
 };
 
