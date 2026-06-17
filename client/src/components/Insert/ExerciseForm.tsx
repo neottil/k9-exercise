@@ -26,56 +26,81 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
   };
 
   return (
-    <Box>
+    <Box
+      sx={{
+        display: "grid",
+        gap: 2,
+        gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+        gridTemplateAreas: {
+          xs: `
+            "type"
+            "variant"
+            "description"
+            "piano"
+            "tools"
+            "setup"
+            "area"
+          `,
+          md: `
+            "type variant"
+            "description piano"
+            "tools setup"
+            "area area"
+          `,
+        },
+      }}
+    >
       {/* Difficoltà + Tipologia */}
-      <Box sx={{ display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 2, my: 1 }}>
-        <Box sx={{ display: "flex", flexDirection: "column" }}>
-          <InputLabel required>Difficoltà</InputLabel>
-          <LevelSelect
-            value={exercise.difficultyLevel}
-            label=""
-            name="difficultyLevel"
-            useZeroValue
-            disableAdornment
-            onChangeCallback={onChange}
-          />
-        </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <InputLabel required>Tipologia</InputLabel>
-            <FormControlLabel
-              label="Nuova"
-              control={
-                <Switch
-                  size="small"
-                  checked={newType}
-                  onChange={(e) => {
-                    setNewType(e.target.checked);
-                    onChange("type", TypeSelectDefaultValue);
-                  }}
-                />
-              }
-              sx={{ mr: 0, ml: 1 }}
+      <Box sx={{ gridArea: "type" }}>
+        <Box sx={{ display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 2 }}>
+          <Box sx={{ display: "flex", flexDirection: "column" }}>
+            <InputLabel required>Difficoltà</InputLabel>
+            <LevelSelect
+              value={exercise.difficultyLevel}
+              label=""
+              name="difficultyLevel"
+              useZeroValue
+              disableAdornment
+              onChangeCallback={onChange}
             />
           </Box>
-          {!newType ? (
-            <TypeSelect
-              onChangeCallback={onChange}
-              value={exercise.type || TypeSelectDefaultValue}
-            />
-          ) : (
-            <TextField
-              fullWidth
-              name="type"
-              value={exercise.type}
-              onChange={onTextChange}
-            />
-          )}
+          <Box sx={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <InputLabel required>Tipologia</InputLabel>
+              <FormControlLabel
+                label="Nuova"
+                control={
+                  <Switch
+                    size="small"
+                    checked={newType}
+                    onChange={(e) => {
+                      setNewType(e.target.checked);
+                      onChange("type", TypeSelectDefaultValue);
+                    }}
+                  />
+                }
+                sx={{ mr: 0, ml: 1 }}
+              />
+            </Box>
+            {!newType ? (
+              <TypeSelect
+                onChangeCallback={onChange}
+                value={exercise.type || TypeSelectDefaultValue}
+              />
+            ) : (
+              <TextField
+                fullWidth
+                name="type"
+                value={exercise.type}
+                onChange={onTextChange}
+              />
+            )}
+          </Box>
         </Box>
       </Box>
 
       {/* Variante */}
-      <Box sx={{ my: 1 }}>
+      <Box sx={{ gridArea: "variant" }}>
         <InputLabel>Variante</InputLabel>
         <TextField
           fullWidth
@@ -86,7 +111,7 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
       </Box>
 
       {/* Descrizione */}
-      <Box sx={{ my: 1 }}>
+      <Box sx={{ gridArea: "description" }}>
         <InputLabel required>Descrizione</InputLabel>
         <TextField
           fullWidth
@@ -98,8 +123,21 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
         />
       </Box>
 
+      {/* Setup */}
+      <Box sx={{ gridArea: "setup" }}>
+        <InputLabel required={exercise.tools.length > 0}>Setup</InputLabel>
+        <TextField
+          fullWidth
+          name="setup"
+          value={exercise.setup ?? ""}
+          onChange={onTextChange}
+          multiline
+          minRows={2}
+        />
+      </Box>
+
       {/* Attrezzi */}
-      <Box sx={{ my: 1 }}>
+      <Box sx={{ gridArea: "tools" }}>
         <InputLabel>Attrezzi</InputLabel>
         <ArrayField
           name="tools"
@@ -108,21 +146,8 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
         />
       </Box>
 
-      {/* Setup */}
-      <Box sx={{ my: 1 }}>
-        <InputLabel required={exercise.tools.length > 0}>Setup</InputLabel>
-        <TextField
-          fullWidth
-          name="setup"
-          value={exercise.setup ?? ""}
-          onChange={onTextChange}
-          multiline
-          rows={2}
-        />
-      </Box>
-
       {/* Piano di movimento */}
-      <Box sx={{ my: 1 }}>
+      <Box sx={{ gridArea: "piano" }}>
         <InputLabel required>Piano di movimento</InputLabel>
         <ArrayField
           name="movementPlan"
@@ -133,7 +158,14 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
       </Box>
 
       {/* Area target + Body target */}
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2, my: 1 }}>
+      <Box
+        sx={{
+          gridArea: "area",
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          gap: 2,
+        }}
+      >
         <Box>
           <InputLabel required>Area target</InputLabel>
           <StatBarsField
