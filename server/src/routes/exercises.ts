@@ -252,7 +252,7 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
           await ExerciseChange.deleteOne({ exerciseId: id }, { session });
           await Exercise.findByIdAndUpdate(
             id,
-            { $set: { state: APPROVED, userUpdate: req.user?.email } },
+            { $set: { state: APPROVED, userUpdate: req.user?.email }, $unset: { lastNotifiedAt: "" } },
             { session }
           );
         } else {
@@ -308,7 +308,7 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
 
     await Exercise.findByIdAndUpdate(
       id,
-      { $set: { ...toApply, state: APPROVED, userUpdate: req.user?.email } },
+      { $set: { ...toApply, state: APPROVED, userUpdate: req.user?.email }, $unset: { lastNotifiedAt: "" } },
       { session }
     );
     await ExerciseChange.deleteOne({ exerciseId: id }, { session });
@@ -334,7 +334,7 @@ router.post("/:id/reject", requireAdmin, requireDbReady, async (req: Request, re
     await ExerciseChange.deleteOne({ exerciseId: id }, { session });
     await Exercise.findByIdAndUpdate(
       id,
-      { $set: { state: APPROVED, userUpdate: req.user?.email } },
+      { $set: { state: APPROVED, userUpdate: req.user?.email }, $unset: { lastNotifiedAt: "" } },
       { session }
     );
 

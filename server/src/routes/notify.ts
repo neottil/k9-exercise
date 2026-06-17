@@ -77,7 +77,7 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     await transporter.sendMail({
       from: `"k9-exercise-app" <${process.env.SMTP_USER}>`,
       to: recipients.join(", "),
-      subject: `[K9] ${total} element${total === 1 ? "o" : "i"} in attesa di approvazione`,
+      subject: `[K9-exercise] ${total} element${total === 1 ? "o" : "i"} in attesa di approvazione`,
       text: [
         "Ciao,",
         "",
