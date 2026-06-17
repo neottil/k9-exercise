@@ -30,7 +30,18 @@ const SiteAppBar = () => {
 
         <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
           <Link href="/" underline="none" color="inherit">
-            <Typography variant="h5" component="div" sx={{ fontWeight: "bold", whiteSpace: "nowrap" }}>
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{ fontWeight: "bold", whiteSpace: "nowrap", display: { xs: "block", md: "none" } }}
+            >
+              K9CT Exercise DB
+            </Typography>
+            <Typography
+              variant="h5"
+              component="div"
+              sx={{ fontWeight: "bold", whiteSpace: "nowrap", display: { xs: "none", md: "block" } }}
+            >
               K9 Cross Training Exercise Database
             </Typography>
           </Link>
@@ -38,11 +49,13 @@ const SiteAppBar = () => {
 
         <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
           {user && (
-            <Tooltip title={`Logout (${user.email})`}>
-              <IconButton color="inherit" onClick={handleLogout} size="small">
-                <LogoutIcon />
-              </IconButton>
-            </Tooltip>
+            <Box sx={{ display: { xs: "none", md: "flex" } }}>
+              <Tooltip title={`Logout (${user.email})`}>
+                <IconButton color="inherit" onClick={handleLogout} size="small">
+                  <LogoutIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
           )}
         </Box>
       </Toolbar>

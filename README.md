@@ -74,7 +74,8 @@ Clicca su **Registrati** nella pagina di login per creare un nuovo account. Inse
 
 ### 2.3 Logout
 
-In qualsiasi momento è possibile fare logout cliccando l'icona **→ (porta d'uscita)** in alto a destra nella barra di navigazione. Un tooltip mostra l'email dell'utente connesso.
+- **Desktop**: icona **→ (porta d'uscita)** in alto a destra nella barra di navigazione. Un tooltip mostra l'email dell'utente connesso.
+- **Mobile / tablet**: la voce **Logout** è disponibile in fondo al menu ≡ (hamburger), separata da una riga divisoria.
 
 ---
 
@@ -96,13 +97,16 @@ Dopo il login si accede alla schermata principale, strutturata in tre aree:
 
 Cliccando l'icona **≡** in alto a sinistra si apre un menu a tendina con le voci di navigazione:
 
-| Icona | Voce | Destinazione |
-|-------|------|--------------|
-| 🏠 | **Home** | Torna alla lista degli esercizi |
-| ➕ | **Inserisci** | Apre il form per un nuovo esercizio |
-| 🛡️ | **Admin** | Pannello di gestione modifiche *(solo admin)* |
+| Icona | Voce | Destinazione | Visibilità |
+|-------|------|--------------|------------|
+| 🏠 | **Home** | Torna alla lista degli esercizi | Tutti |
+| ➕ | **Inserisci** | Apre il form per un nuovo esercizio | Tutti |
+| 🛡️ | **Admin** | Pannello di gestione *(solo admin)* | Solo admin |
+| ℹ️ | **Info** | Pagina informativa sull'applicazione | Tutti |
+| → | **Logout** | Disconnette l'utente | Solo mobile/tablet |
 
-> La voce **Admin** è visibile e accessibile solo agli utenti con ruolo amministratore.
+> La voce **Admin** è visibile e accessibile solo agli utenti con ruolo amministratore.  
+> La voce **Logout** appare nel menu solo su schermi piccoli (mobile/tablet); su desktop usa l'icona in alto a destra.
 
 ---
 
@@ -359,10 +363,16 @@ Gli esercizi transitano attraverso i seguenti stati:
 
 > Accessibile solo agli utenti con ruolo **admin**, dalla voce **Admin** nel menu burger.
 
-Il pannello è diviso in due aree affiancate:
+Il pannello è organizzato a **tab**. Attualmente è presente il tab **Modifiche esercizi**.
+
+### Layout desktop
+
+Due aree affiancate all'interno del tab:
 
 ```
-┌──────────────────────┬──────────────────────────────────────────────┐
+┌─────────────────────────────────────────────────────────────────────┐
+│  MODIFICHE ESERCIZI                                                 │  ← Tab
+├──────────────────────┬──────────────────────────────────────────────┤
 │  Modifiche in attesa │  □  Campo         Valore                     │
 │  3 esercizi          │  ─────────────────────────────────────────    │
 │ ─────────────────────│     Tipologia     Sit              (grigio)  │
@@ -371,18 +381,37 @@ Il pannello è diviso in due aree affiancate:
 │ │ variante...      │ │                  │ 3  (verde — proposto)  │ │
 │ │ Da: user@mail.it │ │                  └────────────────────────┘ │
 │ │ Il 04/06/2026    │ │  ─────────────────────────────────────────    │
-│ └──────────────────┘ │     Area target                              │
-│ ┌──────────────────┐ │       Mentale     2                (grigio)  │
-│ │ Down             │ │    ☑  Forza      ┌────────────────────────┐ │
-│ │ Da: altro@x.it   │ │                  │ 1  (rosso — attuale)   │ │
-│ └──────────────────┘ │                  │ 3  (verde — proposto)  │ │
-│                      │                  └────────────────────────┘ │
-│                      │  ─────────────────────────────────────────    │
-│                      │           [✕ RIFIUTA]  [✓ APPROVA]          │
+│ └──────────────────┘ │     Area target   ...                        │
+│ ┌──────────────────┐ │                                              │
+│ │ Down             │ │                                              │
+│ │ Da: altro@x.it   │ │           [✕ RIFIUTA]  [✓ APPROVA]          │
+│ └──────────────────┘ │                                              │
 └──────────────────────┴──────────────────────────────────────────────┘
 ```
 
-### 9.1 Pannello sinistro – Lista modifiche
+### Layout mobile / tablet
+
+La lista delle modifiche è **collassabile**: tocca l'intestazione "Modifiche in attesa" per espanderla o chiuderla. Selezionando un esercizio dalla lista, questa si chiude automaticamente lasciando tutto lo spazio al pannello di revisione.
+
+```
+┌─────────────────────────────────┐
+│  MODIFICHE ESERCIZI             │  ← Tab
+├─────────────────────────────────┤
+│  Modifiche in attesa        [∨] │  ← tocca per espandere
+├─────────────────────────────────┤
+│  Stand a 2 stazioni — Instabile │
+│  Modifica proposta da viewer@…  │
+│  il 5 giu 2026, 20:49           │
+│                                 │
+│  □  Campo       Valore          │
+│  ─────────────────────────────  │
+│  ...                            │
+│                                 │
+│  [✕ RIFIUTA]     [✓ APPROVA]   │
+└─────────────────────────────────┘
+```
+
+### 9.1 Lista modifiche
 
 Mostra tutti gli esercizi che hanno una modifica in attesa (stato PENDING_UPDATE).
 
@@ -392,9 +421,9 @@ Per ogni voce vengono visualizzati:
 - **Utente** che ha proposto la modifica
 - **Data** dell'ultima modifica
 
-Clicca su una voce per visualizzare il dettaglio nel pannello destro. La voce selezionata è evidenziata con un bordo colorato a sinistra.
+Clicca su una voce per visualizzare il dettaglio. La voce selezionata è evidenziata con un bordo colorato a sinistra.
 
-### 9.2 Pannello destro – Visualizzazione dell'esercizio
+### 9.2 Visualizzazione dell'esercizio
 
 Il pannello mostra **tutti i campi dell'esercizio** in ordine fisso, in una tabella a due colonne (Campo · Valore).
 
@@ -432,6 +461,18 @@ Clicca il pulsante rosso **✕ RIFIUTA** per scartare l'intera modifica senza ap
 
 > Entrambe le azioni usano transazioni atomiche: non è possibile che l'operazione si completi parzialmente.
 
+### 9.5 Notifiche automatiche
+
+Il sistema invia automaticamente una **email di riepilogo** agli amministratori quando ci sono elementi in attesa di approvazione.
+
+Le notifiche vengono inviate più volte al giorno (ogni 3 ore circa, dalle 6:00 alle 21:00). L'email riporta quanti e quali tipi di elementi sono in attesa:
+
+- Nuovi esercizi inseriti dagli utenti
+- Modifiche a esercizi esistenti proposte dagli utenti
+- Nuovi account utente da approvare
+
+**Logica di de-duplicazione**: ogni elemento genera al massimo **una notifica al giorno**. Se un esercizio in attesa viene già notificato alle 9:00 e alle 12:00 è ancora in attesa, non genera una seconda email. La notifica si azzera il giorno successivo oppure non appena l'admin gestisce l'elemento (approva o rifiuta): in questo modo, se un utente propone una nuova modifica allo stesso esercizio nella stessa giornata, l'admin riceve comunque la notifica.
+
 ---
 
 ## 10. Glossario dei campi
@@ -461,4 +502,4 @@ Clicca il pulsante rosso **✕ RIFIUTA** per scartare l'intera modifica senza ap
 
 ---
 
-*Manuale aggiornato al 04/06/2026*
+*Manuale aggiornato al 17/06/2026*

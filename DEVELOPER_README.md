@@ -12,8 +12,9 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 3. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
 4. [CI/CD pipeline](#cicd-pipeline)
 5. [Deploy in produzione](#deploy-in-produzione)
-6. [Integrazione con WordPress](#integrazione-con-wordpress)
-7. [TODO](#todos)
+6. [Sistema di notifiche](#sistema-di-notifiche)
+7. [Integrazione con WordPress](#integrazione-con-wordpress)
+8. [TODO](#todos)
 
 ---
 
@@ -44,25 +45,32 @@ cd client && npm install && npm run dev
 k9-exercise/
 ├── client/             # React + Vite (SPA)
 │   └── src/
-│       ├── components/ # Componenti UI
+│       ├── components/ # Componenti UI (Admin, AppBar, ExerciseTable, Insert, View…)
 │       └── ...
 ├── server/             # Express + TypeScript
 │   └── src/
 │       ├── models/     # Schema Mongoose (Exercise, ExerciseChange, User)
-│       ├── routes/     # API REST (exercises, auth)
+│       │               # Exercise e User hanno il campo lastNotifiedAt (Date)
+│       ├── routes/     # API REST: exercises, auth, notify
 │       └── middleware/ # requireAuth, requireDbReady
 ├── k8s/                # Manifest Kubernetes
 │   ├── client/         # Deployment + Service nginx
 │   ├── server/         # Deployment + Service + HTTPScaledObject KEDA
+│   ├── notify/         # CronJob notifiche (curlimages/curl)
 │   ├── namespace.yaml
 │   ├── ingress.yaml    # Traefik ingress (usa ${DOMAIN})
 │   └── keda-interceptor-svc.yaml
+├── bruno/              # Collezione Bruno per test API
+│   ├── environments/   # development.bru, production.bru
+│   └── notify/         # trigger notify.bru
 ├── scripts/
-│   └── cloud-init.sh   # Inizializzazione VPS (k3s, KEDA, dashboard)
+│   ├── cloud-init.sh   # Inizializzazione VPS (k3s, KEDA, dashboard)
+│   └── docker-lock.sh  # Rigenera package-lock.json su linux/amd64
 ├── local/
 │   └── docker-compose.yml  # MongoDB locale con replica set
 └── .github/workflows/
-    └── deploy.yml      # CI/CD: build, versioning, deploy
+    ├── deploy.yml      # CI/CD: build, versioning, deploy
+    └── promote.yml     # Promozione staging → production
 ```
 
 ---
@@ -399,6 +407,60 @@ kubectl describe hso k9-server -n k9             # eventi scaling dettaglio
 
 ---
 
+## Sistema di notifiche
+
+Un Kubernetes CronJob chiama periodicamente l'endpoint `POST /api/admin/notify`, che controlla se ci sono elementi in attesa di approvazione e invia una email riassuntiva agli amministratori.
+
+### Flusso
+
+```
+CronJob (k8s/notify/cronjob.yaml)
+    │  ogni ora dalle 6:00 alle 21:00
+    ▼
+POST /api/admin/notify
+    │  Authorization: Bearer $NOTIFY_API_KEY
+    │
+    ▼
+Server controlla:
+  • User  con state=TO_APPROVE     e lastNotifiedAt < oggi
+  • Exercise con state=TO_APPROVE  e lastNotifiedAt < oggi
+  • Exercise con state=PENDING_UPDATE e lastNotifiedAt < oggi
+    │
+    ├─ nessun nuovo elemento → risposta { sent: false }, nessuna email
+    │
+    └─ elementi nuovi → segna lastNotifiedAt=now su tutti i documenti trovati
+                      → invia email via SMTP ai NOTIFY_RECIPIENTS
+```
+
+### Campo `lastNotifiedAt`
+
+Presente sia su `User` che su `Exercise`. Viene:
+- **Impostato** a `now` dal server quando l'elemento viene incluso in una notifica
+- **Azzerato** (`$unset`) quando un esercizio torna in stato `APPROVED` (approvazione o rifiuto modifica), in modo che una modifica successiva nella stessa giornata venga re-notificata
+
+### Schedule
+
+`0 6,9,12,15,18,21 * * *` — ogni 3 ore dalle 6:00 alle 21:00.
+
+Per cambiare la frequenza modificare il campo `schedule` in `k8s/notify/cronjob.yaml` e fare push.
+
+### Variabili e secret richiesti
+
+Già documentati nella sezione [Secrets e Variables richiesti](#secrets-e-variables-richiesti):
+- Secret: `NOTIFY_API_KEY`, `SMTP_PASS`
+- Variable: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `NOTIFY_RECIPIENTS`
+
+### Test con Bruno
+
+La collection Bruno in `bruno/` permette di chiamare l'endpoint manualmente:
+
+1. Apri Bruno e importa la cartella `bruno/`
+2. Seleziona l'ambiente (`development` o `production`)
+3. Inserisci il valore di `notifyApiKey` nella colonna **Secret** dell'ambiente (non viene salvato su disco)
+4. Esegui la request **trigger notify** nel folder `notify/`
+
+---
+
 ## Integrazione con WordPress
 
 Permette di delegare l'autenticazione a WordPress: WP genera un JWT firmato e l'app Node lo valida per creare la sessione. La login nativa dell'app può essere disabilitata completamente.
@@ -597,9 +659,11 @@ console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
 
 ## TODOs
 
-- redesign pagina admin per cell
-- pannello admin per approvazione user (introdurre rejected)
-- pannello admin per approve esercizi nuovi
-- nome cognome alla registrazione?
+- **Pannello admin — approvazione utenti** (nuovo tab nella pagina Admin): l'admin visualizza gli utenti da approvare (email) con checkbox deselezionata di default. Può selezionare più utenti e applicare la stessa operazione a tutti (accettare / rifiutare). In caso di rifiuto può aggiungere un commento. I button sono disabilitati finché nessun utente è selezionato. Le azioni cambiano lo stato a DB e inviano una email all'utente con l'esito e l'eventuale commento.
+- **Pannello admin — approvazione esercizi nuovi** (nuovo tab nella pagina Admin): elenco esercizi in stato TO_APPROVE. Selezionando un esercizio si visualizza il dettaglio completo e i button Approva / Rifiuta. La struttura segue quanto già implementato per le modifiche (tab collassabile su mobile).
+- **Fetch lazy per approvazione**: caricare in anticipo solo un set minimo di info (tipo, variante, utente, data). Il documento completo viene caricato on-demand alla selezione. Vale per modifiche, esercizi nuovi e utenti.
+- Rivedere query e creare indici MongoDB
+- Nome e cognome alla registrazione?
 - Rate limiting su `/api/auth/login` per prevenire brute-force
-- indagare retention immagini docker. Idea: tag versione+latest-test ogni build. Nuova action che sposta tag production su versione portata in prod e mette prev-prod su quella che era prod.
+- Divisione esercizi BSS e CTS
+- Retention immagini Docker: idea — tag `versione+latest-test` ad ogni build; nuova action che sposta il tag `production` sulla versione deployata e `prev-prod` sulla precedente.
