@@ -1,0 +1,15 @@
+meta {
+  name: trigger notify
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/admin/notify
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{notifyApiKey}}
+}
