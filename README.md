@@ -363,11 +363,20 @@ Gli esercizi transitano attraverso i seguenti stati:
 
 > Accessibile solo agli utenti con ruolo **admin**, dalla voce **Admin** nel menu burger.
 
-Il pannello è organizzato a **tab**. Attualmente è presente il tab **Modifiche esercizi**.
+Il pannello è organizzato a **tab**:
 
-### Layout desktop
+| Tab | Contenuto |
+|-----|-----------|
+| **Modifiche esercizi** | Modifiche proposte da utenti a esercizi già approvati |
+| **Nuovi esercizi** | Esercizi nuovi inseriti dagli utenti in attesa di prima approvazione |
 
-Due aree affiancate all'interno del tab:
+---
+
+### 9.1 Tab: Modifiche esercizi
+
+Mostra gli esercizi in stato **PENDING_UPDATE**, cioè quelli per cui un utente ha proposto una modifica che non è ancora stata valutata.
+
+#### Layout desktop
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -383,21 +392,21 @@ Due aree affiancate all'interno del tab:
 │ │ Il 04/06/2026    │ │  ─────────────────────────────────────────    │
 │ └──────────────────┘ │     Area target   ...                        │
 │ ┌──────────────────┐ │                                              │
-│ │ Down             │ │                                              │
-│ │ Da: altro@x.it   │ │           [✕ RIFIUTA]  [✓ APPROVA]          │
+│ │ Down             │ │           [✕ RIFIUTA]  [✓ APPROVA]          │
+│ │ Da: altro@x.it   │ │                                              │
 │ └──────────────────┘ │                                              │
 └──────────────────────┴──────────────────────────────────────────────┘
 ```
 
-### Layout mobile / tablet
+#### Layout mobile / tablet
 
-La lista delle modifiche è **collassabile**: tocca l'intestazione "Modifiche in attesa" per espanderla o chiuderla. Selezionando un esercizio dalla lista, questa si chiude automaticamente lasciando tutto lo spazio al pannello di revisione.
+La lista è **collassabile**: tocca l'intestazione "Modifiche in attesa" per espanderla o chiuderla. Selezionando un esercizio dalla lista questa si chiude automaticamente, lasciando tutto lo spazio al pannello di revisione.
 
 ```
 ┌─────────────────────────────────┐
 │  MODIFICHE ESERCIZI             │  ← Tab
 ├─────────────────────────────────┤
-│  Modifiche in attesa        [∨] │  ← tocca per espandere
+│  Modifiche in attesa        [∨] │  ← tocca per espandere/chiudere
 ├─────────────────────────────────┤
 │  Stand a 2 stazioni — Instabile │
 │  Modifica proposta da viewer@…  │
@@ -411,19 +420,17 @@ La lista delle modifiche è **collassabile**: tocca l'intestazione "Modifiche in
 └─────────────────────────────────┘
 ```
 
-### 9.1 Lista modifiche
+#### Lista modifiche
 
-Mostra tutti gli esercizi che hanno una modifica in attesa (stato PENDING_UPDATE).
-
-Per ogni voce vengono visualizzati:
+Per ogni voce nella lista vengono visualizzati:
 - **Nome dell'esercizio** (Tipologia)
 - **Variante** *(in corsivo, se presente)*
 - **Utente** che ha proposto la modifica
 - **Data** dell'ultima modifica
 
-Clicca su una voce per visualizzare il dettaglio. La voce selezionata è evidenziata con un bordo colorato a sinistra.
+Clicca su una voce per visualizzare il dettaglio nel pannello a destra. La voce selezionata è evidenziata con un bordo colorato a sinistra.
 
-### 9.2 Visualizzazione dell'esercizio
+#### Visualizzazione della modifica
 
 Il pannello mostra **tutti i campi dell'esercizio** in ordine fisso, in una tabella a due colonne (Campo · Valore).
 
@@ -434,7 +441,7 @@ Il pannello mostra **tutti i campi dell'esercizio** in ordine fisso, in una tabe
 
 Per i campi **Area target** e **Body target** ogni dimensione (Mentale, Forza, ecc.) compare come sotto-riga distinta, con la stessa logica rosso/verde se modificata, oppure grigia se invariata.
 
-### 9.3 Approvare una modifica (totale o parziale)
+#### Approvare una modifica (totale o parziale)
 
 Ogni campo modificato ha una **checkbox** alla sua sinistra, spuntata di default.
 L'admin può deselezionare singolarmente le modifiche che non vuole accettare prima di premere Approva.
@@ -449,19 +456,83 @@ Per i campi **Area target** e **Body target** la granularità è a livello di si
 Clicca il pulsante verde **✓ APPROVA** (abilitato solo se almeno una checkbox è spuntata):
 - Solo i campi selezionati vengono applicati all'esercizio
 - Il documento di modifica viene eliminato
-- L'esercizio torna in stato **APPROVED**
-- La voce sparisce dalla lista di sinistra
+- L'esercizio torna in stato APPROVED
+- La voce sparisce dalla lista
 
-### 9.4 Rifiutare una modifica
+#### Rifiutare una modifica
 
 Clicca il pulsante rosso **✕ RIFIUTA** per scartare l'intera modifica senza applicare nulla:
 - Il documento di modifica viene eliminato
-- L'esercizio rimane con i valori originali in stato **APPROVED**
-- La voce sparisce dalla lista di sinistra
+- L'esercizio rimane con i valori originali in stato APPROVED
+- La voce sparisce dalla lista
 
 > Entrambe le azioni usano transazioni atomiche: non è possibile che l'operazione si completi parzialmente.
 
-### 9.5 Notifiche automatiche
+---
+
+### 9.2 Tab: Nuovi esercizi
+
+Mostra gli esercizi in stato **TO_APPROVE**, cioè quelli inseriti dagli utenti che non sono ancora stati valutati e non compaiono nella Home.
+
+#### Layout desktop
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  NUOVI ESERCIZI                                                     │  ← Tab
+├──────────────────────┬──────────────────────────────────────────────┤
+│  Nuovi esercizi      │  Campo            Valore                     │
+│  2 esercizi          │  ─────────────────────────────────────────    │
+│ ─────────────────────│  Descrizione      Il cane posizionato...     │
+│ ┌──────────────────┐ │  Difficoltà       3                          │
+│ │ Stand a 2 staz.  │ │  Attrezzi         [Cono] [Tappeto]           │
+│ │ Stabile          │ │  Setup            Posizionare il cono...     │
+│ │ Da: user@mail.it │ │  Piano movimento  [Mediano]                  │
+│ │ Il 05/06/2026    │ │  Area target      Mentale ■■■□□□             │
+│ └──────────────────┘ │  Body target      Core    ■■□□□□             │
+│ ┌──────────────────┐ │                                              │
+│ │ Recall           │ │           [✕ RIFIUTA]  [✓ APPROVA]          │
+│ │ Da: altro@x.it   │ │                                              │
+│ └──────────────────┘ │                                              │
+└──────────────────────┴──────────────────────────────────────────────┘
+```
+
+#### Layout mobile / tablet
+
+Identico al tab Modifiche esercizi: lista **collassabile** in cima, dettaglio sotto. Selezionando un esercizio la lista si chiude automaticamente.
+
+#### Lista nuovi esercizi
+
+Per ogni voce nella lista vengono visualizzati:
+- **Nome dell'esercizio** (Tipologia)
+- **Variante** *(in corsivo, se presente)*
+- **Utente** che ha inserito l'esercizio
+- **Data** di inserimento
+
+Clicca su una voce per visualizzare il dettaglio nel pannello a destra.
+
+#### Visualizzazione e modifica del dettaglio
+
+Il pannello mostra **tutti i campi** dell'esercizio in forma editabile: l'admin può correggere o integrare qualsiasi campo (tipologia, variante, descrizione, difficoltà, attrezzi, setup, piano di movimento, area target, body target) prima di approvare.
+
+La modifica è locale al pannello e non viene salvata automaticamente: diventa effettiva solo al click su **✓ APPROVA**.
+
+#### Approvare un nuovo esercizio
+
+Clicca il pulsante verde **✓ APPROVA**:
+- L'esercizio viene salvato con i valori attualmente visibili nel form (incluse eventuali correzioni dell'admin)
+- Passa in stato APPROVED e diventa visibile nella Home per tutti gli utenti
+- La voce sparisce dalla lista
+
+#### Rifiutare un nuovo esercizio
+
+Clicca il pulsante rosso **✕ RIFIUTA**:
+- L'esercizio viene marcato come rifiutato
+- Non comparirà più in nessuna lista
+- La voce sparisce dalla lista
+
+---
+
+### 9.3 Notifiche automatiche
 
 Il sistema invia automaticamente una **email di riepilogo** agli amministratori quando ci sono elementi in attesa di approvazione.
 

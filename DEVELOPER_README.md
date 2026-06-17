@@ -51,7 +51,7 @@ k9-exercise/
 │   └── src/
 │       ├── models/     # Schema Mongoose (Exercise, ExerciseChange, User)
 │       │               # Exercise e User hanno il campo lastNotifiedAt (Date)
-│       ├── routes/     # API REST: exercises, auth, notify
+│       ├── routes/     # API REST: exercises (incl. /to-approve, /approve-new, /reject-new), auth, notify
 │       └── middleware/ # requireAuth, requireDbReady
 ├── k8s/                # Manifest Kubernetes
 │   ├── client/         # Deployment + Service nginx
@@ -660,7 +660,7 @@ console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
 ## TODOs
 
 - **Pannello admin — approvazione utenti** (nuovo tab nella pagina Admin): l'admin visualizza gli utenti da approvare (email) con checkbox deselezionata di default. Può selezionare più utenti e applicare la stessa operazione a tutti (accettare / rifiutare). In caso di rifiuto può aggiungere un commento. I button sono disabilitati finché nessun utente è selezionato. Le azioni cambiano lo stato a DB e inviano una email all'utente con l'esito e l'eventuale commento.
-- **Pannello admin — approvazione esercizi nuovi** (nuovo tab nella pagina Admin): elenco esercizi in stato TO_APPROVE. Selezionando un esercizio si visualizza il dettaglio completo e i button Approva / Rifiuta. La struttura segue quanto già implementato per le modifiche (tab collassabile su mobile).
+- ~~**Pannello admin — approvazione esercizi nuovi**~~ ✓ implementato (tab "Nuovi esercizi" in Admin)
 - **Fetch lazy per approvazione**: caricare in anticipo solo un set minimo di info (tipo, variante, utente, data). Il documento completo viene caricato on-demand alla selezione. Vale per modifiche, esercizi nuovi e utenti.
 - Rivedere query e creare indici MongoDB
 - Nome e cognome alla registrazione?

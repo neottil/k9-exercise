@@ -18,3 +18,8 @@ export interface PendingItem {
   };
   change: ExerciseChangeDoc | null;
 }
+
+export type NewExercise = Exercise & {
+  state: string;
+  createdAt?: string;
+};

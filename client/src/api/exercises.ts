@@ -1,5 +1,5 @@
 import { Exercise } from "../interfaces/exerciseInterfaces";
-import type { PendingItem } from "../interfaces/adminInterfaces";
+import type { NewExercise, PendingItem } from "../interfaces/adminInterfaces";
 import { Filters, NumFilterWithOp, WorkingAreaFilters, BodyTargetFilters } from "../interfaces/filterInterfaces";
 import { apiFetch } from "./apiFetch";
 
@@ -71,7 +71,7 @@ export const getPending = async (): Promise<PendingItem[]> => {
 };
 
 export const approveChange = async (id: string, fieldsToApply: Record<string, unknown>): Promise<void> => {
-  const res = await apiFetch(`${BASE_URL}/${id}/approve`, {
+  const res = await apiFetch(`${BASE_URL}/${id}/approve-change`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fieldsToApply }),
@@ -80,6 +80,26 @@ export const approveChange = async (id: string, fieldsToApply: Record<string, un
 };
 
 export const rejectChange = async (id: string): Promise<void> => {
+  const res = await apiFetch(`${BASE_URL}/${id}/reject-change`, { method: "POST" });
+  if (!res.ok) throw new Error("Errore nel rifiuto");
+};
+
+export const getNewExercises = async (): Promise<NewExercise[]> => {
+  const res = await apiFetch(`${BASE_URL}/to-approve`);
+  if (!res.ok) throw new Error("Errore nel caricamento dei nuovi esercizi");
+  return res.json();
+};
+
+export const approveExercise = async (id: string, exercise: Exercise): Promise<void> => {
+  const res = await apiFetch(`${BASE_URL}/${id}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(exercise),
+  });
+  if (!res.ok) throw new Error("Errore nell'approvazione");
+};
+
+export const rejectExercise = async (id: string): Promise<void> => {
   const res = await apiFetch(`${BASE_URL}/${id}/reject`, { method: "POST" });
   if (!res.ok) throw new Error("Errore nel rifiuto");
 };

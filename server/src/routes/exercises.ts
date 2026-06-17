@@ -19,9 +19,10 @@ const router = Router();
 // Le GET possono girare anche con DB in fase di riconnessione: Mongoose
 // bufferizza la query e risponde non appena il DB torna disponibile.
 
-const TO_APPROVE    = "TO_APPROVE"    as const;
-const APPROVED      = "APPROVED"      as const;
+const TO_APPROVE     = "TO_APPROVE"     as const;
+const APPROVED       = "APPROVED"       as const;
 const PENDING_UPDATE = "PENDING_UPDATE" as const;
+const REJECTED       = "REJECTED"       as const;
 
 // Campi filtrabili via query param
 const FILTER_FIELDS = [
@@ -126,6 +127,17 @@ router.get("/pending", requireAdmin, async (_req: Request, res: Response) => {
   } catch (err) {
     console.error("[GET /exercises/pending]", err);
     res.status(500).json({ error: "Errore nel recupero delle modifiche in attesa" });
+  }
+});
+
+// GET /to-approve — esercizi in TO_APPROVE (solo admin)
+router.get("/to-approve", requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const exercises = await Exercise.find({ state: TO_APPROVE });
+    res.json(exercises);
+  } catch (err) {
+    console.error("[GET /exercises/to-approve]", err);
+    res.status(500).json({ error: "Errore nel recupero degli esercizi da approvare" });
   }
 });
 
@@ -286,10 +298,60 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
   }
 });
 
-// POST /:id/approve — applica i campi selezionati sull'esercizio, lo riporta ad APPROVED (solo admin)
+// POST /:id/approve — approva un nuovo esercizio (TO_APPROVE → APPROVED, solo admin)
+// Body opzionale: campi dell'esercizio modificati dall'admin prima di approvare.
+router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const exercise = await Exercise.findById(id);
+    if (!exercise || exercise.state !== TO_APPROVE) {
+      res.status(404).json({ error: "Esercizio non trovato o non in attesa di approvazione" });
+      return;
+    }
+
+    // Estrai dal body solo i campi di contenuto noti, ignorando metadati
+    const fieldsToApply: Record<string, unknown> = {};
+    for (const field of CONTENT_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        fieldsToApply[field] = req.body[field];
+      }
+    }
+
+    await Exercise.findByIdAndUpdate(id, {
+      $set: { ...fieldsToApply, state: APPROVED, userUpdate: req.user?.email },
+      $unset: { lastNotifiedAt: "" },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[POST /exercises/:id/approve]", err);
+    res.status(500).json({ error: "Errore nell'approvazione dell'esercizio" });
+  }
+});
+
+// POST /:id/reject — rifiuta un nuovo esercizio (TO_APPROVE → REJECTED, solo admin)
+router.post("/:id/reject", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const exercise = await Exercise.findById(id);
+    if (!exercise || exercise.state !== TO_APPROVE) {
+      res.status(404).json({ error: "Esercizio non trovato o non in attesa di approvazione" });
+      return;
+    }
+    await Exercise.findByIdAndUpdate(id, {
+      $set: { state: REJECTED, userUpdate: req.user?.email },
+      $unset: { lastNotifiedAt: "" },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[POST /exercises/:id/reject]", err);
+    res.status(500).json({ error: "Errore nel rifiuto dell'esercizio" });
+  }
+});
+
+// POST /:id/approve-change — applica i campi selezionati sull'esercizio, lo riporta ad APPROVED (solo admin)
 // Body: { fieldsToApply?: Record<string, unknown> }
 // Se fieldsToApply è assente applica tutto il change doc (compatibilità backward).
-router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
+router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { fieldsToApply } = req.body as { fieldsToApply?: Record<string, unknown> };
   const session = await mongoose.startSession();
@@ -316,7 +378,7 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
     await session.commitTransaction();
     res.json({ success: true });
   } catch (err) {
-    console.error("[POST /exercises/:id/approve]", err);
+    console.error("[POST /exercises/:id/approve-change]", err);
     await session.abortTransaction();
     res.status(500).json({ error: "Errore nell'approvazione della modifica" });
   } finally {
@@ -324,8 +386,8 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
   }
 });
 
-// POST /:id/reject — elimina il change doc, riporta l'esercizio ad APPROVED (solo admin)
-router.post("/:id/reject", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
+// POST /:id/reject-change — elimina il change doc, riporta l'esercizio ad APPROVED (solo admin)
+router.post("/:id/reject-change", requireAdmin, requireDbReady, async (req: Request, res: Response) => {
   const { id } = req.params;
   const session = await mongoose.startSession();
   try {
@@ -341,7 +403,7 @@ router.post("/:id/reject", requireAdmin, requireDbReady, async (req: Request, re
     await session.commitTransaction();
     res.json({ success: true });
   } catch (err) {
-    console.error("[POST /exercises/:id/reject]", err);
+    console.error("[POST /exercises/:id/reject-change]", err);
     await session.abortTransaction();
     res.status(500).json({ error: "Errore nel rifiuto della modifica" });
   } finally {
