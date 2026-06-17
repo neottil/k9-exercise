@@ -207,6 +207,7 @@ const NewExercisesTab = () => {
             <Divider />
             <Box sx={{ flex: 1, overflow: "hidden" }}>
               <NewExerciseDetail
+                key={selected.id}
                 exercise={selected}
                 onApprove={handleApprove}
                 onReject={handleReject}
