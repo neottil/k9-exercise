@@ -21,7 +21,7 @@
 
 ## 1. Introduzione
 
-**K9 Cross Training – Exercise Database** è un'applicazione web per la gestione di una libreria di esercizi di k9 cross training. Permette di catalogare ogni esercizio con informazioni dettagliate sulle aree di lavoro coinvolte, i muscoli target, gli attrezzi necessari e il piano di movimento.
+**K9 Cross Training – Exercise Database** è un'applicazione web per la gestione di una libreria di esercizi di K9 Cross Training. Permette di catalogare ogni esercizio con informazioni dettagliate sulle aree di lavoro coinvolte, i muscoli target, gli attrezzi necessari e il piano di movimento.
 
 ### Ruoli utente
 
