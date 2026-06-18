@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { Exercise } from "../interfaces/exerciseInterfaces";
 import type { NewExercise, PendingItem } from "../interfaces/adminInterfaces";
 import { Filters, NumFilterWithOp, WorkingAreaFilters, BodyTargetFilters } from "../interfaces/filterInterfaces";

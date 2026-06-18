@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { useState, MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Divider from '@mui/material/Divider';

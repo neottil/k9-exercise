@@ -15,6 +15,7 @@
 8. [Flusso di approvazione](#8-flusso-di-approvazione)
 9. [Pannello Admin](#9-pannello-admin)
 10. [Glossario dei campi](#10-glossario-dei-campi)
+11. [Licenza](#11-licenza)
 
 ---
 
@@ -573,4 +574,21 @@ Le notifiche vengono inviate più volte al giorno (ogni 3 ore circa, dalle 6:00 
 
 ---
 
-*Manuale aggiornato al 17/06/2026*
+## 11. Licenza
+
+Questo software è distribuito sotto **Elastic License 2.0**.
+
+| Uso | Consentito |
+|-----|-----------|
+| Uso personale o in progetti gratuiti | ✅ Sì, mantenendo il copyright |
+| Modifica del codice sorgente | ✅ Sì |
+| Distribuzione del codice | ✅ Sì, con le stesse condizioni |
+| Offerta come servizio a pagamento (SaaS) | ❌ No — richiede accordo commerciale |
+
+Per uso commerciale o per integrare il software in un prodotto a pagamento, contatta **Luca Neotti** per stipulare un accordo commerciale.
+
+© 2026 Luca Neotti — tutti i diritti riservati salvo quanto espressamente concesso dalla licenza.
+
+---
+
+*Manuale aggiornato al 18/06/2026*

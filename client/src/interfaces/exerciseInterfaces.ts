@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 // Describes the effort distribution for various working areas
 interface WorkingArea {
     mental: number;

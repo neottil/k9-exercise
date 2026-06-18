@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { useState } from "react";
 import { Box, Button, Chip, MenuItem, Select, TextField } from "@mui/material";
 import CancelIcon from "@mui/icons-material/Cancel";

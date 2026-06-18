@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import type { ReactNode } from "react";
 import { Alert, Box, Button, CircularProgress } from "@mui/material";
 

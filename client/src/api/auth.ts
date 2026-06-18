@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { AuthUser } from "../interfaces/authInterfaces";
 
 const BASE_URL = "/api/auth";

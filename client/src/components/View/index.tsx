@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { useCallback, useEffect, useState } from "react";
 import { Exercise } from "../../interfaces/exerciseInterfaces";
 import { listExercises as fetchExercisesApi } from "../../api/exercises";

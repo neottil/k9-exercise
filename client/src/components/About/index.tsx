@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
@@ -52,20 +55,33 @@ const About = () => {
 
         <Divider sx={{ mb: 3 }} />
 
+        {/* Licenza */}
+        <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
+          Licenza
+        </Typography>
+        <Box sx={{ mt: 1, mb: 4 }}>
+          <Typography variant="body2" color="text.secondary">
+            Distribuito sotto{" "}
+            <Link href="https://www.elastic.co/licensing/elastic-license" target="_blank" rel="noreferrer">
+              Elastic License 2.0
+            </Link>
+            . Uso libero per progetti non commerciali; per uso commerciale contatta{" "}
+            <Link href="https://www.lucaneotti.click" target="_blank" rel="noreferrer">
+              Luca Neotti
+            </Link>
+            .
+          </Typography>
+        </Box>
+
+        <Divider sx={{ mb: 3 }} />
+
         {/* Attribuzione */}
         <Typography variant="body2" color="text.secondary">
-          Designed with{" "}
-          <Link href="https://vitejs.dev/" target="_blank" rel="noreferrer">
-            Vitejs
-          </Link>
-          , powered with{" "}
-          <Link href="https://kubernetes.io/" target="_blank" rel="noreferrer">
-            Kubernetes
-          </Link>{" "}
-          by{" "}
+          © 2026{" "}
           <Link href="https://www.lucaneotti.click" target="_blank" rel="noreferrer">
             Luca Neotti
           </Link>
+          {" "}— React · Node.js · MongoDB · Kubernetes
         </Typography>
 
         </Box>

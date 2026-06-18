@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { createContext, useCallback, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import { Alert, Box, Collapse, Snackbar } from "@mui/material";

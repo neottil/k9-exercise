@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { Router, Request, Response, NextFunction } from "express";
 import nodemailer from "nodemailer";
 import User from "../models/User.js";

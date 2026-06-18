@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";

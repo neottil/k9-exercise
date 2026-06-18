@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Luca Neotti
+// Licensed under the Elastic License v2.0 — see LICENSE for details.
+
 import { useState } from "react";
 import { WorkingAreaViewFilters } from "../../interfaces/filterInterfaces";
 import { ExpandLess, ExpandMore, Search as SearchIcon } from "@mui/icons-material";
