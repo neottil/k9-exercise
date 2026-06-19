@@ -29,11 +29,11 @@ export const logout = async (): Promise<void> => {
   await fetch(`${BASE_URL}/logout`, { method: "POST" });
 };
 
-export const register = async (email: string, password: string): Promise<string> => {
+export const register = async (email: string, password: string, firstName: string, lastName: string): Promise<string> => {
   const res = await fetch(`${BASE_URL}/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, firstName, lastName }),
   });
   const data = await res.json().catch(() => ({})) as { message?: string; error?: string };
   if (!res.ok) {

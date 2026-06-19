@@ -3,12 +3,25 @@
 
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
+import PasswordValidator from "password-validator";
 import User from "../models/User.js";
 import { requireDbReady } from "../middleware/requireDbReady.js";
 
 const router = Router();
 
 const DEV_USER = { email: "dev@local", role: "admin" };
+
+const passwordSchema = new PasswordValidator();
+passwordSchema
+  .is().min(8)
+  .has().uppercase()
+  .has().lowercase()
+  .has().digits(1)
+  .has().symbols(1)
+  .has().not().spaces();
+
+const isPasswordValid = (pw: string): boolean =>
+  passwordSchema.validate(pw) as boolean;
 
 // GET /api/auth/me
 router.get("/me", (req: Request, res: Response): void => {
@@ -72,15 +85,15 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
     return;
   }
 
-  const { email, password } = req.body as { email?: string; password?: string };
+  const { email, password, firstName, lastName } = req.body as { email?: string; password?: string; firstName?: string; lastName?: string };
 
   if (!email || !password) {
     res.status(400).json({ error: "Email e password obbligatori" });
     return;
   }
 
-  if (password.length < 8) {
-    res.status(400).json({ error: "La password deve essere di almeno 8 caratteri" });
+  if (!isPasswordValid(password)) {
+    res.status(400).json({ error: "La password non soddisfa i requisiti di sicurezza" });
     return;
   }
 
@@ -97,6 +110,8 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
       passwordHash,
       role: "viewer",
       state: "TO_APPROVE",
+      firstName: firstName?.trim(),
+      lastName: lastName?.trim(),
     });
 
     res.status(201).json({ message: "Registrazione completata. Il tuo account è in attesa di approvazione." });
