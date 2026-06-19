@@ -1,7 +1,7 @@
 {
   "name": "k9-exercises-server",
   "private": true,
-  "version": "1.6.1",
+  "version": "1.7.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -17,7 +17,8 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "mongoose": "^9.6.3",
-    "nodemailer": "^9.0.0"
+    "nodemailer": "^9.0.0",
+    "password-validator": "^5.3.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
