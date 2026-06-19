@@ -1,198 +1,13 @@
 // Copyright (c) 2026 Luca Neotti
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 
-import { useEffect, useState, type ReactNode } from "react";
-import {
-  Box,
-  Button,
-  Checkbox,
-  Chip,
-  Divider,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-} from "@mui/material";
+import { useEffect, useState } from "react";
+import { Box, Button, Divider, Typography } from "@mui/material";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import type { PendingItem } from "../../interfaces/adminInterfaces";
-import { StatBarInline, WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatBars";
-
-const BG_CURRENT  = "#ffebee"; // rosso chiaro — valore attuale (campo modificato)
-const BG_PROPOSED = "#e8f5e9"; // verde chiaro — valore proposto
-
-// Tutti i field dell'esercizio mostrati in ordine fisso
-const DISPLAY_FIELDS = [
-  "type", "variant", "description", "difficultyLevel",
-  "tools", "setup", "movementPlan", "workingArea", "bodyTarget",
-] as const;
-
-const FIELD_LABELS: Record<string, string> = {
-  type:         "Tipologia",
-  variant:      "Variante",
-  description:  "Descrizione",
-  setup:        "Setup",
-  difficultyLevel: "Difficoltà",
-  tools:        "Attrezzi",
-  movementPlan: "Piano di movimento",
-  workingArea:  "Area target",
-  bodyTarget:   "Body target",
-};
-
-
-// Per campo semplice → boolean; per workingArea/bodyTarget → Record<subKey, boolean>
-type FieldSelection = Record<string, boolean | Record<string, boolean>>;
-
-// ── Rendering valore ────────────────────────────────────────────────────────
-
-const renderValue = (value: unknown): ReactNode => {
-  if (value === null || value === undefined || value === "")
-    return (
-      <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>
-        —
-      </Typography>
-    );
-  if (Array.isArray(value)) {
-    if (value.length === 0)
-      return (
-        <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>
-          —
-        </Typography>
-      );
-    return (
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, py: 0.5 }}>
-        {(value as unknown[]).map((v, i) => (
-          <Chip key={i} label={String(v)} size="small" />
-        ))}
-      </Box>
-    );
-  }
-  return <Typography variant="body2">{String(value)}</Typography>;
-};
-
-// ── Cella valore: impila attuale (rosso) + proposto (verde) se modificata ───
-// Se non modificata mostra il valore corrente in grigio.
-
-const ValueCell = ({
-  current,
-  proposed,
-  isChanged,
-}: {
-  current: unknown;
-  proposed: unknown;
-  isChanged: boolean;
-}) => {
-  if (!isChanged) {
-    return (
-      <Box sx={{ p: 1, opacity: 0.45 }}>
-        {renderValue(current)}
-      </Box>
-    );
-  }
-  return (
-    <>
-      <Box sx={{ bgcolor: BG_CURRENT, p: 1, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
-        {renderValue(current)}
-      </Box>
-      <Box sx={{ bgcolor: BG_PROPOSED, p: 1 }}>
-        {renderValue(proposed)}
-      </Box>
-    </>
-  );
-};
-
-// ── Card per ogni sotto-campo (usate dentro la griglia 2-colonne) ─────────────
-
-interface AreaSubCardsProps {
-  fieldKey: string;
-  current: Record<string, number> | undefined;
-  proposed: Record<string, number> | null; // null = campo non in change.fields
-  subLabels: Record<string, string>;
-  subSelection: Record<string, boolean>;
-  onToggleSub: (sub: string) => void;
-}
-
-const AreaSubCards = ({
-  fieldKey,
-  current,
-  proposed,
-  subLabels,
-  subSelection,
-  onToggleSub,
-}: AreaSubCardsProps) => (
-  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-    {Object.entries(subLabels).map(([sub, label]) => {
-      const cv      = current?.[sub] ?? 0;
-      const pv      = proposed?.[sub] ?? 0;
-      const changed = proposed !== null && cv !== pv;
-      const checked = !!subSelection[sub];
-      return (
-        <Box
-          key={`${fieldKey}-${sub}`}
-          sx={{
-            border: 1,
-            borderColor: changed && checked ? "primary.main" : changed ? "warning.light" : "divider",
-            borderRadius: 1,
-            overflow: "hidden",
-          }}
-        >
-          {/* Header card: etichetta + checkbox */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              px: 1,
-              py: 0.5,
-              bgcolor: "grey.50",
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                fontWeight: changed ? 600 : 400,
-                color: changed ? "text.primary" : "text.disabled",
-              }}
-            >
-              {label}
-            </Typography>
-            {changed && (
-              <Checkbox
-                size="small"
-                checked={checked}
-                onChange={() => onToggleSub(sub)}
-                sx={{ p: 0 }}
-              />
-            )}
-          </Box>
-
-          {/* Valore / diff */}
-          {!changed ? (
-            <Box sx={{ p: 1, opacity: 0.45 }}>
-              <StatBarInline value={cv} />
-            </Box>
-          ) : (
-            <>
-              <Box sx={{ bgcolor: BG_CURRENT, p: 1, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
-                <StatBarInline value={cv} />
-              </Box>
-              <Box sx={{ bgcolor: BG_PROPOSED, p: 1 }}>
-                <StatBarInline value={pv} />
-              </Box>
-            </>
-          )}
-        </Box>
-      );
-    })}
-  </Box>
-);
-
-// ── Prop types ───────────────────────────────────────────────────────────────
+import { WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatBars";
+import ExerciseReviewTable, { type FieldSelection } from "./ExerciseReviewTable";
 
 interface ExerciseDiffProps {
   item: PendingItem;
@@ -201,17 +16,22 @@ interface ExerciseDiffProps {
   loading: boolean;
 }
 
-// ── Componente principale ────────────────────────────────────────────────────
-
 const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps) => {
   const { exercise, change } = item;
 
-  // Gli hook devono essere chiamati sempre, prima di qualsiasi return condizionale
-  const [fieldSelection, setFieldSelection] = useState<FieldSelection>({});
+  const [fieldSelection,   setFieldSelection]   = useState<FieldSelection>({});
+  const [editingFields,    setEditingFields]    = useState<Record<string, boolean>>({});
+  const [editedValues,     setEditedValues]     = useState<Record<string, unknown>>({});
+  const [editingSubFields, setEditingSubFields] = useState<Record<string, Record<string, boolean>>>({});
+  const [editedSubValues,  setEditedSubValues]  = useState<Record<string, Record<string, number>>>({});
 
   useEffect(() => {
     if (!item.change) {
       setFieldSelection({});
+      setEditingFields({});
+      setEditedValues({});
+      setEditingSubFields({});
+      setEditedSubValues({});
       return;
     }
     const exMap = item.exercise as unknown as Record<string, unknown>;
@@ -221,13 +41,11 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
     for (const field of Object.keys(chMap)) {
       if (field === "workingArea" || field === "bodyTarget") {
         const subLabels = field === "workingArea" ? WORKING_AREA_LABELS : BODY_TARGET_LABELS;
-        const current  = exMap[field] as Record<string, number> | undefined;
-        const proposed = chMap[field] as Record<string, number>;
+        const cur  = exMap[field] as Record<string, number> | undefined;
+        const prop = chMap[field] as Record<string, number>;
         const subSel: Record<string, boolean> = {};
         for (const sub of Object.keys(subLabels)) {
-          if ((current?.[sub] ?? 0) !== (proposed[sub] ?? 0)) {
-            subSel[sub] = true;
-          }
+          if ((cur?.[sub] ?? 0) !== (prop[sub] ?? 0)) subSel[sub] = true;
         }
         initial[field] = subSel;
       } else {
@@ -235,11 +53,15 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
       }
     }
     setFieldSelection(initial);
+    setEditingFields({});
+    setEditedValues({});
+    setEditingSubFields({});
+    setEditedSubValues({});
   }, [item]);
 
   if (!change) return null;
 
-  const changedFields = Object.keys(change.fields) as string[];
+  const changedFields = Object.keys(change.fields);
   const exerciseAsMap = exercise as unknown as Record<string, unknown>;
   const changedAsMap  = change.fields as Record<string, unknown>;
 
@@ -252,14 +74,53 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
       return { ...prev, [field]: { ...subSel, [sub]: !subSel[sub] } };
     });
 
+  const toggleEditField = (field: string) => {
+    setEditingFields((prev) => {
+      const nowEditing = !prev[field];
+      if (nowEditing) {
+        setEditedValues((ev) => ({ ...ev, [field]: changedAsMap[field] }));
+        setFieldSelection((fs) => ({ ...fs, [field]: true }));
+      } else {
+        setEditedValues((ev) => { const next = { ...ev }; delete next[field]; return next; });
+      }
+      return { ...prev, [field]: nowEditing };
+    });
+  };
+
+  const handleEditedChange = (field: string, value: unknown) =>
+    setEditedValues((prev) => ({ ...prev, [field]: value }));
+
+  const toggleEditSubField = (areaField: string, sub: string) => {
+    setEditingSubFields((prev) => {
+      const prevArea   = prev[areaField] ?? {};
+      const nowEditing = !prevArea[sub];
+      if (nowEditing) {
+        const prop = changedAsMap[areaField] as Record<string, number> | undefined;
+        setEditedSubValues((ev) => ({ ...ev, [areaField]: { ...(ev[areaField] ?? {}), [sub]: prop?.[sub] ?? 0 } }));
+        setFieldSelection((fs) => {
+          const subSel = (fs[areaField] as Record<string, boolean>) ?? {};
+          return { ...fs, [areaField]: { ...subSel, [sub]: true } };
+        });
+      } else {
+        setEditedSubValues((ev) => {
+          const area = { ...(ev[areaField] ?? {}) };
+          delete area[sub];
+          return { ...ev, [areaField]: area };
+        });
+      }
+      return { ...prev, [areaField]: { ...prevArea, [sub]: nowEditing } };
+    });
+  };
+
+  const handleEditedSubChange = (areaField: string, sub: string, value: number) =>
+    setEditedSubValues((prev) => ({ ...prev, [areaField]: { ...(prev[areaField] ?? {}), [sub]: value } }));
+
   const hasAnySelected = Object.entries(fieldSelection).some(([field, sel]) => {
     if (field === "workingArea" || field === "bodyTarget")
       return Object.values(sel as Record<string, boolean>).some((v) => v);
     return !!sel;
   });
 
-  // Costruisce i campi da applicare: solo quelli selezionati.
-  // Per workingArea/bodyTarget: merge dei valori correnti + sub-field scelti.
   const computeFieldsToApply = (): Record<string, unknown> => {
     const result: Record<string, unknown> = {};
     for (const field of changedFields) {
@@ -267,34 +128,29 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
       if (field === "workingArea" || field === "bodyTarget") {
         const subSel = sel as Record<string, boolean> | undefined;
         if (!subSel || Object.values(subSel).every((v) => !v)) continue;
-        const current  = (exerciseAsMap[field] as Record<string, number>) ?? {};
-        const proposed = changedAsMap[field] as Record<string, number>;
+        const current    = (exerciseAsMap[field] as Record<string, number>) ?? {};
+        const proposed   = changedAsMap[field] as Record<string, number>;
+        const editedArea = editedSubValues[field] ?? {};
         const merged: Record<string, number> = { ...current };
         for (const [sub, checked] of Object.entries(subSel)) {
-          if (checked) merged[sub] = proposed[sub] ?? 0;
+          if (checked) merged[sub] = editedArea[sub] !== undefined ? editedArea[sub] : (proposed[sub] ?? 0);
         }
         result[field] = merged;
       } else {
-        if (sel) result[field] = changedAsMap[field];
+        if (sel) result[field] = editedValues[field] !== undefined ? editedValues[field] : changedAsMap[field];
       }
     }
     return result;
   };
 
   const formattedDate = change.updatedAt
-    ? new Date(change.updatedAt).toLocaleString("it-IT", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
+    ? new Date(change.updatedAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })
     : "—";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
 
-      {/* ── Area scrollabile: header + legenda + tabella ── */}
       <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-
-        {/* Header */}
         <Box>
           <Typography variant="h6" sx={{ fontWeight: "bold" }}>
             {exercise.type}
@@ -313,136 +169,30 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
 
         <Divider />
 
-        {/* Tabella — tutti i field dell'esercizio */}
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ width: 40, px: 0.5 }} />
-                <TableCell sx={{ fontWeight: "bold", width: 160 }}>Campo</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Valore</TableCell>
-              </TableRow>
-            </TableHead>
-          <TableBody>
-            {DISPLAY_FIELDS.map((field) => {
-              const isChanged = changedFields.includes(field);
-              const current   = exerciseAsMap[field];
-              const proposed  = changedAsMap[field];
+        <ExerciseReviewTable
+          proposed={changedAsMap}
+          original={exerciseAsMap}
+          changedFields={changedFields}
+          showCheckboxes
+          fieldSelection={fieldSelection}
+          onToggleField={toggleField}
+          onToggleSubField={toggleSubField}
+          editingFields={editingFields}
+          editedValues={editedValues}
+          editingSubFields={editingSubFields}
+          editedSubValues={editedSubValues}
+          onToggleEditField={toggleEditField}
+          onEditedChange={handleEditedChange}
+          onToggleEditSubField={toggleEditSubField}
+          onEditedSubChange={handleEditedSubChange}
+        />
+      </Box>
 
-              // workingArea e bodyTarget: una sola riga a 2 colonne affiancate
-              if (field === "workingArea") {
-                const waIsChanged  = isChanged;
-                const btIsChanged  = changedFields.includes("bodyTarget");
-                const waSubSel     = (fieldSelection["workingArea"] as Record<string, boolean>) ?? {};
-                const btSubSel     = (fieldSelection["bodyTarget"]  as Record<string, boolean>) ?? {};
-                const btCurrent    = exerciseAsMap["bodyTarget"];
-                const btProposed   = changedAsMap["bodyTarget"];
-                return (
-                  <TableRow key="areas-combined">
-                    <TableCell colSpan={3} sx={{ p: 1 }}>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                          gap: 2,
-                        }}
-                      >
-                        {/* Colonna sinistra: Area target */}
-                        <Box>
-                          <Typography
-                            sx={{ fontWeight: "bold", fontSize: 13, px: 1, py: 0.75,
-                                  bgcolor: "grey.100", borderRadius: 0.5, mb: 1 }}
-                          >
-                            {FIELD_LABELS.workingArea}
-                          </Typography>
-                          <AreaSubCards
-                            fieldKey="workingArea"
-                            current={current as Record<string, number>}
-                            proposed={waIsChanged ? (proposed as Record<string, number>) : null}
-                            subLabels={WORKING_AREA_LABELS}
-                            subSelection={waSubSel}
-                            onToggleSub={(sub) => toggleSubField("workingArea", sub)}
-                          />
-                        </Box>
-                        {/* Colonna destra: Body target */}
-                        <Box>
-                          <Typography
-                            sx={{ fontWeight: "bold", fontSize: 13, px: 1, py: 0.75,
-                                  bgcolor: "grey.100", borderRadius: 0.5, mb: 1 }}
-                          >
-                            {FIELD_LABELS.bodyTarget}
-                          </Typography>
-                          <AreaSubCards
-                            fieldKey="bodyTarget"
-                            current={btCurrent as Record<string, number>}
-                            proposed={btIsChanged ? (btProposed as Record<string, number>) : null}
-                            subLabels={BODY_TARGET_LABELS}
-                            subSelection={btSubSel}
-                            onToggleSub={(sub) => toggleSubField("bodyTarget", sub)}
-                          />
-                        </Box>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                );
-              }
-
-              // bodyTarget: già renderizzato insieme a workingArea, si salta
-              if (field === "bodyTarget") return null;
-
-              // Campo semplice
-              const checked = isChanged && !!fieldSelection[field];
-              return (
-                <TableRow key={field}>
-                  <TableCell sx={{ width: 40, px: 0.5 }}>
-                    {isChanged && (
-                      <Checkbox
-                        size="small"
-                        checked={checked}
-                        onChange={() => toggleField(field)}
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: isChanged ? 600 : 400,
-                      color: isChanged ? "text.primary" : "text.disabled",
-                      verticalAlign: "top",
-                      fontSize: 13,
-                    }}
-                  >
-                    {FIELD_LABELS[field] ?? field}
-                  </TableCell>
-                  <TableCell sx={{ p: 0, verticalAlign: "top" }}>
-                    <ValueCell current={current} proposed={proposed} isChanged={isChanged} />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-          </Table>
-        </TableContainer>
-
-      </Box>{/* fine area scrollabile */}
-
-      {/* ── Pulsanti fissi in fondo ── */}
       <Box sx={{ px: 2, py: 1.5, borderTop: 1, borderColor: "divider", display: "flex", gap: 2, justifyContent: "flex-end", flexShrink: 0 }}>
-        <Button
-          variant="contained"
-          color="error"
-          startIcon={<CloseIcon />}
-          onClick={onReject}
-          disabled={loading}
-        >
+        <Button variant="contained" color="error" startIcon={<CloseIcon />} onClick={onReject} disabled={loading}>
           Rifiuta
         </Button>
-        <Button
-          variant="contained"
-          color="success"
-          startIcon={<CheckIcon />}
-          onClick={() => onApprove(computeFieldsToApply())}
-          disabled={loading || !hasAnySelected}
-        >
+        <Button variant="contained" color="success" startIcon={<CheckIcon />} onClick={() => onApprove(computeFieldsToApply())} disabled={loading || !hasAnySelected}>
           Approva
         </Button>
       </Box>

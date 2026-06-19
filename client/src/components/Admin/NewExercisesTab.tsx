@@ -160,9 +160,9 @@ const NewExercisesTab = () => {
           sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
           onClick={() => setListOpen((o) => !o)}
         >
-          <Box>
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>Nuovi esercizi</Typography>
-            {!loading && listOpen && (
+            {!loading && (
               <Typography variant="caption" color="text.secondary">
                 {items.length} {items.length === 1 ? "esercizio" : "esercizi"}
               </Typography>
@@ -187,7 +187,7 @@ const NewExercisesTab = () => {
           overflowY: "auto",
         }}
       >
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider", display: "flex", alignItems: "baseline", gap: 1 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>Nuovi esercizi</Typography>
           {!loading && (
             <Typography variant="caption" color="text.secondary">
