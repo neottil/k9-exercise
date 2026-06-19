@@ -15,17 +15,17 @@ import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 // ── Label maps ────────────────────────────────────────────────────────────────
 
 export const WORKING_AREA_LABELS: Record<string, string> = {
-  mental:      "Mentale",
+  mental: "Mentale",
   flexibility: "Flessibilità",
-  strength:    "Forza",
-  balance:     "Equilibrio",
-  cardio:      "Cardio",
+  strength: "Forza",
+  balance: "Equilibrio",
+  cardio: "Cardio",
 };
 
 export const BODY_TARGET_LABELS: Record<string, string> = {
-  ant:      "Anteriore",
-  post:     "Posteriore",
-  core:     "Core",
+  ant: "Anteriore",
+  post: "Posteriore",
+  core: "Core",
   backbone: "Colonna",
   fullBody: "Fullbody",
 };
@@ -276,16 +276,30 @@ export const StatBarsFilter = ({
 
           {/* Checkbox operazione "=" */}
           <FormControlLabel
-            label="="
             labelPlacement="end"
             control={
               <Checkbox
-                size="small"
-                checked={operation === "eq"}
-                onChange={(e) =>
-                  onChangeCallback(fieldName, value, e.target.checked ? "eq" : "gte")
+                icon={
+                  <Box sx={{
+                    width: 18, height: 18, border: '2px solid', borderColor: 'action.disabled',
+                    borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, lineHeight: 1
+                  }}>
+                    =
+                  </Box>
                 }
-                sx={{ p: 0.5 }}
+                checkedIcon={
+                  <Box sx={{
+                    width: 18, height: 18, border: '2px solid', borderColor: 'primary.main',
+                    borderRadius: '2px', bgcolor: 'primary.main', color: 'white',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, lineHeight: 1
+                  }}>
+                    =
+                  </Box>
+                }
+                checked={operation === "eq"}
+                onChange={e => onChangeCallback(fieldName, value, e.target.checked ? "eq" : "gte")}
               />
             }
             sx={{ m: 0, gap: 0.25, whiteSpace: "nowrap" }}
