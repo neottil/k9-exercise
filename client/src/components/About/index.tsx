@@ -8,6 +8,7 @@ import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
 
 import { version as clientVersion } from "../../../package.json";
 
@@ -34,23 +35,28 @@ const About = () => {
         <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
           Versioni
         </Typography>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 1, mb: 4 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Typography color="text.secondary" sx={{ width: 70 }}>
-              Frontend
-            </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 3, mt: 1, mb: 4 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography color="text.secondary" variant="body2">Frontend</Typography>
             <Chip label={`v${clientVersion}`} size="small" color="primary" />
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Typography color="text.secondary" sx={{ width: 70 }}>
-              Server
-            </Typography>
-            <Chip
-              label={serverVersion ? `v${serverVersion}` : "…"}
-              size="small"
-              color="primary"
-            />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography color="text.secondary" variant="body2">Server</Typography>
+            <Chip label={serverVersion ? `v${serverVersion}` : "…"} size="small" color="primary" />
           </Box>
+        </Box>
+
+        <Divider sx={{ mb: 3 }} />
+
+        {/* Documentazione */}
+        <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
+          Documentazione
+        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 1, mb: 4 }}>
+          <MenuBookIcon fontSize="small" color="action" />
+          <Link href="https://github.com/neottil/k9-exercise/wiki" target="_blank" rel="noreferrer" variant="body2">
+            Manuale utente
+          </Link>
         </Box>
 
         <Divider sx={{ mb: 3 }} />
@@ -72,18 +78,6 @@ const About = () => {
             .
           </Typography>
         </Box>
-
-        <Divider sx={{ mb: 3 }} />
-
-        {/* Attribuzione */}
-        <Typography variant="body2" color="text.secondary">
-          © 2026{" "}
-          <Link href="https://www.lucaneotti.click" target="_blank" rel="noreferrer">
-            Luca Neotti
-          </Link>
-          {" "}— React · Node.js · MongoDB · Kubernetes
-        </Typography>
-
         </Box>
       </Paper>
     </Box>

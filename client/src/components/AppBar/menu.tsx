@@ -74,7 +74,8 @@ const MainMenu = () => {
         <MenuIcon />
       </IconButton>
       <Menu
-        elevation={0}
+        elevation={2}
+        slotProps={{ paper: { sx: { border: 1, borderColor: "primary.main" } } }}
         anchorOrigin={{
           vertical: 'bottom',
           horizontal: 'right',
