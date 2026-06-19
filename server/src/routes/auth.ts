@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
+import rateLimit from "express-rate-limit";
 import PasswordValidator from "password-validator";
 import User from "../models/User.js";
 import { requireDbReady } from "../middleware/requireDbReady.js";
@@ -10,6 +11,14 @@ import { requireDbReady } from "../middleware/requireDbReady.js";
 const router = Router();
 
 const DEV_USER = { email: "dev@local", role: "admin" };
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Troppi tentativi di accesso. Riprova tra 15 minuti." },
+});
 
 const passwordSchema = new PasswordValidator();
 passwordSchema
@@ -37,7 +46,7 @@ router.get("/me", (req: Request, res: Response): void => {
 });
 
 // POST /api/auth/login
-router.post("/login", requireDbReady, async (req: Request, res: Response): Promise<void> => {
+router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Response): Promise<void> => {
   if (process.env.AUTH_ENABLED === "false") {
     req.session.user = DEV_USER;
     res.json(DEV_USER);
