@@ -37,6 +37,38 @@ cd server && npm install && npm run dev
 cd client && npm install && npm run dev
 ```
 
+### Testare la modalità `LOGIN_TYPE=token`
+
+Per simulare localmente il flusso WordPress senza un sito WP reale:
+
+**1. Configurare il `.env`:**
+
+```env
+LOGIN_TYPE=token
+VITE_LOGIN_TYPE=token
+K9_JWT_SECRET=dev-jwt-secret-change-in-prod
+```
+
+**2. Avviare server e client** come sopra (il client mostrerà la pagina "accedi da WordPress" al posto del form).
+
+**3. Generare un token di test** modificando le variabili in cima allo script secondo lo scenario da simulare:
+
+```bash
+# scripts/generate-wp-token.mjs — configurare in cima al file:
+# EMAIL = "test@esempio.com"
+# ROLE  = "viewer"   oppure   "admin"
+
+node scripts/generate-wp-token.mjs
+```
+
+Lo script stampa l'URL completo da aprire nel browser:
+
+```
+http://localhost:3001/api/auth/wp-callback?token=eyJhbGci...
+```
+
+Aprendo quell'URL con server e client in esecuzione, la sessione viene creata e l'app fa redirect a `/` come farebbe con un redirect reale da WordPress.
+
 ---
 
 ## Struttura progetto
@@ -169,6 +201,7 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 | `GHCR_PAT` | Personal Access Token GitHub con scope `read:packages` ¹ |
 | `NOTIFY_API_KEY` | Token per autenticare il CronJob sulla route `/api/admin/notify` ² |
 | `SMTP_PASS` | Password SMTP / App Password Gmail ³ |
+| `K9_JWT_SECRET` | Segreto condiviso con WordPress per firmare/verificare il JWT — `openssl rand -base64 32` ⁴ |
 
 > ¹ Serve al VPS per fare `imagePullSecrets` da GHCR. Crearlo in: profilo GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → `read:packages`.
 >
@@ -183,6 +216,8 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 > ```
 >
 > ³ Gmail richiede un **App Password** (non la password dell'account). Abilitare prima la verifica in due passaggi, poi: Google Account → Sicurezza → Verifica in 2 passaggi → App password.
+>
+> ⁴ Deve coincidere esattamente con `K9_JWT_SECRET` definito in `wp-config.php`. Usare valori diversi per staging e production. Non riutilizzare lo stesso valore di `SESSION_SECRET`.
 
 #### Variables
 
@@ -191,6 +226,7 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 | `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) |
 | `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject |
 | `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server |
+| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress). Usata dal server a runtime e passata dalla Action come build-arg `VITE_LOGIN_TYPE` al Dockerfile del client |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) |
 | `VITE_ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
 | `SMTP_HOST` | `smtp.gmail.com` | Host SMTP per le notifiche email |
@@ -463,178 +499,236 @@ La collection Bruno in `bruno/` permette di chiamare l'endpoint manualmente:
 
 ## Integrazione con WordPress
 
-Permette di delegare l'autenticazione a WordPress: WP genera un JWT firmato e l'app Node lo valida per creare la sessione. La login nativa dell'app può essere disabilitata completamente.
+Permette di delegare l'autenticazione a WordPress: WP genera un JWT firmato e l'app Node lo valida per creare la sessione. La modalità di login è selezionabile tramite variabile d'ambiente (`LOGIN_TYPE`).
 
 ### Flusso
 
 ```
-Utente → WordPress (login) → genera JWT → redirect ?token=...
-                                                    │
-                                                    ▼
-                                          App Node: valida JWT
-                                          crea sessione cookie
-                                          redirect / (URL pulito)
-                                                    │
-                                                    ▼
-                                          App React (usa sessione)
+Utente → WordPress (login) → controlla k9_app_access
+                                    │ accesso negato → pagina /no-access su WP
+                                    │ accesso OK
+                                    ▼
+                             genera JWT (email + k9_app_role)
+                             redirect /api/auth/wp-callback?token=...
+                                    │
+                                    ▼
+                             App Node: valida JWT con segreto condiviso
+                             crea sessione cookie { email, role }
+                             redirect / (URL pulito)
+                                    │
+                                    ▼
+                             App React: GET /api/auth/me → { email, role }
+                             useAuth() disponibile in tutti i componenti
 ```
 
-Il token nell'URL è **usa e getta**: serve solo per l'handshake iniziale.
+Il token nell'URL è **usa e getta**: serve solo per l'handshake iniziale (scadenza: 5 minuti).
+
+---
+
+### Variabili d'ambiente
+
+Nel file `.env` alla root del monorepo:
+
+```env
+# Modalità di login: "form" (email+password) | "token" (redirect JWT da WordPress)
+LOGIN_TYPE=token
+VITE_LOGIN_TYPE=token          # deve coincidere con LOGIN_TYPE
+
+# Segreto condiviso tra WordPress e app — deve coincidere con wp-config.php
+# Generare con: openssl rand -base64 32
+K9_JWT_SECRET=stringa-lunga-e-casuale
+```
+
+| `LOGIN_TYPE` | Comportamento server | Comportamento client |
+|---|---|---|
+| `form` (default) | `/login` e `/register` abilitati, `/wp-callback` restituisce 404 | Pagina login con form email+password |
+| `token` | `/wp-callback` abilitato, `/login` e `/register` restituiscono 404 | Pagina login con messaggio "accedi da WordPress" |
+
+> `AUTH_ENABLED=false` bypassa tutto per uso in sviluppo locale, indipendentemente da `LOGIN_TYPE`.
 
 ---
 
 ### Parte 1 — Configurazione WordPress
 
-#### 1.1 Libreria JWT per PHP
+#### 1.1 Controllo accesso e ruoli tramite user meta
 
-```bash
-composer require firebase/php-jwt
-```
+Per ogni utente WP che deve accedere all'app, impostare due campi meta (gestibili dalla pagina **Utenti → Modifica** grazie al codice del §1.4):
 
-Oppure includere il file singolo dalla release ufficiale: https://github.com/firebase/php-jwt
+| Meta key | Valori | Significato |
+|---|---|---|
+| `k9_app_access` | `1` / `0` | L'utente può accedere all'app |
+| `k9_app_role` | `viewer` / `admin` | Ruolo all'interno dell'app |
 
-#### 1.2 Generare il JWT al redirect
+Il ruolo WP (administrator, editor, subscriber…) è indipendente dal ruolo app.
 
-In `functions.php` o in un plugin custom:
+#### 1.2 Segreto condiviso in `wp-config.php`
 
-```php
-use Firebase\JWT\JWT;
-
-function k9_redirect_to_app() {
-    if ( ! is_user_logged_in() ) {
-        wp_redirect( wp_login_url( home_url('/k9-app') ) );
-        exit;
-    }
-
-    $user      = wp_get_current_user();
-    $secret    = defined('K9_JWT_SECRET') ? K9_JWT_SECRET : 'fallback-dev-secret';
-    $issued_at = time();
-
-    $payload = [
-        'iat'   => $issued_at,
-        'exp'   => $issued_at + 300, // token valido 5 minuti
-        'email' => $user->user_email,
-        'role'  => k9_get_role( $user ),
-    ];
-
-    $token = JWT::encode( $payload, $secret, 'HS256' );
-
-    wp_redirect( 'https://app.miodominio.com/api/auth/wp-callback?token=' . urlencode($token) );
-    exit;
-}
-
-add_action( 'template_redirect', function() {
-    if ( isset($_GET['k9_redirect']) ) {
-        k9_redirect_to_app();
-    }
-});
-```
-
-Link da esporre agli utenti nel menu WP:
-
-```
-https://miodominio.com/?k9_redirect=1
-```
-
-#### 1.3 Mapping ruoli WP → ruoli app
-
-```php
-function k9_get_role( WP_User $user ): string {
-    if ( in_array('administrator', $user->roles) || in_array('editor', $user->roles) ) {
-        return 'admin';
-    }
-    return 'viewer';
-}
-```
-
-#### 1.4 Segreto condiviso in `wp-config.php`
+Aprire `wp-config.php` (nella cartella principale di WordPress) e aggiungere queste due righe **prima** della riga `/* That's all, stop editing! */`:
 
 ```php
 define( 'K9_JWT_SECRET', 'stringa-lunga-e-casuale-identica-a-quella-nel-env-app' );
+define( 'K9_APP_URL',    'https://app.miodominio.com' );
 ```
+
+#### 1.3 Codice PHP — plugin Code Snippets (consigliato)
+
+Non è richiesta nessuna libreria esterna: il JWT HS256 viene generato con `hash_hmac`, funzione nativa di PHP.
+
+Installare il plugin gratuito **Code Snippets** da WordPress → Plugin → Aggiungi nuovo, poi creare un nuovo snippet con questo codice completo:
+
+```php
+// Genera JWT HS256 senza librerie esterne
+function k9_jwt_encode( array $payload, string $secret ): string {
+    $b64 = fn( $s ) => rtrim( strtr( base64_encode( $s ), '+/', '-_' ), '=' );
+    $header = $b64( json_encode( [ 'alg' => 'HS256', 'typ' => 'JWT' ] ) );
+    $body   = $b64( json_encode( $payload ) );
+    $sig    = $b64( hash_hmac( 'sha256', "$header.$body", $secret, true ) );
+    return "$header.$body.$sig";
+}
+
+// Redirect verso l'app con JWT
+function k9_redirect_to_app() {
+    if ( ! is_user_logged_in() ) {
+        wp_redirect( wp_login_url( add_query_arg( 'k9_redirect', '1', home_url( '/' ) ) ) );
+        exit;
+    }
+
+    $user = wp_get_current_user();
+
+    $has_access = get_user_meta( $user->ID, 'k9_app_access', true );
+    if ( ! $has_access ) {
+        wp_redirect( home_url( '/no-access' ) );
+        exit;
+    }
+
+    if ( ! defined( 'K9_JWT_SECRET' ) || ! defined( 'K9_APP_URL' ) ) {
+        wp_die( 'K9_JWT_SECRET o K9_APP_URL non definiti in wp-config.php' );
+    }
+
+    $now   = time();
+    $token = k9_jwt_encode( [
+        'iat'   => $now,
+        'exp'   => $now + 300,
+        'email' => $user->user_email,
+        'role'  => get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer',
+    ], K9_JWT_SECRET );
+
+    wp_redirect( K9_APP_URL . '/api/auth/wp-callback?token=' . urlencode( $token ) );
+    exit;
+}
+
+add_action( 'template_redirect', function () {
+    if ( isset( $_GET['k9_redirect'] ) ) {
+        k9_redirect_to_app();
+    }
+} );
+
+// Campi K9 App nella pagina profilo utente (visibili solo agli admin WP)
+add_action( 'show_user_profile', 'k9_user_profile_fields' );
+add_action( 'edit_user_profile', 'k9_user_profile_fields' );
+
+function k9_user_profile_fields( WP_User $user ) {
+    if ( ! current_user_can( 'edit_users' ) ) return;
+    $has_access = get_user_meta( $user->ID, 'k9_app_access', true );
+    $role       = get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer';
+    ?>
+    <h3>K9 App — Accesso</h3>
+    <table class="form-table">
+        <tr>
+            <th>Abilita accesso K9 App</th>
+            <td>
+                <input type="checkbox" name="k9_app_access" value="1"
+                    <?php checked( $has_access, '1' ); ?> />
+            </td>
+        </tr>
+        <tr>
+            <th>Ruolo nell'app</th>
+            <td>
+                <select name="k9_app_role">
+                    <option value="viewer" <?php selected( $role, 'viewer' ); ?>>Viewer</option>
+                    <option value="admin"  <?php selected( $role, 'admin'  ); ?>>Admin</option>
+                </select>
+            </td>
+        </tr>
+    </table>
+    <?php
+}
+
+add_action( 'personal_options_update',  'k9_save_user_profile_fields' );
+add_action( 'edit_user_profile_update', 'k9_save_user_profile_fields' );
+
+function k9_save_user_profile_fields( int $user_id ) {
+    if ( ! current_user_can( 'edit_user', $user_id ) ) return;
+    update_user_meta( $user_id, 'k9_app_access', isset( $_POST['k9_app_access'] ) ? '1' : '0' );
+    update_user_meta( $user_id, 'k9_app_role', sanitize_text_field( $_POST['k9_app_role'] ?? 'viewer' ) );
+}
+```
+
+#### 1.4 Link di accesso all'app
+
+L'URL da esporre agli utenti (nel menu WP o in una pagina dedicata):
+
+```
+https://miodominio-wp.com/?k9_redirect=1
+```
+
+Chiunque clicchi questo link viene autenticato su WP (se non lo è già) e poi rediretto all'app con il JWT. Gli utenti senza `k9_app_access = 1` finiscono sulla pagina `/no-access`.
 
 ---
 
-### Parte 2 — Modifiche all'app Node.js
+### Parte 2 — App Node.js (già implementato)
 
-#### 2.1 Variabile d'ambiente
+Le seguenti modifiche sono già presenti nel codice:
 
-Nel file `.env`:
-
-```
-K9_JWT_SECRET=stringa-lunga-e-casuale-identica-a-quella-in-wp-config
-```
-
-Installa la libreria JWT:
-
-```bash
-cd server
-npm install jsonwebtoken
-npm install -D @types/jsonwebtoken
-```
-
-#### 2.2 Route `/api/auth/wp-callback`
-
-In `server/src/routes/auth.ts`:
-
-```typescript
-import jwt from "jsonwebtoken";
-
-// GET /api/auth/wp-callback?token=<JWT>
-router.get("/wp-callback", (req: Request, res: Response): void => {
-    const { token } = req.query as { token?: string };
-
-    if (!token) {
-        res.status(400).send("Token mancante");
-        return;
-    }
-
-    const secret = process.env.K9_JWT_SECRET;
-    if (!secret) {
-        console.error("[wp-callback] K9_JWT_SECRET non configurato");
-        res.status(500).send("Configurazione server mancante");
-        return;
-    }
-
-    try {
-        const payload = jwt.verify(token, secret) as {
-            email: string;
-            role: string;
-        };
-
-        req.session.user = { email: payload.email, role: payload.role };
-        res.redirect("/");
-    } catch (err) {
-        console.error("[wp-callback] token non valido:", err);
-        res.status(401).send("Token non valido o scaduto");
-    }
-});
-```
-
-#### 2.3 Disabilitare la login nativa (opzionale)
-
-```env
-AUTH_ENABLED=false
-```
-
-Con questa impostazione la pagina `/login` non è raggiungibile. La route `/api/auth/wp-callback` funziona indipendentemente da `AUTH_ENABLED`.
+- `jsonwebtoken` installato come dipendenza del server
+- Route `GET /api/auth/wp-callback` in `server/src/routes/auth.ts`: valida il JWT, crea `req.session.user = { email, role }` e fa redirect a `/`
+- Route `/login` e `/register` restituiscono 404 quando `LOGIN_TYPE=token`
+- La pagina `/login` lato client mostra un messaggio informativo (niente form) quando `VITE_LOGIN_TYPE=token`
 
 ---
 
-### Parte 3 — Test dell'integrazione
+### Parte 3 — Test dell'integrazione in locale
 
-1. **Locale**: avviare il server con `K9_JWT_SECRET` nel `.env` e generare un token di test:
+#### 3.1 Script di generazione token
+
+Lo script `scripts/generate-wp-token.mjs` simula il token che WordPress produrrebbe. Configurare le variabili in cima al file:
+
+```js
+const EMAIL           = "test@esempio.com";
+const ROLE            = "viewer";   // "viewer" | "admin"
+const EXPIRES_SECONDS = 300;
+```
+
+Eseguire:
 
 ```bash
-node -e "
-const jwt = require('jsonwebtoken');
-const token = jwt.sign(
-  { email: 'test@esempio.com', role: 'admin' },
-  process.env.K9_JWT_SECRET,
-  { expiresIn: '5m' }
-);
-console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
-" 
+node scripts/generate-wp-token.mjs
+```
+
+Output:
+
+```
+─────────────────────────────────────────────
+  email  : test@esempio.com
+  role   : viewer
+  scade  : 14:35:22 (tra 300s)
+─────────────────────────────────────────────
+
+Token JWT:
+eyJhbGci...
+
+URL di test (apri nel browser con il server in esecuzione):
+http://localhost:3001/api/auth/wp-callback?token=eyJhbGci...
+```
+
+Aprire l'URL nel browser: se il server è in esecuzione con `LOGIN_TYPE=token` e `K9_JWT_SECRET` configurato, l'app crea la sessione e fa redirect a `/`.
+
+#### 3.2 Verifica manuale
+
+```bash
+# Avviare il server con la configurazione token
+LOGIN_TYPE=token K9_JWT_SECRET=test-secret node scripts/generate-wp-token.mjs
+# Copiare l'URL e aprirlo nel browser
 ```
 
 2. **Produzione**: verificare che il dominio WP e quello dell'app usino HTTPS — il token viaggia nell'URL.
@@ -651,8 +745,9 @@ console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
 | **Scadenza token breve** | 5 minuti (`exp: now + 300`) sono sufficienti per il redirect |
 | **HTTPS obbligatorio** | Il token viaggia nell'URL: senza HTTPS è intercettabile |
 | **`SESSION_SECRET` ≠ `K9_JWT_SECRET`** | Segreti con scopi diversi, non riutilizzare lo stesso valore |
+| **Accesso per utente** | Solo gli utenti WP con `k9_app_access = 1` ricevono il JWT |
+| **Ruolo separato dal ruolo WP** | `k9_app_role` è indipendente da administrator/editor/subscriber |
 | **Rimuovere `ADMIN_SEED_*` dal `.env`** | Dopo il primo avvio eliminare o commentare le variabili di seed |
-| **Rate limiting su `/api/auth/login`** | Aggiungere `express-rate-limit` per prevenire brute-force |
 | **Token one-time (opzionale)** | WP salva il token in DB e lo invalida dopo il primo uso |
 
 ---
