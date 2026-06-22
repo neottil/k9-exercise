@@ -13,8 +13,8 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 4. [CI/CD pipeline](#cicd-pipeline)
 5. [Deploy in produzione](#deploy-in-produzione)
 6. [Sistema di notifiche](#sistema-di-notifiche)
-7. [Integrazione con WordPress](#integrazione-con-wordpress)
-8. [TODO](#todos)
+7. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
+8. [Integrazione con WordPress](#integrazione-con-wordpress)
 
 ---
 
@@ -657,13 +657,15 @@ console.log('http://localhost:3001/api/auth/wp-callback?token=' + token);
 
 ---
 
-## TODOs
+## Comandi pulizia registry git
 
-- **Pannello admin — approvazione utenti** (nuovo tab nella pagina Admin): l'admin visualizza gli utenti da approvare (email) con checkbox deselezionata di default. Può selezionare più utenti e applicare la stessa operazione a tutti (accettare / rifiutare). In caso di rifiuto può aggiungere un commento. I button sono disabilitati finché nessun utente è selezionato. Le azioni cambiano lo stato a DB e inviano una email all'utente con l'esito e l'eventuale commento.
-- ~~**Pannello admin — approvazione esercizi nuovi**~~ ✓ implementato (tab "Nuovi esercizi" in Admin)
-- **Fetch lazy per approvazione**: caricare in anticipo solo un set minimo di info (tipo, variante, utente, data). Il documento completo viene caricato on-demand alla selezione. Vale per modifiche, esercizi nuovi e utenti.
-- Rivedere query e creare indici MongoDB
-- Nome e cognome alla registrazione?
-- Rate limiting su `/api/auth/login` per prevenire brute-force
-- Divisione esercizi BSS e CTS
-- Retention immagini Docker: idea — tag `versione+latest-test` ad ogni build; nuova action che sposta il tag `production` sulla versione deployata e `prev-prod` sulla precedente.
+Dopo aver installato gh ed eseguito la login con questo comando si eliminano tutte le immagini che non hanno tag
+
+```bash
+PAGER=cat; PACKAGE="k9-server"; gh api "/user/packages/container/$PACKAGE/versions" --paginate \
+  | jq -r '.[] | select(.metadata.container.tags | length == 0) | .id' \
+  | while read -r id; do
+      echo "Deleting version $id"
+      gh api -X DELETE "/user/packages/container/$PACKAGE/versions/$id"
+    done
+```

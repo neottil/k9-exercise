@@ -32,6 +32,11 @@ passwordSchema
 const isPasswordValid = (pw: string): boolean =>
   passwordSchema.validate(pw) as boolean;
 
+// Hash usato come dummy quando l'email non esiste, per uniformare i tempi di risposta
+// ed evitare che un attaccante distingua "email non trovata" da "password errata"
+// misurando la latenza (timing attack / email enumeration).
+const DUMMY_HASH = bcrypt.hashSync("_dummy_", 12);
+
 // GET /api/auth/me
 router.get("/me", (req: Request, res: Response): void => {
   if (process.env.AUTH_ENABLED === "false") {
@@ -62,13 +67,12 @@ router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Re
 
   try {
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      res.status(401).json({ error: "Credenziali non valide" });
-      return;
-    }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
+    // Sempre eseguire bcrypt.compare, anche se l'utente non esiste,
+    // per uniformare i tempi di risposta (prevenzione timing attack).
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+
+    if (!user || !valid) {
       res.status(401).json({ error: "Credenziali non valide" });
       return;
     }
