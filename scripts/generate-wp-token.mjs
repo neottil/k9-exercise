@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Luca Neotti
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 //
-// Script per generare un JWT di test che simula il token prodotto da WordPress.
+// Script per generare un JWT di test che simula il token prodotto da sito esterno.
 // Uso: node scripts/generate-wp-token.mjs
 //
 // Richiede K9_JWT_SECRET nel file .env alla root del monorepo
@@ -9,9 +9,10 @@
 
 // ── Configura qui per simulare diversi scenari ───────────────────────────────
 const EMAIL           = "token@esempio.com";
-const ROLE            = "viewer";   // "viewer" | "admin"
+const ROLE            = "admin";   // "viewer" | "admin"
 const EXPIRES_SECONDS = 300;        // durata del token in secondi (default WP: 300 = 5 min)
-const APP_PORT        = 5173;       // porta del Vite dev server (proxy verso il backend)
+const BASE_URL        = "http://localhost:5173";       // porta del Vite dev server (proxy verso il backend)
+//const BASE_URL        = "https://k9-exercise.lucaneotti.click";       // porta del Vite dev server (proxy verso il backend)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createHmac } from "crypto";
@@ -56,7 +57,7 @@ const token   = `${header}.${payload}.${sig}`;
 // L'URL punta al Vite dev server (5173) che fa da proxy verso il backend.
 // Il backend setta la sessione e fa res.redirect("/") → il browser torna su localhost:APP_PORT.
 // NON puntare direttamente al backend (3001): il redirect finale finirebbe su 3001 senza frontend.
-const url = `http://localhost:${APP_PORT}/api/auth/wp-callback?token=${encodeURIComponent(token)}`;
+const url = `${BASE_URL}/api/auth/wp-callback?token=${encodeURIComponent(token)}`;
 
 const expDate = new Date((now + EXPIRES_SECONDS) * 1000).toLocaleTimeString("it-IT");
 

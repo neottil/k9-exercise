@@ -150,7 +150,7 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
 
 // GET /api/auth/wp-callback?token=<JWT>
 // Disponibile solo quando LOGIN_TYPE=token.
-// Riceve il JWT generato da WordPress, lo valida con il segreto condiviso
+// Riceve il JWT generato da sito esterno, lo valida con il segreto condiviso
 // e crea la sessione utente senza richiedere password.
 router.get("/wp-callback", (req: Request, res: Response): void => {
   if (!isTokenMode()) {

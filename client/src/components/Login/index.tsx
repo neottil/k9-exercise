@@ -17,6 +17,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 
 const isTokenMode = import.meta.env.VITE_LOGIN_TYPE === "token";
+const loginSiteUrl = import.meta.env.VITE_LOGIN_SITE_URL;
 
 const LoginToken = () => {
   const { sessionExpired } = useAuth();
@@ -38,11 +39,15 @@ const LoginToken = () => {
           </Typography>
           {sessionExpired && (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              Sessione scaduta. Torna sul sito WordPress e utilizza il link per accedere nuovamente.
+              Sessione scaduta. Torna sul sito <Link href={loginSiteUrl} rel="noreferrer">
+                {loginSiteUrl}
+              </Link> e utilizza il link per accedere nuovamente.
             </Alert>
           )}
           <Alert severity="info">
-            L'accesso è gestito tramite WordPress. Utilizza il link presente sul sito per entrare nell'app.
+            L'accesso è gestito tramite <Link href={loginSiteUrl} rel="noreferrer">
+                {loginSiteUrl}
+              </Link>. Utilizza il link presente sul sito per entrare nell'app.
           </Alert>
         </CardContent>
       </Card>

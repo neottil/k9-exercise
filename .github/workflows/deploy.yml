@@ -119,6 +119,7 @@ jobs:
           build-args: |
             VITE_ENABLE_WITH_OPERATION_FILTER=${{ vars.VITE_ENABLE_WITH_OPERATION_FILTER }}
             VITE_LOGIN_TYPE=${{ vars.LOGIN_TYPE }}
+            VITE_LOGIN_SITE_URL=${{ vars.LOGIN_SITE_URL }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}
             ghcr.io/${{ github.repository_owner }}/k9-client:latest
