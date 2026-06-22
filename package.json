@@ -1,7 +1,7 @@
 {
   "name": "k9-exercise",
   "private": true,
-  "version": "1.4.1",
+  "version": "1.4.2",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
     "build": "npm run build --prefix client && npm run build --prefix server",

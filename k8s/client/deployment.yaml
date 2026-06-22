@@ -21,6 +21,7 @@ spec:
       containers:
         - name: client
           image: ${CLIENT_IMAGE}
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           resources:
