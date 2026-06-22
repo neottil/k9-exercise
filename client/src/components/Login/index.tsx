@@ -17,6 +17,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 
 const isTokenMode = import.meta.env.VITE_LOGIN_TYPE === "token";
+const isDisabledMode = import.meta.env.VITE_LOGIN_TYPE === "disabled";
 const loginSiteUrl = import.meta.env.VITE_LOGIN_SITE_URL;
 
 const LoginToken = () => {
@@ -140,6 +141,8 @@ const LoginForm = () => {
 const Login = () => {
   const { user, isLoading } = useAuth();
 
+  if (isDisabledMode || user) return <Navigate to="/" replace />;
+
   if (isLoading) {
     return (
       <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -147,8 +150,6 @@ const Login = () => {
       </Box>
     );
   }
-
-  if (user) return <Navigate to="/" replace />;
 
   return isTokenMode ? <LoginToken /> : <LoginForm />;
 };

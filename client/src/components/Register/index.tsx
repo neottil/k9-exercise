@@ -3,6 +3,8 @@
 
 import { useState } from "react";
 import { Navigate, Link as RouterLink } from "react-router-dom";
+
+const isDisabledMode = import.meta.env.VITE_LOGIN_TYPE === "disabled";
 import {
   Alert,
   Box,
@@ -37,6 +39,8 @@ const Register = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  if (isDisabledMode || user) return <Navigate to="/" replace />;
+
   if (isLoading) {
     return (
       <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -45,7 +49,6 @@ const Register = () => {
     );
   }
 
-  if (user) return <Navigate to="/" replace />;
 
   const rules = checkPasswordRules(password);
   const passwordValid = isPasswordValid(rules);

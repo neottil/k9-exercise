@@ -225,8 +225,7 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 |------|---------------|-------------|
 | `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) |
 | `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject |
-| `AUTH_ENABLED` | `true` | Abilita/disabilita autenticazione nel server |
-| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress). Usata dal server a runtime e passata dalla Action come build-arg `VITE_LOGIN_TYPE` al Dockerfile del client |
+| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Usata dal server a runtime e passata dalla Action come build-arg `VITE_LOGIN_TYPE` al Dockerfile del client |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) |
 | `VITE_ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
 | `VITE_LOGIN_SITE_URL` | `www.k9crosstraining.com` | Url to external site that manage login token |
@@ -544,8 +543,7 @@ K9_JWT_SECRET=stringa-lunga-e-casuale
 |---|---|---|
 | `form` (default) | `/login` e `/register` abilitati, `/wp-callback` restituisce 404 | Pagina login con form email+password |
 | `token` | `/wp-callback` abilitato, `/login` e `/register` restituiscono 404 | Pagina login con messaggio "accedi da WordPress" |
-
-> `AUTH_ENABLED=false` bypassa tutto per uso in sviluppo locale, indipendentemente da `LOGIN_TYPE`.
+| `disabled` | `/me` restituisce un utente dev, `/login` e `/register` restituiscono 404 | Nessun redirect a `/login`, nessun form mostrato, pulsante logout nascosto |
 
 ---
 
@@ -665,7 +663,44 @@ function k9_save_user_profile_fields( int $user_id ) {
 }
 ```
 
-#### 1.4 Link di accesso all'app
+#### 1.4 Azioni di gruppo — Abilita/Disabilita accesso K9 App
+
+Per gestire l'accesso di più utenti contemporaneamente dalla lista **Utenti → Tutti gli utenti**, aggiungere un secondo snippet in Code Snippets (snippet separato, esegui ovunque):
+
+```php
+// Aggiunge "Abilita accesso K9 App" e "Disabilita accesso K9 App" alle azioni di gruppo utenti
+add_filter('bulk_actions-users', function($actions) {
+    $actions['k9_enable_access']  = 'Abilita accesso K9 App';
+    $actions['k9_disable_access'] = 'Disabilita accesso K9 App';
+    return $actions;
+});
+
+add_filter('handle_bulk_actions-users', function($redirect_to, $action, $user_ids) {
+    if ($action === 'k9_enable_access') {
+        foreach ($user_ids as $uid) update_user_meta($uid, 'k9_app_access', '1');
+        return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
+    }
+    if ($action === 'k9_disable_access') {
+        foreach ($user_ids as $uid) update_user_meta($uid, 'k9_app_access', '0');
+        return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
+    }
+    return $redirect_to;
+}, 10, 3);
+
+// Notifica di conferma dopo l'azione
+add_action('admin_notices', function() {
+    if (!empty($_REQUEST['k9_bulk_updated'])) {
+        $n = intval($_REQUEST['k9_bulk_updated']);
+        echo '<div class="notice notice-success is-dismissible"><p>' .
+             esc_html(sprintf('%d utenti aggiornati.', $n)) .
+             '</p></div>';
+    }
+});
+```
+
+Selezionare gli utenti dalla lista, scegliere l'azione dal menu a tendina "Azioni di gruppo" e cliccare **Applica**.
+
+#### 1.5 Link di accesso all'app
 
 L'URL da esporre agli utenti (nel menu WP o in una pagina dedicata):
 

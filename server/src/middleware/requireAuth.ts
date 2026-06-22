@@ -2,6 +2,7 @@
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 
 import { Request, Response, NextFunction } from "express";
+import { DEV_USER } from "../config/devUser.js";
 
 declare global {
   namespace Express {
@@ -11,10 +12,8 @@ declare global {
   }
 }
 
-const DEV_USER = process.env.DEV_USER ? JSON.parse(process.env.DEV_USER) : { email: "dev@local", role: "viewer" };
-
 export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
-  if (process.env.AUTH_ENABLED === "false") {
+  if (process.env.LOGIN_TYPE === "disabled") {
     req.user = DEV_USER;
     return next();
   }

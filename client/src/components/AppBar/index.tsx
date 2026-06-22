@@ -14,6 +14,8 @@ import { useNavigate } from "react-router-dom";
 import MainMenu from "./menu";
 import { useAuth } from "../../contexts/AuthContext";
 
+const isAuthDisabled = import.meta.env.VITE_LOGIN_TYPE === "disabled";
+
 const SiteAppBar = () => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -53,10 +55,12 @@ const SiteAppBar = () => {
         <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
           {user && (
             <Box sx={{ display: { xs: "none", md: "flex" } }}>
-              <Tooltip title={`Logout (${user.email})`}>
-                <IconButton color="inherit" onClick={handleLogout} size="small">
-                  <LogoutIcon />
-                </IconButton>
+              <Tooltip title={isAuthDisabled ? `Autenticazione disabilitata (${user.email})` : `Logout (${user.email})`}>
+                <span>
+                  <IconButton color="inherit" onClick={handleLogout} size="small" disabled={isAuthDisabled}>
+                    <LogoutIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
             </Box>
           )}

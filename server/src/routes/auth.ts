@@ -8,13 +8,13 @@ import rateLimit from "express-rate-limit";
 import PasswordValidator from "password-validator";
 import User from "../models/User.js";
 import { requireDbReady } from "../middleware/requireDbReady.js";
+import { DEV_USER } from "../config/devUser.js";
 
 const router = Router();
 
-const DEV_USER = { email: "dev@local", role: "admin" };
-
 const isFormMode = () => (process.env.LOGIN_TYPE ?? "form") === "form";
 const isTokenMode = () => process.env.LOGIN_TYPE === "token";
+const isDisabledMode = () => process.env.LOGIN_TYPE === "disabled";
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -43,7 +43,7 @@ const DUMMY_HASH = bcrypt.hashSync("_dummy_", 12);
 
 // GET /api/auth/me
 router.get("/me", (req: Request, res: Response): void => {
-  if (process.env.AUTH_ENABLED === "false") {
+  if (isDisabledMode()) {
     res.json(DEV_USER);
     return;
   }
@@ -56,14 +56,8 @@ router.get("/me", (req: Request, res: Response): void => {
 
 // POST /api/auth/login
 router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Response): Promise<void> => {
-  if (process.env.AUTH_ENABLED === "false") {
-    req.session.user = DEV_USER;
-    res.json(DEV_USER);
-    return;
-  }
-
-  if (isTokenMode()) {
-    res.status(404).json({ error: "Login tramite form non disponibile in questa configurazione" });
+  if (isDisabledMode() || isTokenMode()) {
+    res.status(404).json({ error: "Endpoint non disponibile in questa configurazione" });
     return;
   }
 
@@ -102,13 +96,8 @@ router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Re
 
 // POST /api/auth/register
 router.post("/register", requireDbReady, async (req: Request, res: Response): Promise<void> => {
-  if (process.env.AUTH_ENABLED === "false") {
-    res.status(403).json({ error: "Registrazione non disponibile in modalità dev" });
-    return;
-  }
-
-  if (isTokenMode()) {
-    res.status(404).json({ error: "Registrazione non disponibile in questa configurazione" });
+  if (isDisabledMode() || isTokenMode()) {
+    res.status(404).json({ error: "Endpoint non disponibile in questa configurazione" });
     return;
   }
 
