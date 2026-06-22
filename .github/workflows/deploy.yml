@@ -65,6 +65,7 @@ jobs:
     needs: analyze
     runs-on: ubuntu-latest
     if: needs.analyze.outputs.deploy == 'true'
+    environment: staging
     permissions:
       packages: write
     outputs:
