@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
+import rateLimit from "express-rate-limit";
 import PasswordValidator from "password-validator";
 import User from "../models/User.js";
 import { requireDbReady } from "../middleware/requireDbReady.js";
@@ -10,6 +11,14 @@ import { requireDbReady } from "../middleware/requireDbReady.js";
 const router = Router();
 
 const DEV_USER = { email: "dev@local", role: "admin" };
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Troppi tentativi di accesso. Riprova tra 15 minuti." },
+});
 
 const passwordSchema = new PasswordValidator();
 passwordSchema
@@ -22,6 +31,11 @@ passwordSchema
 
 const isPasswordValid = (pw: string): boolean =>
   passwordSchema.validate(pw) as boolean;
+
+// Hash usato come dummy quando l'email non esiste, per uniformare i tempi di risposta
+// ed evitare che un attaccante distingua "email non trovata" da "password errata"
+// misurando la latenza (timing attack / email enumeration).
+const DUMMY_HASH = bcrypt.hashSync("_dummy_", 12);
 
 // GET /api/auth/me
 router.get("/me", (req: Request, res: Response): void => {
@@ -37,7 +51,7 @@ router.get("/me", (req: Request, res: Response): void => {
 });
 
 // POST /api/auth/login
-router.post("/login", requireDbReady, async (req: Request, res: Response): Promise<void> => {
+router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Response): Promise<void> => {
   if (process.env.AUTH_ENABLED === "false") {
     req.session.user = DEV_USER;
     res.json(DEV_USER);
@@ -53,13 +67,12 @@ router.post("/login", requireDbReady, async (req: Request, res: Response): Promi
 
   try {
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      res.status(401).json({ error: "Credenziali non valide" });
-      return;
-    }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
+    // Sempre eseguire bcrypt.compare, anche se l'utente non esiste,
+    // per uniformare i tempi di risposta (prevenzione timing attack).
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+
+    if (!user || !valid) {
       res.status(401).json({ error: "Credenziali non valide" });
       return;
     }

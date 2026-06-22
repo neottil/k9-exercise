@@ -207,9 +207,7 @@ const AreaSubCards = ({
         const isEditing = !!editingSubs[sub];
         const editedVal = editedSubValues[sub] ?? pv;
 
-        const borderColor = !changed
-          ? "divider"
-          : (!showCheckbox || checked) ? "primary.main" : "warning.light";
+        const borderColor = !changed ? "divider" : "primary.main";
 
         return (
           <Box key={`${fieldKey}-${sub}`} sx={{ border: 1, borderColor, borderRadius: 1, overflow: "hidden" }}>
