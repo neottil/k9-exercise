@@ -117,6 +117,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             VITE_ENABLE_WITH_OPERATION_FILTER=${{ vars.VITE_ENABLE_WITH_OPERATION_FILTER }}
+            VITE_LOGIN_TYPE=${{ vars.LOGIN_TYPE }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}
             ghcr.io/${{ github.repository_owner }}/k9-client:latest
@@ -160,6 +161,7 @@ jobs:
           kubectl create secret generic k9-secrets \
             --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
             --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            --from-literal=K9_JWT_SECRET="${{ secrets.K9_JWT_SECRET }}" \
             --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
           kubectl create secret generic k9-notify-secret \
@@ -175,6 +177,7 @@ jobs:
 
           export DOMAIN="${{ vars.DOMAIN }}"
           export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
+          export LOGIN_TYPE="${{ vars.LOGIN_TYPE }}"
           export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
           export SMTP_HOST="${{ vars.SMTP_HOST }}"
           export SMTP_PORT="${{ vars.SMTP_PORT }}"
@@ -198,7 +201,7 @@ jobs:
 
           echo "→ Deploy server:${{ needs.build.outputs.server_version }}"
           export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.build.outputs.server_version }}"
-          envsubst '${SERVER_IMAGE} ${AUTH_ENABLED} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
+          envsubst '${SERVER_IMAGE} ${AUTH_ENABLED} ${LOGIN_TYPE} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
           kubectl rollout restart deployment/k9-server -n k9
           kubectl rollout status deployment/k9-server -n k9 --timeout=120s
 

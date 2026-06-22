@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import PasswordValidator from "password-validator";
 import User from "../models/User.js";
@@ -11,6 +12,9 @@ import { requireDbReady } from "../middleware/requireDbReady.js";
 const router = Router();
 
 const DEV_USER = { email: "dev@local", role: "admin" };
+
+const isFormMode = () => (process.env.LOGIN_TYPE ?? "form") === "form";
+const isTokenMode = () => process.env.LOGIN_TYPE === "token";
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -58,6 +62,11 @@ router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Re
     return;
   }
 
+  if (isTokenMode()) {
+    res.status(404).json({ error: "Login tramite form non disponibile in questa configurazione" });
+    return;
+  }
+
   const { email, password } = req.body as { email?: string; password?: string };
 
   if (!email || !password) {
@@ -98,6 +107,11 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
     return;
   }
 
+  if (isTokenMode()) {
+    res.status(404).json({ error: "Registrazione non disponibile in questa configurazione" });
+    return;
+  }
+
   const { email, password, firstName, lastName } = req.body as { email?: string; password?: string; firstName?: string; lastName?: string };
 
   if (!email || !password) {
@@ -131,6 +145,45 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
   } catch (err) {
     console.error("[POST /auth/register] errore:", err);
     res.status(500).json({ error: "Errore interno" });
+  }
+});
+
+// GET /api/auth/wp-callback?token=<JWT>
+// Disponibile solo quando LOGIN_TYPE=token.
+// Riceve il JWT generato da WordPress, lo valida con il segreto condiviso
+// e crea la sessione utente senza richiedere password.
+router.get("/wp-callback", (req: Request, res: Response): void => {
+  if (!isTokenMode()) {
+    res.status(404).json({ error: "Endpoint non disponibile in questa configurazione" });
+    return;
+  }
+
+  const { token } = req.query as { token?: string };
+  if (!token) {
+    res.status(400).send("Token mancante");
+    return;
+  }
+
+  const secret = process.env.K9_JWT_SECRET;
+  if (!secret) {
+    console.error("[wp-callback] K9_JWT_SECRET non configurato");
+    res.status(500).send("Configurazione server mancante");
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(token, secret) as { email: string; role: string };
+
+    if (!payload.email || !payload.role) {
+      res.status(400).send("Token mancante dei campi richiesti (email, role)");
+      return;
+    }
+
+    req.session.user = { email: payload.email, role: payload.role };
+    res.redirect("/");
+  } catch (err) {
+    console.error("[wp-callback] token non valido:", err);
+    res.status(401).send("Token non valido o scaduto");
   }
 });
 

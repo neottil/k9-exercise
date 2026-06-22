@@ -16,23 +16,47 @@ import {
 } from "@mui/material";
 import { useAuth } from "../../contexts/AuthContext";
 
-const Login = () => {
-  const { login, user, isLoading, sessionExpired } = useAuth();
+const isTokenMode = import.meta.env.VITE_LOGIN_TYPE === "token";
+
+const LoginToken = () => {
+  const { sessionExpired } = useAuth();
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "background.default",
+      }}
+    >
+      <Card sx={{ width: 360, p: 2 }}>
+        <CardContent>
+          <Box component="img" src="/logo-intero.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 3, textAlign: "center", fontWeight: "bold" }}>
+            K9 Cross Training - Exercise
+          </Typography>
+          {sessionExpired && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Sessione scaduta. Torna sul sito WordPress e utilizza il link per accedere nuovamente.
+            </Alert>
+          )}
+          <Alert severity="info">
+            L'accesso è gestito tramite WordPress. Utilizza il link presente sul sito per entrare nell'app.
+          </Alert>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+};
+
+const LoginForm = () => {
+  const { login, sessionExpired } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  if (isLoading) {
-    return (
-      <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (user) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +130,22 @@ const Login = () => {
       </Card>
     </Box>
   );
+};
+
+const Login = () => {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <Box sx={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (user) return <Navigate to="/" replace />;
+
+  return isTokenMode ? <LoginToken /> : <LoginForm />;
 };
 
 export default Login;
