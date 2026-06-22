@@ -117,7 +117,7 @@ jobs:
           push: true
           platforms: linux/amd64
           build-args: |
-            VITE_ENABLE_WITH_OPERATION_FILTER=${{ vars.VITE_ENABLE_WITH_OPERATION_FILTER }}
+            VITE_ENABLE_WITH_OPERATION_FILTER=${{ vars.ENABLE_WITH_OPERATION_FILTER }}
             VITE_LOGIN_TYPE=${{ vars.LOGIN_TYPE }}
             VITE_LOGIN_SITE_URL=${{ vars.LOGIN_SITE_URL }}
           tags: |
@@ -178,7 +178,6 @@ jobs:
             --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
           export DOMAIN="${{ vars.DOMAIN }}"
-          export AUTH_ENABLED="${{ vars.AUTH_ENABLED }}"
           export LOGIN_TYPE="${{ vars.LOGIN_TYPE }}"
           export LOGIN_SITE_URL="${{ vars.LOGIN_SITE_URL }}"
           export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
@@ -204,7 +203,7 @@ jobs:
 
           echo "→ Deploy server:${{ needs.build.outputs.server_version }}"
           export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.build.outputs.server_version }}"
-          envsubst '${SERVER_IMAGE} ${AUTH_ENABLED} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
+          envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
           kubectl rollout restart deployment/k9-server -n k9
           kubectl rollout status deployment/k9-server -n k9 --timeout=120s
 

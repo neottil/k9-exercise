@@ -1,6 +1,6 @@
-# ${SERVER_IMAGE}, ${AUTH_ENABLED} e ${LOGIN_TYPE} vengono sostituiti dalla GitHub Action
+# ${SERVER_IMAGE}, ${LOGIN_TYPE} vengono sostituiti dalla GitHub Action
 # con envsubst prima di ogni kubectl apply.
-# AUTH_ENABLED, LOGIN_TYPE: impostare come GitHub Variable (non secret — non sensibili).
+# LOGIN_TYPE: impostare come GitHub Variable (non secret — non sensibili).
 # K9_JWT_SECRET: impostare come GitHub Secret → finisce nel k8s secret "k9-secrets".
 # Rollback manuale: kubectl rollout undo deployment/k9-server -n k9
 apiVersion: apps/v1
@@ -31,8 +31,6 @@ spec:
               value: "production"
             - name: PORT
               value: "3001"
-            - name: AUTH_ENABLED
-              value: "${AUTH_ENABLED}"
             - name: LOGIN_TYPE
               value: "${LOGIN_TYPE}"
             - name: MONGODB_URI

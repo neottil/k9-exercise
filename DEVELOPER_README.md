@@ -227,8 +227,8 @@ I secret sono configurati **per environment** (staging / production) in GitHub ‚
 | `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject |
 | `LOGIN_TYPE` | `form` | Modalit√† di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Usata dal server a runtime e passata dalla Action come build-arg `VITE_LOGIN_TYPE` al Dockerfile del client |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) |
-| `VITE_ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
-| `VITE_LOGIN_SITE_URL` | `www.k9crosstraining.com` | Url to external site that manage login token |
+| `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
+| `LOGIN_SITE_URL` | `www.k9crosstraining.com` | Url to external site that manage login token |
 | `SMTP_HOST` | `smtp.gmail.com` | Host SMTP per le notifiche email |
 | `SMTP_PORT` | `587` | Porta SMTP |
 | `SMTP_USER` | `tuagmail@gmail.com` | Indirizzo email mittente |
