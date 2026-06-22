@@ -550,15 +550,7 @@ K9_JWT_SECRET=stringa-lunga-e-casuale
 
 ### Parte 1 — Configurazione WordPress
 
-#### 1.1 Libreria JWT per PHP
-
-```bash
-composer require firebase/php-jwt
-```
-
-Oppure includere il file singolo dalla release ufficiale: https://github.com/firebase/php-jwt
-
-#### 1.2 Controllo accesso e ruoli tramite user meta
+#### 1.1 Controllo accesso e ruoli tramite user meta
 
 Per ogni utente WP che deve accedere all'app, impostare due campi meta (gestibili dalla pagina **Utenti → Modifica** grazie al codice del §1.4):
 
@@ -569,68 +561,74 @@ Per ogni utente WP che deve accedere all'app, impostare due campi meta (gestibil
 
 Il ruolo WP (administrator, editor, subscriber…) è indipendente dal ruolo app.
 
-#### 1.3 Funzione di redirect con JWT
+#### 1.2 Segreto condiviso in `wp-config.php`
 
-In `functions.php` o in un plugin custom:
+Aprire `wp-config.php` (nella cartella principale di WordPress) e aggiungere queste due righe **prima** della riga `/* That's all, stop editing! */`:
 
 ```php
-use Firebase\JWT\JWT;
+define( 'K9_JWT_SECRET', 'stringa-lunga-e-casuale-identica-a-quella-nel-env-app' );
+define( 'K9_APP_URL',    'https://app.miodominio.com' );
+```
 
+#### 1.3 Codice PHP — plugin Code Snippets (consigliato)
+
+Non è richiesta nessuna libreria esterna: il JWT HS256 viene generato con `hash_hmac`, funzione nativa di PHP.
+
+Installare il plugin gratuito **Code Snippets** da WordPress → Plugin → Aggiungi nuovo, poi creare un nuovo snippet con questo codice completo:
+
+```php
+// Genera JWT HS256 senza librerie esterne
+function k9_jwt_encode( array $payload, string $secret ): string {
+    $b64 = fn( $s ) => rtrim( strtr( base64_encode( $s ), '+/', '-_' ), '=' );
+    $header = $b64( json_encode( [ 'alg' => 'HS256', 'typ' => 'JWT' ] ) );
+    $body   = $b64( json_encode( $payload ) );
+    $sig    = $b64( hash_hmac( 'sha256', "$header.$body", $secret, true ) );
+    return "$header.$body.$sig";
+}
+
+// Redirect verso l'app con JWT
 function k9_redirect_to_app() {
     if ( ! is_user_logged_in() ) {
-        wp_redirect( wp_login_url( home_url('/k9-app') ) );
+        wp_redirect( wp_login_url( add_query_arg( 'k9_redirect', '1', home_url( '/' ) ) ) );
         exit;
     }
 
     $user = wp_get_current_user();
 
-    // Controlla se l'utente WP è abilitato all'accesso all'app
     $has_access = get_user_meta( $user->ID, 'k9_app_access', true );
     if ( ! $has_access ) {
-        wp_redirect( home_url('/no-access') ); // pagina "non autorizzato" su WP
+        wp_redirect( home_url( '/no-access' ) );
         exit;
     }
 
-    $role      = get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer';
-    $secret    = defined('K9_JWT_SECRET') ? K9_JWT_SECRET : 'fallback-dev-secret';
-    $issued_at = time();
+    if ( ! defined( 'K9_JWT_SECRET' ) || ! defined( 'K9_APP_URL' ) ) {
+        wp_die( 'K9_JWT_SECRET o K9_APP_URL non definiti in wp-config.php' );
+    }
 
-    $payload = [
-        'iat'   => $issued_at,
-        'exp'   => $issued_at + 300, // token valido 5 minuti
+    $now   = time();
+    $token = k9_jwt_encode( [
+        'iat'   => $now,
+        'exp'   => $now + 300,
         'email' => $user->user_email,
-        'role'  => $role,
-    ];
+        'role'  => get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer',
+    ], K9_JWT_SECRET );
 
-    $token = JWT::encode( $payload, $secret, 'HS256' );
-
-    wp_redirect( 'https://app.miodominio.com/api/auth/wp-callback?token=' . urlencode($token) );
+    wp_redirect( K9_APP_URL . '/api/auth/wp-callback?token=' . urlencode( $token ) );
     exit;
 }
 
-add_action( 'template_redirect', function() {
-    if ( isset($_GET['k9_redirect']) ) {
+add_action( 'template_redirect', function () {
+    if ( isset( $_GET['k9_redirect'] ) ) {
         k9_redirect_to_app();
     }
-});
-```
+} );
 
-Link da esporre agli utenti nel menu WP:
-
-```
-https://miodominio.com/?k9_redirect=1
-```
-
-#### 1.4 Campi meta nella pagina profilo utente WP
-
-Aggiunge i controlli "Accesso K9 App" e "Ruolo nell'app" nella pagina **Utenti → Modifica** (visibili solo agli amministratori WP):
-
-```php
+// Campi K9 App nella pagina profilo utente (visibili solo agli admin WP)
 add_action( 'show_user_profile', 'k9_user_profile_fields' );
 add_action( 'edit_user_profile', 'k9_user_profile_fields' );
 
 function k9_user_profile_fields( WP_User $user ) {
-    if ( ! current_user_can('edit_users') ) return;
+    if ( ! current_user_can( 'edit_users' ) ) return;
     $has_access = get_user_meta( $user->ID, 'k9_app_access', true );
     $role       = get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer';
     ?>
@@ -660,17 +658,21 @@ add_action( 'personal_options_update',  'k9_save_user_profile_fields' );
 add_action( 'edit_user_profile_update', 'k9_save_user_profile_fields' );
 
 function k9_save_user_profile_fields( int $user_id ) {
-    if ( ! current_user_can('edit_user', $user_id) ) return;
-    update_user_meta( $user_id, 'k9_app_access', isset($_POST['k9_app_access']) ? '1' : '0' );
-    update_user_meta( $user_id, 'k9_app_role', sanitize_text_field($_POST['k9_app_role'] ?? 'viewer') );
+    if ( ! current_user_can( 'edit_user', $user_id ) ) return;
+    update_user_meta( $user_id, 'k9_app_access', isset( $_POST['k9_app_access'] ) ? '1' : '0' );
+    update_user_meta( $user_id, 'k9_app_role', sanitize_text_field( $_POST['k9_app_role'] ?? 'viewer' ) );
 }
 ```
 
-#### 1.5 Segreto condiviso in `wp-config.php`
+#### 1.4 Link di accesso all'app
 
-```php
-define( 'K9_JWT_SECRET', 'stringa-lunga-e-casuale-identica-a-quella-nel-env-app' );
+L'URL da esporre agli utenti (nel menu WP o in una pagina dedicata):
+
 ```
+https://miodominio-wp.com/?k9_redirect=1
+```
+
+Chiunque clicchi questo link viene autenticato su WP (se non lo è già) e poi rediretto all'app con il JWT. Gli utenti senza `k9_app_access = 1` finiscono sulla pagina `/no-access`.
 
 ---
 
