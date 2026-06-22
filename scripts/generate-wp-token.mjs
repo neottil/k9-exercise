@@ -8,9 +8,10 @@
 // (o come variabile d'ambiente nel terminale).
 
 // ── Configura qui per simulare diversi scenari ───────────────────────────────
-const EMAIL           = "test@esempio.com";
+const EMAIL           = "token@esempio.com";
 const ROLE            = "viewer";   // "viewer" | "admin"
 const EXPIRES_SECONDS = 300;        // durata del token in secondi (default WP: 300 = 5 min)
+const APP_PORT        = 5173;       // porta del Vite dev server (proxy verso il backend)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createHmac } from "crypto";
@@ -52,8 +53,10 @@ const payload = b64url(JSON.stringify({ iat: now, exp: now + EXPIRES_SECONDS, em
 const sig     = createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
 const token   = `${header}.${payload}.${sig}`;
 
-const port = process.env.PORT ?? "3001";
-const url  = `http://localhost:${port}/api/auth/wp-callback?token=${encodeURIComponent(token)}`;
+// L'URL punta al Vite dev server (5173) che fa da proxy verso il backend.
+// Il backend setta la sessione e fa res.redirect("/") → il browser torna su localhost:APP_PORT.
+// NON puntare direttamente al backend (3001): il redirect finale finirebbe su 3001 senza frontend.
+const url = `http://localhost:${APP_PORT}/api/auth/wp-callback?token=${encodeURIComponent(token)}`;
 
 const expDate = new Date((now + EXPIRES_SECONDS) * 1000).toLocaleTimeString("it-IT");
 
@@ -64,6 +67,6 @@ console.log(`  scade  : ${expDate} (tra ${EXPIRES_SECONDS}s)`);
 console.log("─────────────────────────────────────────────");
 console.log("\nToken JWT:");
 console.log(token);
-console.log("\nURL di test (apri nel browser con il server in esecuzione):");
+console.log("\nURL di test (apri nel browser con client e server in esecuzione):");
 console.log(url);
 console.log("");

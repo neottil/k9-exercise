@@ -37,6 +37,38 @@ cd server && npm install && npm run dev
 cd client && npm install && npm run dev
 ```
 
+### Testare la modalità `LOGIN_TYPE=token`
+
+Per simulare localmente il flusso WordPress senza un sito WP reale:
+
+**1. Configurare il `.env`:**
+
+```env
+LOGIN_TYPE=token
+VITE_LOGIN_TYPE=token
+K9_JWT_SECRET=dev-jwt-secret-change-in-prod
+```
+
+**2. Avviare server e client** come sopra (il client mostrerà la pagina "accedi da WordPress" al posto del form).
+
+**3. Generare un token di test** modificando le variabili in cima allo script secondo lo scenario da simulare:
+
+```bash
+# scripts/generate-wp-token.mjs — configurare in cima al file:
+# EMAIL = "test@esempio.com"
+# ROLE  = "viewer"   oppure   "admin"
+
+node scripts/generate-wp-token.mjs
+```
+
+Lo script stampa l'URL completo da aprire nel browser:
+
+```
+http://localhost:3001/api/auth/wp-callback?token=eyJhbGci...
+```
+
+Aprendo quell'URL con server e client in esecuzione, la sessione viene creata e l'app fa redirect a `/` come farebbe con un redirect reale da WordPress.
+
 ---
 
 ## Struttura progetto
