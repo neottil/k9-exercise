@@ -192,6 +192,7 @@ router.post("/", requireDbReady, async (req: Request, res: Response) => {
     await exercise.save();
     res.status(201).json(exercise);
   } catch (err) {
+    console.error("[POST /exercises/]", err);
     res.status(500).json({ error: "Errore nel salvataggio dell'esercizio" });
   }
 });
@@ -228,7 +229,7 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
       const updated = await Exercise.findByIdAndUpdate(
         id,
         { $set: { ...submittedFields, userUpdate: req.user?.username ?? req.user?.email } },
-        { new: true }
+        { returnDocument: "after" }
       );
       res.json(updated);
       return;
@@ -275,7 +276,7 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
           await ExerciseChange.findOneAndUpdate(
             { exerciseId: id },
             { $set: { fields: diff, userUpdate: req.user?.username ?? req.user?.email } },
-            { session, upsert: true, new: true }
+            { session, upsert: true, returnDocument: "after" }
           );
           await Exercise.findByIdAndUpdate(
             id,
@@ -307,8 +308,14 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
   const { id } = req.params;
   try {
     const exercise = await Exercise.findById(id);
-    if (!exercise || exercise.state !== TO_APPROVE) {
-      res.status(404).json({ error: "Esercizio non trovato o non in attesa di approvazione" });
+    if (!exercise) {
+      console.warn(`[POST /exercises/:id/approve] esercizio non trovato in DB: id=${id}`);
+      res.status(404).json({ error: "Esercizio non trovato" });
+      return;
+    }
+    if (exercise.state !== TO_APPROVE) {
+      console.warn(`[POST /exercises/:id/approve] stato non valido: state=${exercise.state}, id=${id}`);
+      res.status(409).json({ error: `Impossibile approvare: stato corrente è "${exercise.state}"` });
       return;
     }
 
