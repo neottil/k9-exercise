@@ -186,8 +186,8 @@ router.post("/", requireDbReady, async (req: Request, res: Response) => {
       _id: id,
       ...rest,
       state: TO_APPROVE,
-      user: req.user?.email,
-      userUpdate: req.user?.email,
+      user: req.user?.username ?? req.user?.email,
+      userUpdate: req.user?.username ?? req.user?.email,
     });
     await exercise.save();
     res.status(201).json(exercise);
@@ -227,7 +227,7 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
       console.log(`[PUT /:id] aggiornamento diretto (TO_APPROVE / no state)`);
       const updated = await Exercise.findByIdAndUpdate(
         id,
-        { $set: { ...submittedFields, userUpdate: req.user?.email } },
+        { $set: { ...submittedFields, userUpdate: req.user?.username ?? req.user?.email } },
         { new: true }
       );
       res.json(updated);
@@ -252,12 +252,12 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
         }
         console.log(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
         await ExerciseChange.create(
-          [{ exerciseId: id as string, fields: diff, user: req.user?.email, userUpdate: req.user?.email }],
+          [{ exerciseId: id as string, fields: diff, user: req.user?.username ?? req.user?.email, userUpdate: req.user?.username ?? req.user?.email }],
           { session }
         );
         await Exercise.findByIdAndUpdate(
           id,
-          { $set: { state: PENDING_UPDATE, userUpdate: req.user?.email } },
+          { $set: { state: PENDING_UPDATE, userUpdate: req.user?.username ?? req.user?.email } },
           { session }
         );
       } else {
@@ -267,19 +267,19 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
           await ExerciseChange.deleteOne({ exerciseId: id }, { session });
           await Exercise.findByIdAndUpdate(
             id,
-            { $set: { state: APPROVED, userUpdate: req.user?.email }, $unset: { lastNotifiedAt: "" } },
+            { $set: { state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },
             { session }
           );
         } else {
           console.log(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
           await ExerciseChange.findOneAndUpdate(
             { exerciseId: id },
-            { $set: { fields: diff, userUpdate: req.user?.email } },
+            { $set: { fields: diff, userUpdate: req.user?.username ?? req.user?.email } },
             { session, upsert: true, new: true }
           );
           await Exercise.findByIdAndUpdate(
             id,
-            { $set: { userUpdate: req.user?.email } },
+            { $set: { userUpdate: req.user?.username ?? req.user?.email } },
             { session }
           );
         }
@@ -321,7 +321,7 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
     }
 
     await Exercise.findByIdAndUpdate(id, {
-      $set: { ...fieldsToApply, state: APPROVED, userUpdate: req.user?.email },
+      $set: { ...fieldsToApply, state: APPROVED, userUpdate: req.user?.username ?? req.user?.email },
       $unset: { lastNotifiedAt: "" },
     });
     res.json({ success: true });
@@ -341,7 +341,7 @@ router.post("/:id/reject", requireAdmin, requireDbReady, async (req: Request, re
       return;
     }
     await Exercise.findByIdAndUpdate(id, {
-      $set: { state: REJECTED, userUpdate: req.user?.email },
+      $set: { state: REJECTED, userUpdate: req.user?.username ?? req.user?.email },
       $unset: { lastNotifiedAt: "" },
     });
     res.json({ success: true });
@@ -373,7 +373,7 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
 
     await Exercise.findByIdAndUpdate(
       id,
-      { $set: { ...toApply, state: APPROVED, userUpdate: req.user?.email }, $unset: { lastNotifiedAt: "" } },
+      { $set: { ...toApply, state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },
       { session }
     );
     await ExerciseChange.deleteOne({ exerciseId: id }, { session });
@@ -399,7 +399,7 @@ router.post("/:id/reject-change", requireAdmin, requireDbReady, async (req: Requ
     await ExerciseChange.deleteOne({ exerciseId: id }, { session });
     await Exercise.findByIdAndUpdate(
       id,
-      { $set: { state: APPROVED, userUpdate: req.user?.email }, $unset: { lastNotifiedAt: "" } },
+      { $set: { state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },
       { session }
     );
 

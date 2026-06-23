@@ -8,11 +8,13 @@
 // (o come variabile d'ambiente nel terminale).
 
 // ── Configura qui per simulare diversi scenari ───────────────────────────────
-const EMAIL           = "token@esempio.com";
-const ROLE            = "admin";   // "viewer" | "admin"
-const EXPIRES_SECONDS = 300;        // durata del token in secondi (default WP: 300 = 5 min)
-const BASE_URL        = "http://localhost:5173";       // porta del Vite dev server (proxy verso il backend)
-//const BASE_URL        = "https://k9-exercise.lucaneotti.click";       // porta del Vite dev server (proxy verso il backend)
+const EMAIL            = "token@esempio.com";
+const USERNAME         = "mario.rossi";
+const ROLE             = "admin";                    // "viewer" | "admin"
+const INSTRUCTOR_LEVEL = "BSS";   // "BSS" | "CTS"
+const EXPIRES_SECONDS  = 300;                        // durata del token in secondi (default WP: 300 = 5 min)
+// const BASE_URL      = "http://localhost:5173";    // porta del Vite dev server (proxy verso il backend)
+const BASE_URL         = "https://k9-exercise.lucaneotti.click";
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createHmac } from "crypto";
@@ -50,7 +52,7 @@ function b64url(str) {
 
 const now     = Math.floor(Date.now() / 1000);
 const header  = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-const payload = b64url(JSON.stringify({ iat: now, exp: now + EXPIRES_SECONDS, email: EMAIL, role: ROLE }));
+const payload = b64url(JSON.stringify({ iat: now, exp: now + EXPIRES_SECONDS, email: EMAIL, username: USERNAME, role: ROLE, instructor_level: INSTRUCTOR_LEVEL }));
 const sig     = createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
 const token   = `${header}.${payload}.${sig}`;
 
@@ -62,9 +64,11 @@ const url = `${BASE_URL}/api/auth/wp-callback?token=${encodeURIComponent(token)}
 const expDate = new Date((now + EXPIRES_SECONDS) * 1000).toLocaleTimeString("it-IT");
 
 console.log("─────────────────────────────────────────────");
-console.log(`  email  : ${EMAIL}`);
-console.log(`  role   : ${ROLE}`);
-console.log(`  scade  : ${expDate} (tra ${EXPIRES_SECONDS}s)`);
+console.log(`  email    : ${EMAIL}`);
+console.log(`  username : ${USERNAME}`);
+console.log(`  role     : ${ROLE}`);
+console.log(`  level    : ${INSTRUCTOR_LEVEL}`);
+console.log(`  scade    : ${expDate} (tra ${EXPIRES_SECONDS}s)`);
 console.log("─────────────────────────────────────────────");
 console.log("\nToken JWT:");
 console.log(token);

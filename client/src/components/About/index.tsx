@@ -11,9 +11,11 @@ import Typography from "@mui/material/Typography";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 
 import { version as clientVersion } from "../../../package.json";
+import { useAuth } from "../../contexts/AuthContext";
 
 const About = () => {
   const [serverVersion, setServerVersion] = useState<string | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetch("/api/info")
@@ -31,53 +33,72 @@ const About = () => {
             Info
           </Typography>
 
-        {/* Versioni */}
-        <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
-          Versioni
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 3, mt: 1, mb: 4 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography color="text.secondary" variant="body2">Frontend</Typography>
-            <Chip label={`v${clientVersion}`} size="small" color="primary" />
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography color="text.secondary" variant="body2">Server</Typography>
-            <Chip label={serverVersion ? `v${serverVersion}` : "…"} size="small" color="primary" />
-          </Box>
-        </Box>
-
-        <Divider sx={{ mb: 3 }} />
-
-        {/* Documentazione */}
-        <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
-          Documentazione
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 1, mb: 4 }}>
-          <MenuBookIcon fontSize="small" color="action" />
-          <Link href="https://github.com/neottil/k9-exercise/wiki" target="_blank" rel="noreferrer" variant="body2">
-            Manuale utente
-          </Link>
-        </Box>
-
-        <Divider sx={{ mb: 3 }} />
-
-        {/* Licenza */}
-        <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
-          Licenza
-        </Typography>
-        <Box sx={{ mt: 1, mb: 4 }}>
-          <Typography variant="body2" color="text.secondary">
-            Distribuito sotto{" "}
-            <Link href="https://www.elastic.co/licensing/elastic-license" target="_blank" rel="noreferrer">
-              Elastic License 2.0
-            </Link>
-            . Uso libero per progetti non commerciali; per uso commerciale contatta{" "}
-            <Link href="https://www.lucaneotti.click" target="_blank" rel="noreferrer">
-              Luca Neotti
-            </Link>
-            .
+          {/* Versioni */}
+          <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
+            Versioni
           </Typography>
-        </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 3, mt: 1, mb: 4 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography color="text.secondary" variant="body2">Frontend</Typography>
+              <Chip label={`v${clientVersion}`} size="small" color="primary" />
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography color="text.secondary" variant="body2">Server</Typography>
+              <Chip label={serverVersion ? `v${serverVersion}` : "…"} size="small" color="primary" />
+            </Box>
+          </Box>
+
+          <Divider sx={{ mb: 3 }} />
+
+          {/* Utente */}
+          <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
+            Utente
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1, mb: 4 }}>
+            {[
+              { label: "Email", value: user?.email },
+              { label: "Username", value: user?.username ?? "—" },
+              { label: "Ruolo", value: user?.role },
+              { label: "Livello", value: user?.instructorLevel ?? "—" },
+            ].map(({ label, value }) => (
+              <Box key={label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography color="text.secondary" variant="body2" sx={{ minWidth: 72 }}>{label}</Typography>
+                <Chip label={value} size="small" variant="outlined" />
+              </Box>
+            ))}
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          {/* Documentazione */}
+          <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
+            Documentazione
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 1, mb: 4 }}>
+            <MenuBookIcon fontSize="small" color="action" />
+            <Link href="https://github.com/neottil/k9-exercise/wiki" target="_blank" rel="noreferrer" variant="body2">
+              Manuale utente
+            </Link>
+          </Box>
+
+          <Divider sx={{ mb: 3 }} />
+
+          {/* Licenza */}
+          <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
+            Licenza
+          </Typography>
+          <Box sx={{ mt: 1, mb: 4 }}>
+            <Typography variant="body2" color="text.secondary">
+              Distribuito sotto{" "}
+              <Link href="https://www.elastic.co/licensing/elastic-license" target="_blank" rel="noreferrer">
+                Elastic License 2.0
+              </Link>
+              . Uso libero per progetti non commerciali; per uso commerciale contatta{" "}
+              <Link href="https://www.lucaneotti.click" target="_blank" rel="noreferrer">
+                Luca Neotti
+              </Link>
+              .
+            </Typography>
+          </Box>
         </Box>
       </Paper>
     </Box>
