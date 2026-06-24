@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Luca Neotti
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 
-import { Chip } from "@mui/material";
+import { Chip, Typography } from "@mui/material";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
@@ -174,6 +174,24 @@ const difficultyLevel: GridColDef = {
   renderHeader,
   renderCell: noTooltip,
   minWidth: 80,
+};
+
+export const instructorLevel: GridColDef = {
+  field: "instructorLevel",
+  headerName: "Livello",
+  headerClassName: "super-app-theme--header",
+  renderHeader,
+  minWidth: 90,
+  renderCell: ({ value }: GridRenderCellParams) =>
+    value ? (
+      <Chip
+        label={value as string}
+        size="small"
+        color={value === "CTS" ? "warning" : "primary"}
+      />
+    ) : (
+      <Typography variant="body2" color="text.disabled">—</Typography>
+    ),
 };
 
 export {

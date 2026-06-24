@@ -28,6 +28,8 @@ interface Exercise {
     variant: string;
     description: string;
 
+    instructorLevel: string;
+
     workingArea: WorkingArea;
     bodyTarget: BodyTarget;
 
@@ -61,6 +63,7 @@ const defaultExercise: Exercise = {
     type: "",
     variant: "",
     description: "",
+    instructorLevel: "BSS",
     workingArea: defaultWorkingArea,
     bodyTarget: defaultBodyTarget,
     movementPlan: [],

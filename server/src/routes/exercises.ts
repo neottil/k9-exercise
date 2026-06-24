@@ -94,11 +94,14 @@ const computeDiff = (
   return diff;
 };
 
-// GET / — lista esercizi (esclude TO_APPROVE)
+// GET / — lista esercizi (esclude TO_APPROVE, filtra per livello utente)
+// CTS: vede tutto. BSS (o livello non impostato): solo esercizi BSS o senza livello.
 router.get("/", async (req: Request, res: Response) => {
   try {
     const mongoFilter = buildMongoFilter(req.query);
-    const filter = { ...mongoFilter, state: { $in: [ APPROVED, PENDING_UPDATE ] } };
+    const isCTS = req.user?.instructorLevel === "CTS";
+    const levelFilter = isCTS ? {} : { $or: [{ instructorLevel: "BSS" }, { instructorLevel: null }] };
+    const filter = { ...mongoFilter, ...levelFilter, state: { $in: [ APPROVED, PENDING_UPDATE ] } };
     const exercises = await Exercise.find(filter);
     res.json(exercises);
   } catch (err) {

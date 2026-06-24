@@ -38,8 +38,14 @@ const validateMovementPlan = (plans: string[]): Error | null =>
     })
     : null;
 
+const validateInstructorLevel = (level: string): Error | null =>
+  level !== "BSS" && level !== "CTS"
+    ? ({ name: "Livello", message: "Seleziona il livello dell'esercizio (BSS o CTS)." })
+    : null;
+
 export const validate = (exerciseToSave: Exercise): Error[] => {
   const errors: (Error | null)[] = [
+    validateInstructorLevel(exerciseToSave.instructorLevel),
     validateType(exerciseToSave.type),
     validateDescription(exerciseToSave.description),
     validateSetup(exerciseToSave.tools, exerciseToSave.setup),
