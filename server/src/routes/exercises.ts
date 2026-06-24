@@ -43,7 +43,7 @@ const FILTER_FIELDS = [
 
 // Campi di contenuto: gli unici su cui calcolare il diff e salvare le changes
 const CONTENT_FIELDS = [
-  "type", "variant", "description",
+  "instructorLevel", "type", "variant", "description",
   "workingArea", "bodyTarget",
   "movementPlan", "tools",
   "difficultyLevel", "setup",
