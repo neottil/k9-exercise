@@ -27,6 +27,14 @@ const APPROVED       = "APPROVED"       as const;
 const PENDING_UPDATE = "PENDING_UPDATE" as const;
 const REJECTED       = "REJECTED"       as const;
 
+// Rileva l'errore di chiave duplicata MongoDB, sollevato dall'unique index
+// { type, variant } quando si tenta di salvare/applicare un combo già esistente.
+const isDuplicateKeyError = (err: unknown): boolean =>
+  typeof err === "object" && err !== null && (err as { code?: number }).code === 11000;
+
+const DUPLICATE_MESSAGE =
+  "Esiste già un esercizio con questa combinazione di tipologia e variante";
+
 // Campi filtrabili via query param
 const FILTER_FIELDS = [
   "workingArea.mental",
@@ -196,6 +204,10 @@ router.post("/", requireDbReady, async (req: Request, res: Response) => {
     res.status(201).json(exercise);
   } catch (err) {
     console.error("[POST /exercises/]", err);
+    if (isDuplicateKeyError(err)) {
+      res.status(409).json({ error: DUPLICATE_MESSAGE });
+      return;
+    }
     res.status(500).json({ error: "Errore nel salvataggio dell'esercizio" });
   }
 });
@@ -301,6 +313,10 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
     }
   } catch (err) {
     console.error(`[PUT /:id] errore:`, err);
+    if (isDuplicateKeyError(err)) {
+      res.status(409).json({ error: DUPLICATE_MESSAGE });
+      return;
+    }
     res.status(500).json({ error: "Errore nell'aggiornamento dell'esercizio" });
   }
 });
@@ -337,6 +353,10 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
     res.json({ success: true });
   } catch (err) {
     console.error("[POST /exercises/:id/approve]", err);
+    if (isDuplicateKeyError(err)) {
+      res.status(409).json({ error: `Impossibile approvare: ${DUPLICATE_MESSAGE.toLowerCase()}` });
+      return;
+    }
     res.status(500).json({ error: "Errore nell'approvazione dell'esercizio" });
   }
 });
@@ -393,6 +413,12 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
   } catch (err) {
     console.error("[POST /exercises/:id/approve-change]", err);
     await session.abortTransaction();
+    if (isDuplicateKeyError(err)) {
+      res.status(409).json({
+        error: `Impossibile approvare la modifica: ${DUPLICATE_MESSAGE.toLowerCase()}.`,
+      });
+      return;
+    }
     res.status(500).json({ error: "Errore nell'approvazione della modifica" });
   } finally {
     await session.endSession();
