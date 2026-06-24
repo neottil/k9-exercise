@@ -10,6 +10,7 @@ import DataLoader from "../DataLoader";
 import { Exercise, defaultExercise } from "../../interfaces/exerciseInterfaces";
 import { validate } from "./validationFunction";
 import { createExercise as createExerciseApi, updateExercise as updateExerciseApi, getExercise as getExerciseApi } from "../../api/exercises";
+import { describeError } from "../../api/apiFetch";
 import { deepCopy } from "../../utils/objectUtils";
 import { useNotification } from "../../contexts/NotificationContext";
 import ExerciseForm from "./ExerciseForm";
@@ -63,7 +64,8 @@ const Insert = () => {
       return true;
     } catch (err) {
       console.error("Errore nel salvataggio", err);
-      showError("Errore imprevisto durante il salvataggio");
+      const { message, details } = describeError(err, "Errore durante il salvataggio");
+      showError(message, details);
       return false;
     }
   }, [exerciseToSave, id, showSuccess, showError]);

@@ -18,8 +18,11 @@ interface NotificationState {
 interface NotificationContextValue {
   /** Mostra un messaggio di successo (sfondo verde). */
   showSuccess: (message: string) => void;
-  /** Mostra un messaggio di errore (sfondo rosso). */
-  showError: (message: string) => void;
+  /**
+   * Mostra un messaggio di errore (sfondo rosso). Se `details` è valorizzato,
+   * sotto al messaggio compare un toggle "Dettagli" con le info tecniche.
+   */
+  showError: (message: string, details?: string) => void;
   /** Mostra una lista di errori con contenuto collassabile se più di uno. */
   showErrors: (errors: string[]) => void;
   /** Mostra un messaggio informativo (sfondo blu). */
@@ -76,6 +79,55 @@ const ErrorList = ({ errors }: { errors: string[] }) => {
   );
 };
 
+// ─── Componente interno: messaggio errore con dettagli collassabili ───────────
+
+const toggleSx = {
+  display: "block",
+  mt: 0.75,
+  p: 0,
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  color: "inherit",
+  fontSize: "0.82em",
+  textDecoration: "underline",
+  opacity: 0.8,
+  "&:hover": { opacity: 1 },
+} as const;
+
+const ErrorWithDetails = ({ message, details }: { message: string; details: string }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Box>
+      <Box component="span">{message}</Box>
+
+      <Collapse in={expanded}>
+        <Box
+          component="pre"
+          sx={{
+            m: 0,
+            mt: 0.75,
+            p: 1,
+            fontSize: "0.75em",
+            fontFamily: "monospace",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            bgcolor: "rgba(0,0,0,0.06)",
+            borderRadius: 1,
+          }}
+        >
+          {details}
+        </Box>
+      </Collapse>
+
+      <Box component="button" onClick={() => setExpanded((v) => !v)} sx={toggleSx}>
+        {expanded ? "Nascondi dettagli" : "Dettagli"}
+      </Box>
+    </Box>
+  );
+};
+
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
@@ -102,7 +154,11 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const showSuccess = useCallback((msg: string) => show(msg, "success"), [show]);
-  const showError   = useCallback((msg: string) => show(msg, "error"),   [show]);
+  const showError = useCallback(
+    (msg: string, details?: string) =>
+      show(details ? <ErrorWithDetails message={msg} details={details} /> : msg, "error"),
+    [show]
+  );
   const showInfo    = useCallback((msg: string) => show(msg, "info"),    [show]);
   const showWarning = useCallback((msg: string) => show(msg, "warning"), [show]);
 

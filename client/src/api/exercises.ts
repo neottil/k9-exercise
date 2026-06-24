@@ -4,7 +4,7 @@
 import { Exercise } from "../interfaces/exerciseInterfaces";
 import type { NewExercise, PendingItem } from "../interfaces/adminInterfaces";
 import { Filters, NumFilterWithOp, WorkingAreaFilters, BodyTargetFilters } from "../interfaces/filterInterfaces";
-import { apiFetch } from "./apiFetch";
+import { apiFetch, apiError } from "./apiFetch";
 
 const BASE_URL = "/api/exercises";
 
@@ -31,13 +31,13 @@ export const listExercises = async (filters?: Filters): Promise<Exercise[]> => {
 
   const query = params.toString();
   const res = await apiFetch(`${BASE_URL}${query ? `?${query}` : ""}`);
-  if (!res.ok) throw new Error("Errore nel recupero degli esercizi");
+  if (!res.ok) throw await apiError(res, "Errore nel recupero degli esercizi");
   return res.json();
 };
 
 export const getExercise = async (id: string): Promise<Exercise> => {
   const res = await apiFetch(`${BASE_URL}/${id}/changes`);
-  if (!res.ok) throw new Error(`Errore nel recupero dell'esercizio con id: ${id}`);
+  if (!res.ok) throw await apiError(res, `Errore nel recupero dell'esercizio con id: ${id}`);
   return res.json();
 };
 
@@ -47,7 +47,7 @@ export const createExercise = async (exercise: Exercise): Promise<Exercise> => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(exercise),
   });
-  if (!res.ok) throw new Error("Errore nel salvataggio dell'esercizio");
+  if (!res.ok) throw await apiError(res, "Errore nel salvataggio dell'esercizio");
   return res.json();
 };
 
@@ -57,19 +57,19 @@ export const updateExercise = async (id: string, exercise: Exercise): Promise<Ex
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(exercise),
   });
-  if (!res.ok) throw new Error("Errore nell'aggiornamento dell'esercizio");
+  if (!res.ok) throw await apiError(res, "Errore nell'aggiornamento dell'esercizio");
   return res.json();
 };
 
 export const listExerciseTypes = async (): Promise<string[]> => {
   const res = await apiFetch(`${BASE_URL}/types`);
-  if (!res.ok) throw new Error("Errore nel recupero dei tipi");
+  if (!res.ok) throw await apiError(res, "Errore nel recupero dei tipi");
   return res.json();
 };
 
 export const getPending = async (): Promise<PendingItem[]> => {
   const res = await apiFetch(`${BASE_URL}/pending`);
-  if (!res.ok) throw new Error("Errore nel caricamento delle modifiche in attesa");
+  if (!res.ok) throw await apiError(res, "Errore nel caricamento delle modifiche in attesa");
   return res.json();
 };
 
@@ -79,17 +79,17 @@ export const approveChange = async (id: string, fieldsToApply: Record<string, un
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fieldsToApply }),
   });
-  if (!res.ok) throw new Error("Errore nell'approvazione");
+  if (!res.ok) throw await apiError(res, "Errore nell'approvazione");
 };
 
 export const rejectChange = async (id: string): Promise<void> => {
   const res = await apiFetch(`${BASE_URL}/${id}/reject-change`, { method: "POST" });
-  if (!res.ok) throw new Error("Errore nel rifiuto");
+  if (!res.ok) throw await apiError(res, "Errore nel rifiuto");
 };
 
 export const getNewExercises = async (): Promise<NewExercise[]> => {
   const res = await apiFetch(`${BASE_URL}/to-approve`);
-  if (!res.ok) throw new Error("Errore nel caricamento dei nuovi esercizi");
+  if (!res.ok) throw await apiError(res, "Errore nel caricamento dei nuovi esercizi");
   return res.json();
 };
 
@@ -99,10 +99,10 @@ export const approveExercise = async (id: string, exercise: Exercise): Promise<v
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(exercise),
   });
-  if (!res.ok) throw new Error("Errore nell'approvazione");
+  if (!res.ok) throw await apiError(res, "Errore nell'approvazione");
 };
 
 export const rejectExercise = async (id: string): Promise<void> => {
   const res = await apiFetch(`${BASE_URL}/${id}/reject`, { method: "POST" });
-  if (!res.ok) throw new Error("Errore nel rifiuto");
+  if (!res.ok) throw await apiError(res, "Errore nel rifiuto");
 };

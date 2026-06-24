@@ -17,6 +17,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import DataLoader from "../DataLoader";
 import { getPending, approveChange, rejectChange } from "../../api/exercises";
+import { describeError } from "../../api/apiFetch";
 import type { PendingItem } from "../../interfaces/adminInterfaces";
 import ExerciseDiff from "./ExerciseDiff";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -65,8 +66,9 @@ const PendingChangesTab = () => {
       await approveChange(selected.exercise.id, fieldsToApply);
       removeItem(selected.exercise.id);
       showSuccess("Modifica approvata con successo");
-    } catch {
-      showError("Errore durante l'approvazione della modifica");
+    } catch (err) {
+      const { message, details } = describeError(err, "Errore durante l'approvazione della modifica");
+      showError(message, details);
     } finally {
       setActionLoading(false);
     }
@@ -79,8 +81,9 @@ const PendingChangesTab = () => {
       await rejectChange(selected.exercise.id);
       removeItem(selected.exercise.id);
       showSuccess("Modifica rifiutata");
-    } catch {
-      showError("Errore durante il rifiuto della modifica");
+    } catch (err) {
+      const { message, details } = describeError(err, "Errore durante il rifiuto della modifica");
+      showError(message, details);
     } finally {
       setActionLoading(false);
     }

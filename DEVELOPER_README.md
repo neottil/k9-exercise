@@ -117,11 +117,18 @@ Gli indici **non** si creano con uno script manuale: sono dichiarati negli schem
 | Collection | Indice | Tipo | Dove | Serve a |
 |---|---|---|---|---|
 | `exercises` | `{ state: 1, lastNotifiedAt: 1 }` | composto | [Exercise.ts](server/src/models/Exercise.ts) | Query admin `GET /pending` e `GET /to-approve` (prefisso `state`) e le `updateMany` del job notify (`state` + range su `lastNotifiedAt`) |
+| `exercises` | `{ type: 1, variant: 1 }` | `unique` parziale | [Exercise.ts](server/src/models/Exercise.ts) | Impedisce due esercizi con stessa tipologia + variante. `partialFilterExpression` su `state ∈ {TO_APPROVE, APPROVED, PENDING_UPDATE}`: i `REJECTED` sono esclusi e non bloccano la ri-creazione dello stesso combo |
 | `exercisechanges` | `{ exerciseId: 1 }` | `unique` | [ExerciseChange.ts](server/src/models/ExerciseChange.ts) | Tutte le lookup sul change doc (`findOne`/`findOneAndUpdate`/`deleteOne` per `exerciseId`) + garanzia 1:1 esercizio↔change |
 | `k9_users` | `{ email: 1 }` | `unique` | [User.ts](server/src/models/User.ts) | Login/registrazione per email (creato implicitamente da `unique: true`) |
 | tutte | `{ _id: 1 }` | default | — | Creato automaticamente da MongoDB |
 
 ### Note di progettazione
+
+- **Unicità tipologia + variante.** L'indice `unique` parziale `{ type, variant }` è la garanzia *hard* contro i duplicati: è il DB a rifiutare la scrittura, indipendentemente da bug applicativi o race condition. Tutti gli handler che scrivono `type`/`variant` (`POST /`, `PUT /:id`, `POST /:id/approve`, `POST /:id/approve-change`) intercettano l'errore di chiave duplicata (`E11000`) e restituiscono un **409** con messaggio specifico invece di un 500 generico.
+
+  *Caso limite — modifica di variante in attesa di approvazione.* Una modifica di `variant` resta nel change doc (`exercisechanges`) finché non viene approvata, quindi l'indice **non la vede**: controlla solo i valori salvati sull'esercizio. Se nel frattempo viene inserito un altro esercizio con lo stesso `type`+`variant`, il conflitto **non** emerge all'inserimento ma al momento dell'`approve-change`, quando il diff viene applicato: l'update fallisce con `E11000` e l'admin riceve un 409 con messaggio dedicato ("…inserito nel frattempo"). Questo copre anche il caso di due modifiche pending che puntano allo stesso combo. Scelta progettuale: l'errore emerge all'approvazione, non si fanno controlli cross-collection all'inserimento.
+
+  > **Requisito versione**: `partialFilterExpression` con `$in` richiede MongoDB recente (Atlas ≥ 6.0). Se la creazione dell'indice fallisce all'avvio (errore loggato), verificare la versione del cluster.
 
 - **`GET /` (lista esercizi) non è indicizzata di proposito.** Filtra `state ∈ {APPROVED, PENDING_UPDATE}`, predicato poco selettivo (la maggior parte degli esercizi è `APPROVED`), e applica filtri opzionali su `workingArea.*`/`bodyTarget.*` con il pattern `$or: [{campo: null}, …]` che è di fatto non indicizzabile. Su un volume atteso di **400-1000 esercizi** il `COLLSCAN` è nell'ordine del sotto-millisecondo: indicizzarla non darebbe alcun beneficio. Se il dataset crescesse di un ordine di grandezza, andrebbe rivisto il pattern `$or-null` per renderla indicizzabile.
 

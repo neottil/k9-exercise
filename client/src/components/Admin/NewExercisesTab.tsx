@@ -17,6 +17,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import DataLoader from "../DataLoader";
 import { getNewExercises, approveExercise, rejectExercise } from "../../api/exercises";
+import { describeError } from "../../api/apiFetch";
 import type { NewExercise } from "../../interfaces/adminInterfaces";
 import type { Exercise } from "../../interfaces/exerciseInterfaces";
 import NewExerciseDetail from "./NewExerciseDetail";
@@ -66,8 +67,9 @@ const NewExercisesTab = () => {
       await approveExercise(selected.id, editedExercise);
       removeItem(selected.id);
       showSuccess("Esercizio approvato con successo");
-    } catch {
-      showError("Errore durante l'approvazione dell'esercizio");
+    } catch (err) {
+      const { message, details } = describeError(err, "Errore durante l'approvazione dell'esercizio");
+      showError(message, details);
     } finally {
       setActionLoading(false);
     }
@@ -80,8 +82,9 @@ const NewExercisesTab = () => {
       await rejectExercise(selected.id);
       removeItem(selected.id);
       showSuccess("Esercizio rifiutato");
-    } catch {
-      showError("Errore durante il rifiuto dell'esercizio");
+    } catch (err) {
+      const { message, details } = describeError(err, "Errore durante il rifiuto dell'esercizio");
+      showError(message, details);
     } finally {
       setActionLoading(false);
     }
