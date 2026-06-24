@@ -9,12 +9,13 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 
 1. [Setup locale](#setup-locale)
 2. [Struttura progetto](#struttura-progetto)
-3. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
-4. [CI/CD pipeline](#cicd-pipeline)
-5. [Deploy in produzione](#deploy-in-produzione)
-6. [Sistema di notifiche](#sistema-di-notifiche)
-7. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
-8. [Integrazione con WordPress](#integrazione-con-wordpress)
+3. [Indici del database](#indici-del-database)
+4. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
+5. [CI/CD pipeline](#cicd-pipeline)
+6. [Deploy in produzione](#deploy-in-produzione)
+7. [Sistema di notifiche](#sistema-di-notifiche)
+8. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
+9. [Integrazione con WordPress](#integrazione-con-wordpress)
 
 ---
 
@@ -104,6 +105,34 @@ k9-exercise/
     ├── deploy.yml      # CI/CD: build, versioning, deploy
     └── promote.yml     # Promozione staging → production
 ```
+
+---
+
+## Indici del database
+
+Gli indici **non** si creano con uno script manuale: sono dichiarati negli schema Mongoose e vengono creati automaticamente alla connessione, grazie a `autoIndex` (attivo di default). Al primo avvio del server contro un database nuovo (o dopo aver aggiunto un indice), Mongoose esegue `createIndex` per ogni indice mancante; quelli già presenti vengono ignorati.
+
+### Indici definiti
+
+| Collection | Indice | Tipo | Dove | Serve a |
+|---|---|---|---|---|
+| `exercises` | `{ state: 1, lastNotifiedAt: 1 }` | composto | [Exercise.ts](server/src/models/Exercise.ts) | Query admin `GET /pending` e `GET /to-approve` (prefisso `state`) e le `updateMany` del job notify (`state` + range su `lastNotifiedAt`) |
+| `exercisechanges` | `{ exerciseId: 1 }` | `unique` | [ExerciseChange.ts](server/src/models/ExerciseChange.ts) | Tutte le lookup sul change doc (`findOne`/`findOneAndUpdate`/`deleteOne` per `exerciseId`) + garanzia 1:1 esercizio↔change |
+| `k9_users` | `{ email: 1 }` | `unique` | [User.ts](server/src/models/User.ts) | Login/registrazione per email (creato implicitamente da `unique: true`) |
+| tutte | `{ _id: 1 }` | default | — | Creato automaticamente da MongoDB |
+
+### Note di progettazione
+
+- **`GET /` (lista esercizi) non è indicizzata di proposito.** Filtra `state ∈ {APPROVED, PENDING_UPDATE}`, predicato poco selettivo (la maggior parte degli esercizi è `APPROVED`), e applica filtri opzionali su `workingArea.*`/`bodyTarget.*` con il pattern `$or: [{campo: null}, …]` che è di fatto non indicizzabile. Su un volume atteso di **400-1000 esercizi** il `COLLSCAN` è nell'ordine del sotto-millisecondo: indicizzarla non darebbe alcun beneficio. Se il dataset crescesse di un ordine di grandezza, andrebbe rivisto il pattern `$or-null` per renderla indicizzabile.
+
+### Aggiungere o modificare un indice
+
+1. Dichiararlo nello schema corrispondente in `server/src/models/` (`Schema.index({...})` oppure `unique: true` sul campo).
+2. Riavviare il server: Mongoose crea il nuovo indice in automatico.
+
+> **Indici `unique` su collection con dati esistenti**: se ci sono già documenti che violano il vincolo (es. `exerciseId` duplicati), la creazione dell'indice fallisce e l'errore viene loggato all'avvio. Bonificare i duplicati prima di introdurre un indice `unique`.
+
+> **Produzione su dataset grandi**: `autoIndex` è comodo ma con collection molto grandi la creazione di un indice all'avvio può essere costosa. Alla scala attuale non è un problema; qualora lo diventasse, disabilitare `autoIndex` nella connessione e creare gli indici in una finestra di manutenzione.
 
 ---
 
@@ -663,8 +692,8 @@ function k9_user_profile_fields( WP_User $user ) {
             <th>Livello istruttore</th>
             <td>
                 <select name="k9_instructor_level">
-                    <option value="BSS" <?php selected( $instructor_level, 'BSS' ); ?>>Balance Safe and Sound</option>
-                    <option value="CTS" <?php selected( $instructor_level, 'CTS' ); ?>>Cross Trainer Specialist</option>
+                    <option value="BSS" <?php selected( $instructor_level, 'BSS' ); ?>>BSS</option>
+                    <option value="CTS" <?php selected( $instructor_level, 'CTS' ); ?>>CTS</option>
                 </select>
             </td>
         </tr>
@@ -687,15 +716,17 @@ function k9_save_user_profile_fields( int $user_id ) {
 }
 ```
 
-#### 1.4 Azioni di gruppo — Abilita/Disabilita accesso K9 App
+#### 1.4 Azioni di gruppo — Accesso e livello istruttore
 
-Per gestire l'accesso di più utenti contemporaneamente dalla lista **Utenti → Tutti gli utenti**, aggiungere un secondo snippet in Code Snippets (snippet separato, esegui ovunque):
+Per gestire più utenti contemporaneamente dalla lista **Utenti → Tutti gli utenti**, aggiungere uno snippet in Code Snippets (snippet separato, esegui ovunque):
 
 ```php
-// Aggiunge "Abilita accesso K9 App" e "Disabilita accesso K9 App" alle azioni di gruppo utenti
+// Aggiunge azioni di gruppo per accesso K9 App e livello istruttore
 add_filter('bulk_actions-users', function($actions) {
-    $actions['k9_enable_access']  = 'Abilita accesso K9 App';
-    $actions['k9_disable_access'] = 'Disabilita accesso K9 App';
+    $actions['k9_enable_access']  = 'K9: Abilita accesso';
+    $actions['k9_disable_access'] = 'K9: Disabilita accesso';
+    $actions['k9_level_bss']      = 'K9: Livello → BSS';
+    $actions['k9_level_cts']      = 'K9: Livello → CTS';
     return $actions;
 });
 
@@ -706,6 +737,14 @@ add_filter('handle_bulk_actions-users', function($redirect_to, $action, $user_id
     }
     if ($action === 'k9_disable_access') {
         foreach ($user_ids as $uid) update_user_meta($uid, 'k9_app_access', '0');
+        return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
+    }
+    if ($action === 'k9_level_bss') {
+        foreach ($user_ids as $uid) update_user_meta($uid, 'k9_instructor_level', 'BSS');
+        return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
+    }
+    if ($action === 'k9_level_cts') {
+        foreach ($user_ids as $uid) update_user_meta($uid, 'k9_instructor_level', 'CTS');
         return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
     }
     return $redirect_to;

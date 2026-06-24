@@ -5,7 +5,9 @@ import mongoose, { Schema } from "mongoose";
 
 const ExerciseChangeSchema = new Schema(
   {
-    exerciseId: { type: String, required: true, index: true },
+    // unique: c'è al massimo un change doc per esercizio (upsert/deleteOne per exerciseId).
+    // unique implica già la creazione dell'indice usato da tutte le lookup su questo campo.
+    exerciseId: { type: String, required: true, unique: true },
     fields: { type: Schema.Types.Mixed, required: true },
     user: { type: String },
     userUpdate: { type: String },
