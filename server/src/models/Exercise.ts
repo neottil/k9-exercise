@@ -49,6 +49,14 @@ const ExerciseSchema = new Schema(
   }
 );
 
+// Indice composto { state, lastNotifiedAt }.
+// Copre le query admin selettive (GET /pending, GET /to-approve → prefisso state)
+// e le updateMany del job notify (state + range su lastNotifiedAt).
+// La GET / resta volutamente uno scan: filtra state ∈ {APPROVED, PENDING_UPDATE},
+// poco selettivo (la maggior parte degli esercizi è APPROVED), quindi il planner
+// preferisce comunque il COLLSCAN — trascurabile su 400-1000 documenti.
+ExerciseSchema.index({ state: 1, lastNotifiedAt: 1 });
+
 ExerciseSchema.set("toJSON", {
   transform: (_doc, ret: Record<string, unknown>) => {
     ret.id = ret._id;
