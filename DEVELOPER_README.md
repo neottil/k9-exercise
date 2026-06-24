@@ -424,11 +424,11 @@ kubectl proxy --address='127.0.0.1' --port=8001 &
 # 2. Sul tuo PC — apri tunnel SSH
 ssh -i ~/.ssh/k9_deploy -L 8001:localhost:8001 -N deploy@<IP_VPS>
 
-# 3. Browser
-# http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
-
-# 4. Genera il token di accesso (scade dopo 1h)
+# 3. Genera il token di accesso (scade dopo 1h)
 kubectl create token dashboard-admin -n kubernetes-dashboard
+
+# 4. Browser
+# http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
 ```
 
 ### Comandi kubectl utili
