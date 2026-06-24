@@ -663,8 +663,8 @@ function k9_user_profile_fields( WP_User $user ) {
             <th>Livello istruttore</th>
             <td>
                 <select name="k9_instructor_level">
-                    <option value="BSS" <?php selected( $instructor_level, 'BSS' ); ?>>Balance Safe and Sound</option>
-                    <option value="CTS" <?php selected( $instructor_level, 'CTS' ); ?>>Cross Trainer Specialist</option>
+                    <option value="BSS" <?php selected( $instructor_level, 'BSS' ); ?>>BSS</option>
+                    <option value="CTS" <?php selected( $instructor_level, 'CTS' ); ?>>CTS</option>
                 </select>
             </td>
         </tr>
@@ -687,15 +687,17 @@ function k9_save_user_profile_fields( int $user_id ) {
 }
 ```
 
-#### 1.4 Azioni di gruppo — Abilita/Disabilita accesso K9 App
+#### 1.4 Azioni di gruppo — Accesso e livello istruttore
 
-Per gestire l'accesso di più utenti contemporaneamente dalla lista **Utenti → Tutti gli utenti**, aggiungere un secondo snippet in Code Snippets (snippet separato, esegui ovunque):
+Per gestire più utenti contemporaneamente dalla lista **Utenti → Tutti gli utenti**, aggiungere uno snippet in Code Snippets (snippet separato, esegui ovunque):
 
 ```php
-// Aggiunge "Abilita accesso K9 App" e "Disabilita accesso K9 App" alle azioni di gruppo utenti
+// Aggiunge azioni di gruppo per accesso K9 App e livello istruttore
 add_filter('bulk_actions-users', function($actions) {
-    $actions['k9_enable_access']  = 'Abilita accesso K9 App';
-    $actions['k9_disable_access'] = 'Disabilita accesso K9 App';
+    $actions['k9_enable_access']  = 'K9: Abilita accesso';
+    $actions['k9_disable_access'] = 'K9: Disabilita accesso';
+    $actions['k9_level_bss']      = 'K9: Livello → BSS';
+    $actions['k9_level_cts']      = 'K9: Livello → CTS';
     return $actions;
 });
 
@@ -706,6 +708,14 @@ add_filter('handle_bulk_actions-users', function($redirect_to, $action, $user_id
     }
     if ($action === 'k9_disable_access') {
         foreach ($user_ids as $uid) update_user_meta($uid, 'k9_app_access', '0');
+        return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
+    }
+    if ($action === 'k9_level_bss') {
+        foreach ($user_ids as $uid) update_user_meta($uid, 'k9_instructor_level', 'BSS');
+        return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
+    }
+    if ($action === 'k9_level_cts') {
+        foreach ($user_ids as $uid) update_user_meta($uid, 'k9_instructor_level', 'CTS');
         return add_query_arg('k9_bulk_updated', count($user_ids), $redirect_to);
     }
     return $redirect_to;

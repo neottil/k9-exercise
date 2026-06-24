@@ -63,7 +63,7 @@ const About = () => {
             ].map(({ label, value }) => (
               <Box key={label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Typography color="text.secondary" variant="body2" sx={{ minWidth: 72 }}>{label}</Typography>
-                <Chip label={value} size="small" variant="outlined" />
+                <Chip label={value} size="small" variant="outlined" color="primary" />
               </Box>
             ))}
           </Box>
