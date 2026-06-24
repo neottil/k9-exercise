@@ -7,7 +7,7 @@ import { DEV_USER } from "../config/devUser.js";
 declare global {
   namespace Express {
     interface Request {
-      user?: { email: string; role: string };
+      user?: { email: string; username?: string; role: string; instructorLevel?: string };
     }
   }
 }

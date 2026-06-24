@@ -55,7 +55,7 @@ const SiteAppBar = () => {
         <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
           {user && (
             <Box sx={{ display: { xs: "none", md: "flex" } }}>
-              <Tooltip title={isAuthDisabled ? `Autenticazione disabilitata (${user.email})` : `Logout (${user.email})`}>
+              <Tooltip title={`Logout (${user.email})`}>
                 <span>
                   <IconButton color="inherit" onClick={handleLogout} size="small" disabled={isAuthDisabled}>
                     <LogoutIcon />

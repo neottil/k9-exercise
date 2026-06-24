@@ -161,14 +161,19 @@ router.get("/wp-callback", (req: Request, res: Response): void => {
   }
 
   try {
-    const payload = jwt.verify(token, secret) as { email: string; role: string };
+    const payload = jwt.verify(token, secret) as { email: string; username?: string; role: string; instructor_level?: string };
 
     if (!payload.email || !payload.role) {
       res.status(400).send("Token mancante dei campi richiesti (email, role)");
       return;
     }
 
-    req.session.user = { email: payload.email, role: payload.role };
+    req.session.user = {
+      email: payload.email,
+      username: payload.username,
+      role: payload.role,
+      instructorLevel: payload.instructor_level
+    };
     res.redirect("/");
   } catch (err) {
     console.error("[wp-callback] token non valido:", err);

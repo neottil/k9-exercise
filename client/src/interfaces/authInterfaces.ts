@@ -5,5 +5,7 @@ export type UserRole = "viewer" | "admin";
 
 export interface AuthUser {
   email: string;
+  username?: string;
   role: UserRole;
+  instructorLevel?: string;
 }

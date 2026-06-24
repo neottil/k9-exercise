@@ -34,11 +34,12 @@ export const BG_CURRENT  = "#ffebee";
 export const BG_PROPOSED = "#e8f5e9";
 
 export const DISPLAY_FIELDS = [
-  "type", "variant", "description", "difficultyLevel",
+  "instructorLevel", "type", "variant", "description", "difficultyLevel",
   "tools", "setup", "movementPlan", "workingArea", "bodyTarget",
 ] as const;
 
 export const FIELD_LABELS: Record<string, string> = {
+  instructorLevel: "Livello",
   type:            "Tipologia",
   variant:         "Variante",
   description:     "Descrizione",
@@ -79,6 +80,24 @@ interface FieldEditorProps {
 
 export const FieldEditor = ({ field, value, onChange }: FieldEditorProps) => {
   const [newType, setNewType] = useState(false);
+
+  if (field === "instructorLevel") {
+    const val = (value as string) ?? "BSS";
+    return (
+      <Box sx={{ p: 1 }}>
+        <ToggleButtonGroup
+          exclusive
+          value={val}
+          color={val === "CTS" ? "warning" : "primary"}
+          onChange={(_, v) => { if (v !== null) onChange(v); }}
+          size="small"
+        >
+          <ToggleButton value="BSS">BSS</ToggleButton>
+          <ToggleButton value="CTS">CTS</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+    );
+  }
 
   if (field === "type") {
     return (

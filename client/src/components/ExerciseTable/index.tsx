@@ -16,6 +16,7 @@ import { Exercise } from "../../interfaces/exerciseInterfaces";
 import { useFilters } from "../../contexts/FiltersContext";
 import {
   createTypeColumn,
+  instructorLevel as instructorLevelCol,
   variant,
   description,
   tools,
@@ -41,6 +42,7 @@ const StyledTableContainer = styled(Box)(({ theme }) => ({
 // Colonne statiche — definite fuori dal componente, non ri-create ad ogni render.
 // "type" (con bottone edit) è creata tramite factory in columnsDef.tsx.
 const staticColumns: GridColDef[] = [
+  instructorLevelCol,
   variant,
   description,
   tools,

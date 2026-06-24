@@ -8,6 +8,8 @@ import {
   InputLabel,
   Switch,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import { StatBarsField, WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatBars";
 import TypeSelect, { DEFAULT as TypeSelectDefaultValue } from "../TypeSelect";
@@ -102,15 +104,32 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
         </Box>
       </Box>
 
-      {/* Variante */}
-      <Box sx={{ gridArea: "variant" }}>
-        <InputLabel>Variante</InputLabel>
-        <TextField
-          fullWidth
-          name="variant"
-          value={exercise.variant ?? ""}
-          onChange={onTextChange}
-        />
+      {/* Variante + Livello */}
+      <Box sx={{ gridArea: "variant", display: "flex", gap: 2 }}>
+        <Box sx={{ flex: 7 }}>
+          <InputLabel>Variante</InputLabel>
+          <TextField
+            fullWidth
+            name="variant"
+            value={exercise.variant ?? ""}
+            onChange={onTextChange}
+          />
+        </Box>
+        <Box sx={{ flex: 3 }}>
+          <InputLabel required>Livello</InputLabel>
+          <ToggleButtonGroup
+            exclusive
+            value={exercise.instructorLevel ?? "BSS"}
+            color={exercise.instructorLevel === "CTS" ? "warning" : "primary"}
+            onChange={(_, v) => { if (v !== null) onChange("instructorLevel", v as string); }}
+            size="small"
+            fullWidth
+            sx={{ mt: 0.5 }}
+          >
+            <ToggleButton value="BSS" sx={{ flex: 1 }}>BSS</ToggleButton>
+            <ToggleButton value="CTS" sx={{ flex: 1 }}>CTS</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
       </Box>
 
       {/* Descrizione */}

@@ -424,11 +424,11 @@ kubectl proxy --address='127.0.0.1' --port=8001 &
 # 2. Sul tuo PC — apri tunnel SSH
 ssh -i ~/.ssh/k9_deploy -L 8001:localhost:8001 -N deploy@<IP_VPS>
 
-# 3. Browser
-# http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
-
-# 4. Genera il token di accesso (scade dopo 1h)
+# 3. Genera il token di accesso (scade dopo 1h)
 kubectl create token dashboard-admin -n kubernetes-dashboard
+
+# 4. Browser
+# http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
 ```
 
 ### Comandi kubectl utili
@@ -557,6 +557,7 @@ Per ogni utente WP che deve accedere all'app, impostare due campi meta (gestibil
 |---|---|---|
 | `k9_app_access` | `1` / `0` | L'utente può accedere all'app |
 | `k9_app_role` | `viewer` / `admin` | Ruolo all'interno dell'app |
+| `k9_instructor_level` | `BSS` / `CTS` | Livello istruttore: BSS = Balance Safe and Sound, CTS = Cross Trainer Specialist (default: `BSS`) |
 
 Il ruolo WP (administrator, editor, subscriber…) è indipendente dal ruolo app.
 
@@ -573,7 +574,9 @@ define( 'K9_APP_URL',    'https://app.miodominio.com' );
 
 Non è richiesta nessuna libreria esterna: il JWT HS256 viene generato con `hash_hmac`, funzione nativa di PHP.
 
-Installare il plugin gratuito **Code Snippets** da WordPress → Plugin → Aggiungi nuovo, poi creare un nuovo snippet con questo codice completo:
+Installare il plugin gratuito **Code Snippets** da WordPress → Plugin → Aggiungi nuovo, poi creare **due snippet separati**.
+
+**Snippet A — Redirect con JWT** (obbligatorio):
 
 ```php
 // Genera JWT HS256 senza librerie esterne
@@ -606,10 +609,12 @@ function k9_redirect_to_app() {
 
     $now   = time();
     $token = k9_jwt_encode( [
-        'iat'   => $now,
-        'exp'   => $now + 300,
-        'email' => $user->user_email,
-        'role'  => get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer',
+        'iat'              => $now,
+        'exp'              => $now + 300,
+        'email'            => $user->user_email,
+        'username'         => $user->user_login,
+        'role'             => get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer',
+        'instructor_level' => get_user_meta( $user->ID, 'k9_instructor_level', true ) ?: 'BSS',
     ], K9_JWT_SECRET );
 
     wp_redirect( K9_APP_URL . '/api/auth/wp-callback?token=' . urlencode( $token ) );
@@ -621,31 +626,45 @@ add_action( 'template_redirect', function () {
         k9_redirect_to_app();
     }
 } );
+```
 
+**Snippet B — Campi K9 App nel profilo utente** (consigliato per gestire gli utenti dall'admin WP):
+
+```php
 // Campi K9 App nella pagina profilo utente (visibili solo agli admin WP)
 add_action( 'show_user_profile', 'k9_user_profile_fields' );
 add_action( 'edit_user_profile', 'k9_user_profile_fields' );
 
 function k9_user_profile_fields( WP_User $user ) {
     if ( ! current_user_can( 'edit_users' ) ) return;
-    $has_access = get_user_meta( $user->ID, 'k9_app_access', true );
-    $role       = get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer';
+    $has_access       = get_user_meta( $user->ID, 'k9_app_access', true );
+    $role             = get_user_meta( $user->ID, 'k9_app_role', true ) ?: 'viewer';
+    $instructor_level = get_user_meta( $user->ID, 'k9_instructor_level', true ) ?: 'BSS';
     ?>
-    <h3>K9 App — Accesso</h3>
+    <h3>K9 Exercise App — Accesso</h3>
     <table class="form-table">
         <tr>
-            <th>Abilita accesso K9 App</th>
+            <th>Abilita accesso app</th>
             <td>
                 <input type="checkbox" name="k9_app_access" value="1"
                     <?php checked( $has_access, '1' ); ?> />
             </td>
         </tr>
         <tr>
-            <th>Ruolo nell'app</th>
+            <th>Ruolo</th>
             <td>
                 <select name="k9_app_role">
                     <option value="viewer" <?php selected( $role, 'viewer' ); ?>>Viewer</option>
                     <option value="admin"  <?php selected( $role, 'admin'  ); ?>>Admin</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <th>Livello istruttore</th>
+            <td>
+                <select name="k9_instructor_level">
+                    <option value="BSS" <?php selected( $instructor_level, 'BSS' ); ?>>Balance Safe and Sound</option>
+                    <option value="CTS" <?php selected( $instructor_level, 'CTS' ); ?>>Cross Trainer Specialist</option>
                 </select>
             </td>
         </tr>
@@ -659,7 +678,12 @@ add_action( 'edit_user_profile_update', 'k9_save_user_profile_fields' );
 function k9_save_user_profile_fields( int $user_id ) {
     if ( ! current_user_can( 'edit_user', $user_id ) ) return;
     update_user_meta( $user_id, 'k9_app_access', isset( $_POST['k9_app_access'] ) ? '1' : '0' );
-    update_user_meta( $user_id, 'k9_app_role', sanitize_text_field( $_POST['k9_app_role'] ?? 'viewer' ) );
+    $allowed_roles = [ 'viewer', 'admin' ];
+    $role = sanitize_text_field( $_POST['k9_app_role'] ?? 'viewer' );
+    update_user_meta( $user_id, 'k9_app_role', in_array( $role, $allowed_roles ) ? $role : 'viewer' );
+    $allowed_levels = [ 'BSS', 'CTS' ];
+    $level = sanitize_text_field( $_POST['k9_instructor_level'] ?? 'BSS' );
+    update_user_meta( $user_id, 'k9_instructor_level', in_array( $level, $allowed_levels ) ? $level : 'BSS' );
 }
 ```
 
