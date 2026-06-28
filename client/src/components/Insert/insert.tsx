@@ -128,7 +128,7 @@ const Insert = () => {
       <Box sx={{ m: 1 }}>
         <ExerciseForm exercise={exerciseToSave} onChange={updateExerciseToSave} />
         <Box sx={{ my: 2 }}>
-          <Button variant="contained" onClick={OnClickSave}>
+          <Button fullWidth variant="contained" onClick={OnClickSave}>
             Salva
           </Button>
         </Box>
