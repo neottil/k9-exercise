@@ -12,14 +12,21 @@ jobs:
 
   analyze:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       has_client: ${{ steps.analyze.outputs.has_client }}
       has_server: ${{ steps.analyze.outputs.has_server }}
+      has_k8s:    ${{ steps.analyze.outputs.has_k8s }}
       deploy:     ${{ steps.analyze.outputs.deploy }}
+      client_version: ${{ steps.versions.outputs.client_version }}
+      server_version: ${{ steps.versions.outputs.server_version }}
+      k8s_version: ${{ steps.versions.outputs.k8s_version }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2   # necessario per git diff HEAD~1
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Analyze commit
         id: analyze
@@ -40,21 +47,71 @@ jobs:
           CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null \
                     || git show --name-only --format='' HEAD)
 
-          HAS_CLIENT=false; HAS_SERVER=false
+          HAS_CLIENT=false; HAS_SERVER=false; HAS_K8S=false
 
           echo "$CHANGED" | grep -qE '^client/' && HAS_CLIENT=true || true
           echo "$CHANGED" | grep -qE '^server/' && HAS_SERVER=true || true
+          echo "$CHANGED" | grep -qE '^k8s/'    && HAS_K8S=true    || true
 
-          if $HAS_CLIENT || $HAS_SERVER; then DEPLOY=true; else DEPLOY=false; fi
+          if $HAS_CLIENT || $HAS_SERVER || $HAS_K8S; then DEPLOY=true; else DEPLOY=false; fi
 
-          if ! $HAS_CLIENT && ! $HAS_SERVER; then
-            echo "::warning::Nessuna modifica in client/ o server/. Saltato."
+          if ! $HAS_CLIENT && ! $HAS_SERVER && ! $HAS_K8S; then
+            echo "::warning::Nessuna modifica in client/, server/ o k8s/. Saltato."
           fi
 
           echo "has_client=$HAS_CLIENT" >> $GITHUB_OUTPUT
           echo "has_server=$HAS_SERVER" >> $GITHUB_OUTPUT
+          echo "has_k8s=$HAS_K8S"       >> $GITHUB_OUTPUT
           echo "deploy=$DEPLOY"         >> $GITHUB_OUTPUT
-          echo "→ client=$HAS_CLIENT  server=$HAS_SERVER  deploy=$DEPLOY"
+          echo "::notice:: modifiche rilevate→ client=$HAS_CLIENT  server=$HAS_SERVER  k8s=$HAS_K8S  deploy=$DEPLOY"
+
+      - name: Create/update git tags
+        id: versions
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          HAS_CLIENT="${{ steps.analyze.outputs.has_client }}"
+          HAS_SERVER="${{ steps.analyze.outputs.has_server }}"
+          HAS_K8S="${{ steps.analyze.outputs.has_k8s }}"
+
+          # Funzione per creare/aggiornare tag
+          create_or_update_tag() {
+            local component=$1
+            local version=$2
+            local tag="${component}-${version}"
+
+            if git rev-parse "$tag" >/dev/null 2>&1; then
+              echo "::notice::Tag $tag esiste già — spostamento a HEAD"
+              git tag -d "$tag"
+              git push origin ":refs/tags/$tag" 2>/dev/null || true
+            fi
+
+            git tag "$tag"
+            git push origin "$tag"
+            echo "✓ Tag $tag creato"
+          }
+
+          # Crea tag per ogni componente modificato
+          if [ "$HAS_SERVER" = "true" ]; then
+            SERVER_VERSION=$(node -p "require('./server/package.json').version")
+            create_or_update_tag "server" "$SERVER_VERSION"
+          fi
+
+          if [ "$HAS_CLIENT" = "true" ]; then
+            CLIENT_VERSION=$(node -p "require('./client/package.json').version")
+            create_or_update_tag "client" "$CLIENT_VERSION"
+          fi
+
+          if [ "$HAS_K8S" = "true" ]; then
+            ROOT_VERSION=$(node -p "require('./package.json').version")
+            create_or_update_tag "k8s" "$ROOT_VERSION"
+          fi
+
+          # Esponi le versioni come output
+          echo "client_version=$(node -p "require('./client/package.json').version")" >> $GITHUB_OUTPUT
+          echo "server_version=$(node -p "require('./server/package.json').version")" >> $GITHUB_OUTPUT
+          echo "k8s_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
   # ── 2. Build ───────────────────────────────────────────────────────────────────
   #
@@ -68,17 +125,8 @@ jobs:
     environment: staging
     permissions:
       packages: write
-    outputs:
-      client_version: ${{ steps.versions.outputs.client_version }}
-      server_version: ${{ steps.versions.outputs.server_version }}
     steps:
       - uses: actions/checkout@v6
-
-      - name: Read versions
-        id: versions
-        run: |
-          echo "client_version=$(node -p "require('./client/package.json').version")" >> $GITHUB_OUTPUT
-          echo "server_version=$(node -p "require('./server/package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Login to GitHub Container Registry
         if: needs.analyze.outputs.deploy == 'true'
@@ -102,7 +150,7 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}
+            ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.analyze.outputs.server_version }}
             ghcr.io/${{ github.repository_owner }}/k9-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -121,7 +169,7 @@ jobs:
             VITE_LOGIN_TYPE=${{ vars.LOGIN_TYPE }}
             VITE_LOGIN_SITE_URL=${{ vars.LOGIN_SITE_URL }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}
+            ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.analyze.outputs.client_version }}
             ghcr.io/${{ github.repository_owner }}/k9-client:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -201,14 +249,14 @@ jobs:
           envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
           envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
 
-          echo "→ Deploy server:${{ needs.build.outputs.server_version }}"
-          export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.build.outputs.server_version }}"
+          echo "→ Deploy server:${{ needs.analyze.outputs.server_version }}"
+          export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.analyze.outputs.server_version }}"
           envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
           kubectl rollout restart deployment/k9-server -n k9
           kubectl rollout status deployment/k9-server -n k9 --timeout=120s
 
-          echo "→ Deploy client:${{ needs.build.outputs.client_version }}"
-          export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.build.outputs.client_version }}"
+          echo "→ Deploy client:${{ needs.analyze.outputs.client_version }}"
+          export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.analyze.outputs.client_version }}"
           envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
           kubectl rollout restart deployment/k9-client -n k9
           kubectl rollout status deployment/k9-client -n k9 --timeout=120s
@@ -221,6 +269,7 @@ jobs:
         run: |
           HAS_CLIENT="${{ needs.analyze.outputs.has_client }}"
           HAS_SERVER="${{ needs.analyze.outputs.has_server }}"
+          HAS_K8S="${{ needs.analyze.outputs.has_k8s }}"
           SHORT_SHA="${GITHUB_SHA:0:7}"
 
           {
@@ -233,11 +282,12 @@ jobs:
             echo ""
             echo "### Immagini Docker"
             echo ""
-            if [ "$HAS_SERVER" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.build.outputs.server_version }}\`"; fi
-            if [ "$HAS_CLIENT" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.build.outputs.client_version }}\`"; fi
+            if [ "$HAS_SERVER" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.analyze.outputs.server_version }}\`"; fi
+            if [ "$HAS_CLIENT" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.analyze.outputs.client_version }}\`"; fi
             echo ""
             echo "### Deploy → staging (${{ vars.DOMAIN }})"
             echo ""
-            if [ "$HAS_SERVER" = "true" ]; then echo "- server **${{ needs.build.outputs.server_version }}** deployato"; fi
-            if [ "$HAS_CLIENT" = "true" ]; then echo "- client **${{ needs.build.outputs.client_version }}** deployato"; fi
+            if [ "$HAS_SERVER" = "true" ]; then echo "- server **${{ needs.analyze.outputs.server_version }}** deployato"; fi
+            if [ "$HAS_CLIENT" = "true" ]; then echo "- client **${{ needs.analyze.outputs.client_version }}** deployato"; fi
+            if [ "$HAS_K8S" = "true" ]; then echo "- k8s manifests **${{ needs.analyze.outputs.k8s_version }}** deployato"; fi
           } >> "$GITHUB_STEP_SUMMARY"

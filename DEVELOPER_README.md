@@ -187,23 +187,43 @@ push su main
     │
     ▼
 Analyze commit
-    │  rileva scope (client/server/k8s) e bump type
+    │  rileva scope (client/server/k8s)
     │
     ▼
-Bump versions + tag
-    │  aggiorna package.json, crea tag annotati, push con --follow-tags
+Create git tags
+    │  crea/aggiorna tag: client-X.Y.Z, server-X.Y.Z, k8s-X.Y.Z
+    │  (sposta tag esistente se già presente)
     │
     ▼
 Build Docker  ←─ solo se client o server sono cambiati
     │  docker/build-push-action → ghcr.io/<owner>/k9-{client,server}:<version>
     │
     ▼
-Deploy su k3s  ←─ solo se client o server sono cambiati
+Deploy su k3s  ←─ se build ha successo
     │  scp manifest → ssh kubectl apply → rollout status
     │
     ▼
 Job summary  ←─ sempre (anche se step precedenti falliscono)
 ```
+
+### Convenzione di versioning e tagging
+
+La versione di ogni componente è definita nel rispettivo `package.json`:
+
+| Componente | Versione da | Tag formato | Significato |
+|-----------|-----------|------------|------------|
+| **Client** | `client/package.json` | `client-X.Y.Z` | Versione release React SPA |
+| **Server** | `server/package.json` | `server-X.Y.Z` | Versione release Express API |
+| **k8s** | `/package.json` (root) | `k8s-X.Y.Z` | Versione release manifesti Kubernetes |
+
+**Esempio**: Se aggiorni solo il server, la GitHub Action:
+1. Legge versione da `server/package.json` (es. `1.5.0`)
+2. Crea/aggiorna il tag `server-1.5.0`
+3. Builda e deploya solo il server
+
+Se modifichi solo `k8s/`, viene creato il tag `k8s-X.Y.Z` dal package.json root, ma **non** viene buildato nulla — i manifest vengono semplicemente aggiornati sul cluster.
+
+**Aggiornamento versioni**: Modifica i rispettivi `package.json` manualmente, poi fai un commit. La GitHub Action rileverà le modifiche e creerà i tag automaticamente. Se il tag esiste già, verrà spostato al commit attuale con un avviso nei log.
 
 ### Aggiornamento dipendenze e package-lock.json
 

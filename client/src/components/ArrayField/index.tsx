@@ -32,9 +32,20 @@ const ArrayField = ({
   };
 
   const addItem = () => {
-    onChange(name, [...items, capitalize(currentValue)]);
+    const trimmed = currentValue.trim();
+    if (!trimmed) return;
+    const capitalized = capitalize(trimmed);
+    if (items.some(item => item.toLowerCase() === capitalized.toLowerCase())) return;
+    onChange(name, [...items, capitalized]);
     setCurrentValue(DEFAULT_CURRENT_VALUE);
   };
+
+  const canAddItem = (() => {
+    const trimmed = currentValue.trim();
+    if (!trimmed) return false;
+    const capitalized = capitalize(trimmed);
+    return !items.some(item => item.toLowerCase() === capitalized.toLowerCase());
+  })();
 
   const arraySection = !!items?.length && (
     <Box sx={{ overflow: "auto", maxHeight: "7rem", mt: 0.5 }}>
@@ -75,7 +86,7 @@ const ArrayField = ({
           ))}
         </Select>
       )}
-      <Button onClick={addItem} variant="text">
+      <Button onClick={addItem} variant="text" disabled={!canAddItem}>
         Aggiungi
       </Button>
       {arraySection}
