@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Luca Neotti
+# Licensed under the Elastic License v2.0 — see LICENSE for details.
+#
+# CronJob che chiama POST /api/admin/gc-images sul server ogni domenica alle 3:00.
+# Rimuove dalle immagini su minIO gli oggetti orfani (non referenziati né dagli
+# esercizi né dai change doc in attesa) più vecchi del grace period.
+# Riusa il secret k9-notify-secret (chiave NOTIFY_API_KEY) come gli altri job admin.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k9-images-gc
+  namespace: k9
+spec:
+  schedule: "0 3 * * 0"  # ogni domenica alle 3:00
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: gc-images
+              image: curlimages/curl:latest
+              env:
+                - name: NOTIFY_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: k9-notify-secret
+                      key: NOTIFY_API_KEY
+              resources:
+                requests:
+                  cpu: "5m"
+                  memory: "8Mi"
+                limits:
+                  cpu: "10m"
+                  memory: "16Mi"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "→ Avvio garbage collection immagini..."
+                  RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST \
+                    -H "Authorization: Bearer $NOTIFY_API_KEY" \
+                    -H "Content-Type: application/json" \
+                    http://k9-server.k9.svc.cluster.local:3001/api/admin/gc-images)
+                  HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+                  BODY=$(echo "$RESPONSE" | head -1)
+                  echo "Status: $HTTP_CODE — $BODY"
+                  [ "$HTTP_CODE" = "200" ] || exit 1

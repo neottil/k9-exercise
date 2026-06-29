@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Luca Neotti
+# Licensed under the Elastic License v2.0 — see LICENSE for details.
+#
+# Service interno (ClusterIP) per minIO: NON esposto fuori dal cluster.
+# È quello che usa il server per l'API S3: minio.k9.svc.cluster.local:9000.
+# Con più repliche fa da load-balancer sull'API.
+# Per la console: kubectl port-forward -n k9 svc/minio 9001:9001
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: k9
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+---
+# Service headless (clusterIP: None) richiesto dallo StatefulSet: dà a ogni pod
+# un DNS stabile (minio-0.minio-headless.k9.svc.cluster.local). Inutilizzato con
+# 1 replica, indispensabile per la scoperta tra nodi nel distributed mode.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-headless
+  namespace: k9
+spec:
+  clusterIP: None
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000

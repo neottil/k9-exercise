@@ -2,10 +2,23 @@
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 
 import mongoose from "mongoose";
+import multer from "multer";
 import { Router, Request, Response, NextFunction } from "express";
 import Exercise from "../models/Exercise.js";
 import ExerciseChange from "../models/ExerciseChange.js";
 import { requireDbReady } from "../middleware/requireDbReady.js";
+import { getImageStream } from "../config/minio.js";
+import {
+  MAX_IMAGES,
+  validateFiles,
+  uploadFiles,
+  ImageValidationError,
+  type ImageMeta,
+  type UploadedFile,
+} from "../services/exerciseImages.js";
+
+// Upload in memoria: i file vengono passati a minIO senza toccare il disco.
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware: solo admin — usato sulle route di approvazione
 const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
@@ -49,13 +62,49 @@ const FILTER_FIELDS = [
   "bodyTarget.fullBody",
 ];
 
-// Campi di contenuto: gli unici su cui calcolare il diff e salvare le changes
+// Campi di contenuto: gli unici su cui calcolare il diff e salvare le changes.
+// `images` è incluso: le modifiche alle immagini passano per l'approvazione
+// admin come ogni altro contenuto (vedi analisi/25_gestione_immagini.md).
 const CONTENT_FIELDS = [
   "instructorLevel", "type", "variant", "description",
   "workingArea", "bodyTarget",
   "movementPlan", "tools",
-  "difficultyLevel", "setup",
+  "difficultyLevel", "setup", "images",
 ];
+
+/**
+ * Estrae i dati dell'esercizio e i file dalla richiesta. Supporta sia
+ * multipart/form-data (campo "exercise" come JSON string + file "images")
+ * sia application/json (compatibilità con eventuali client non-multipart).
+ */
+const extractSubmission = (
+  req: Request
+): { data: Record<string, unknown>; files: UploadedFile[] } => {
+  const files = (req.files as UploadedFile[] | undefined) ?? [];
+  const raw = (req.body as { exercise?: unknown }).exercise;
+  if (typeof raw === "string") {
+    return { data: JSON.parse(raw) as Record<string, unknown>, files };
+  }
+  return { data: req.body as Record<string, unknown>, files };
+};
+
+/**
+ * Raccoglie le immagini già legate a un esercizio (mappate per id): quelle
+ * approvate sul documento più quelle in attesa nel change doc. Serve a
+ * risolvere gli id che il client vuole mantenere usando i metadati autorevoli
+ * del server, impedendo che un client inietti o alteri riferimenti.
+ */
+const collectExistingImages = async (
+  id: string,
+  exerciseData: Record<string, unknown>
+): Promise<Map<string, ImageMeta>> => {
+  const map = new Map<string, ImageMeta>();
+  for (const img of (exerciseData.images as ImageMeta[] | undefined) ?? []) map.set(img.id, img);
+  const change = await ExerciseChange.findOne({ exerciseId: id });
+  const pending = (change?.fields as { images?: ImageMeta[] } | undefined)?.images;
+  for (const img of pending ?? []) map.set(img.id, img);
+  return map;
+};
 
 /**
  * Costruisce la query MongoDB dai query param.
@@ -189,21 +238,77 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// POST / — crea nuovo esercizio, sempre in stato TO_APPROVE
-router.post("/", requireDbReady, async (req: Request, res: Response) => {
+// GET /:id/images/:imageId — stream del binario immagine (proxy verso minIO).
+// I metadati (e quindi la presenza dell'immagine) arrivano già dalle GET
+// dell'esercizio: qui si serve solo il file, con cache lato browser.
+router.get("/:id/images/:imageId", async (req: Request, res: Response) => {
   try {
-    const { id, ...rest } = req.body;
+    const { id, imageId } = req.params;
+    const exercise = await Exercise.findById(id);
+    if (!exercise) {
+      res.status(404).json({ error: "Esercizio non trovato" });
+      return;
+    }
+    const exData = exercise.toJSON() as Record<string, unknown>;
+    let image = ((exData.images as ImageMeta[] | undefined) ?? []).find((i) => i.id === imageId);
+    // Fallback: immagine ancora solo nel change doc (modifica in attesa)
+    if (!image) {
+      const change = await ExerciseChange.findOne({ exerciseId: id });
+      image = (change?.fields as { images?: ImageMeta[] } | undefined)?.images?.find(
+        (i) => i.id === imageId
+      );
+    }
+    if (!image) {
+      res.status(404).json({ error: "Immagine non trovata" });
+      return;
+    }
+
+    const stream = await getImageStream(image.key);
+    res.setHeader("Content-Type", image.mimeType || "application/octet-stream");
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    stream.on("error", (e) => {
+      console.error("[GET /:id/images/:imageId] errore stream:", e);
+      if (!res.headersSent) res.status(502).json({ error: "Errore nel recupero dell'immagine" });
+    });
+    stream.pipe(res);
+  } catch (err) {
+    console.error("[GET /:id/images/:imageId]", err);
+    if (!res.headersSent) res.status(500).json({ error: "Errore nel recupero dell'immagine" });
+  }
+});
+
+// POST / — crea nuovo esercizio, sempre in stato TO_APPROVE.
+// multipart/form-data: campo "exercise" (JSON) + file "images" (max MAX_IMAGES).
+router.post("/", requireDbReady, upload.array("images", MAX_IMAGES), async (req: Request, res: Response) => {
+  try {
+    const { data, files } = extractSubmission(req);
+    const { id, images: _clientImages, ...rest } = data;
+
+    if (files.length > MAX_IMAGES) {
+      res.status(400).json({ error: `Massimo ${MAX_IMAGES} immagini per esercizio` });
+      return;
+    }
+    validateFiles(files);
+
+    const username = req.user?.username ?? req.user?.email;
+    const images = await uploadFiles(id as string, files, username);
+
     const exercise = new Exercise({
       _id: id,
       ...rest,
+      images,
       state: TO_APPROVE,
-      user: req.user?.username ?? req.user?.email,
-      userUpdate: req.user?.username ?? req.user?.email,
+      user: username,
+      userUpdate: username,
     });
     await exercise.save();
     res.status(201).json(exercise);
   } catch (err) {
     console.error("[POST /exercises/]", err);
+    if (err instanceof ImageValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
     if (isDuplicateKeyError(err)) {
       res.status(409).json({ error: DUPLICATE_MESSAGE });
       return;
@@ -221,11 +326,12 @@ router.post("/", requireDbReady, async (req: Request, res: Response) => {
  *                              Se il diff è vuoto (tutte le modifiche annullate) → elimina
  *                              il change doc e ripristina APPROVED
  */
-router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
-  const id = req.params.id;
+router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (req: Request, res: Response) => {
+  const id = req.params.id as string;
   console.log(`[PUT /:id] id=${id}`);
   try {
-    const { id: _id, state: _state, ...submittedFields } = req.body;
+    const { data, files } = extractSubmission(req);
+    const { id: _id, state: _state, images: clientImages, ...rest } = data;
 
     const exercise = await Exercise.findById(id);
     if (!exercise) {
@@ -237,6 +343,28 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
     const exerciseData = exercise.toJSON() as Record<string, unknown>;
     const currentState = exerciseData.state as string | undefined;
     console.log(`[PUT /:id] state corrente=${currentState}`);
+
+    // ── Immagini ────────────────────────────────────────────────────────────
+    // Si tengono solo le immagini già esistenti (integrità), si validano e
+    // caricano i nuovi file, e si impone il limite PRIMA dell'upload per non
+    // generare orfani inutili.
+    validateFiles(files);
+    const kept = Array.isArray(clientImages) ? (clientImages as ImageMeta[]) : [];
+    const existing = await collectExistingImages(id, exerciseData);
+    // Risolve gli id da mantenere sui metadati del server (non sugli oggetti
+    // inviati dal client): scarta gli id sconosciuti e ignora eventuali key alterate.
+    const keptImages = kept
+      .map((img) => existing.get(img.id))
+      .filter((img): img is ImageMeta => img !== undefined);
+    if (keptImages.length + files.length > MAX_IMAGES) {
+      res.status(400).json({ error: `Massimo ${MAX_IMAGES} immagini per esercizio` });
+      return;
+    }
+    const newImages = await uploadFiles(id, files, req.user?.username ?? req.user?.email);
+    const submittedFields: Record<string, unknown> = {
+      ...rest,
+      images: [...keptImages, ...newImages],
+    };
 
     // TO_APPROVE o senza stato: aggiornamento diretto
     if (!currentState || currentState === TO_APPROVE) {
@@ -313,6 +441,10 @@ router.put("/:id", requireDbReady, async (req: Request, res: Response) => {
     }
   } catch (err) {
     console.error(`[PUT /:id] errore:`, err);
+    if (err instanceof ImageValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
     if (isDuplicateKeyError(err)) {
       res.status(409).json({ error: DUPLICATE_MESSAGE });
       return;
@@ -400,6 +532,18 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
 
     // Usa i campi inviati dal client; fallback all'intero change doc per compatibilità
     const toApply = fieldsToApply ?? (change.fields as Record<string, unknown>);
+
+    // Verifica che la selezione dell'admin non produca un array di immagini oltre il limite.
+    // Può accadere se l'admin approva nuove aggiunte ma non approva la rimozione di quelle
+    // già esistenti: il totale supererebbe MAX_IMAGES anche se la proposta dell'utente era valida.
+    if (Array.isArray(toApply.images) && toApply.images.length > MAX_IMAGES) {
+      await session.abortTransaction();
+      const count = toApply.images.length;
+      res.status(400).json({
+        error: `La selezione produce ${count} immagini, il massimo consentito è ${MAX_IMAGES}. Approva almeno ${count - MAX_IMAGES} rimozione/i oppure deseleziona alcune immagini aggiunte.`,
+      });
+      return;
+    }
 
     await Exercise.findByIdAndUpdate(
       id,

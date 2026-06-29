@@ -1,0 +1,84 @@
+# Copyright (c) 2026 Luca Neotti
+# Licensed under the Elastic License v2.0 — see LICENSE for details.
+#
+# minIO come StatefulSet (single-node per ora).
+#
+# Perché StatefulSet e non Deployment: minIO possiede dati su disco e ogni
+# replica deve avere identità stabile (minio-0, minio-1…) e il PROPRIO volume.
+# volumeClaimTemplates crea un PVC dedicato per pod (storage-minio-0, …), così
+# scalare in futuro non richiede di cambiare Kind né di toccare lo storage.
+#
+# replicas resta 1: per il distributed mode (HA) servono ≥4 repliche E un cambio
+# degli `args` alla forma distribuita (vedi nota in fondo) — non basta alzare
+# replicas. Predisporre lo StatefulSet ora azzera però l'attrito strutturale.
+#
+# Credenziali nel secret "minio-secret". Console :9001 non esposta in Ingress.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+  namespace: k9
+spec:
+  serviceName: minio-headless  # Service headless per il DNS per-pod
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+          # Single-node. Per il distributed mode questo diventerebbe:
+          #   ["server", "http://minio-{0...3}.minio-headless.k9.svc.cluster.local/data",
+          #    "--console-address", ":9001"]
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          ports:
+            - containerPort: 9000  # API S3
+            - containerPort: 9001  # Console web
+          volumeMounts:
+            - name: storage
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+  # Un PVC per replica. Nome risultante: storage-minio-0 (poi -1, -2… se si scala).
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi

@@ -22,6 +22,19 @@ interface BodyTarget {
 const movementPlans = ["Mediano", "Trasverso", "Dorsale"] as const;
 type MovementPlan = typeof movementPlans[number];
 
+// Metadati di un'immagine associata all'esercizio. Il binario vive su minIO;
+// qui c'è solo il riferimento. Il client invia questi oggetti come "immagini da
+// mantenere"; il server risolve per id e usa i propri metadati autorevoli.
+interface ExerciseImage {
+    id: string;
+    key: string;
+    filename?: string;
+    mimeType?: string;
+    size?: number;
+    uploadedAt?: string;
+    uploadedBy?: string;
+}
+
 interface Exercise {
     id: string;
     type: string;
@@ -38,6 +51,7 @@ interface Exercise {
     difficultyLevel: number;
 
     setup: string;
+    images: ExerciseImage[];
     user: string | undefined;
     userUpdate: string | undefined;
 }
@@ -70,17 +84,23 @@ const defaultExercise: Exercise = {
     tools: [],
     difficultyLevel: 1,
     setup: "",
+    images: [],
     user: "",
     userUpdate: ""
 };
 
+// Massimo immagini per esercizio (allineato al limite server MAX_IMAGES).
+const MAX_IMAGES = 3;
+
 export type {
     Exercise,
+    ExerciseImage,
 }
 
 export {
     defaultExercise,
     defaultWorkingArea,
     defaultBodyTarget,
-    movementPlans
+    movementPlans,
+    MAX_IMAGES
 }
