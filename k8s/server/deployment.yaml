@@ -48,11 +48,11 @@ spec:
                 secretKeyRef:
                   name: k9-secrets
                   key: K9_JWT_SECRET
-            - name: NOTIFY_API_KEY
+            - name: API_KEY
               valueFrom:
                 secretKeyRef:
                   name: k9-notify-secret
-                  key: NOTIFY_API_KEY
+                  key: API_KEY
             - name: SMTP_PASS
               valueFrom:
                 secretKeyRef:

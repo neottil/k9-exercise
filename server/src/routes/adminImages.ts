@@ -16,7 +16,7 @@ const MAX_DELETIONS_PER_RUN = 50;
 const requireApiKey = (req: Request, res: Response, next: NextFunction): void => {
   const auth = req.headers.authorization;
   const key = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
-  if (!key || key !== process.env.NOTIFY_API_KEY) {
+  if (!key || key !== process.env.API_KEY) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }

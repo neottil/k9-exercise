@@ -4,7 +4,7 @@
 # CronJob che chiama POST /api/admin/gc-images sul server ogni domenica alle 3:00.
 # Rimuove dalle immagini su minIO gli oggetti orfani (non referenziati né dagli
 # esercizi né dai change doc in attesa) più vecchi del grace period.
-# Riusa il secret k9-notify-secret (chiave NOTIFY_API_KEY) come gli altri job admin.
+# Riusa il secret k9-notify-secret (chiave API_KEY) come gli altri job admin.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -24,11 +24,11 @@ spec:
             - name: gc-images
               image: curlimages/curl:latest
               env:
-                - name: NOTIFY_API_KEY
+                - name: API_KEY
                   valueFrom:
                     secretKeyRef:
                       name: k9-notify-secret
-                      key: NOTIFY_API_KEY
+                      key: API_KEY
               resources:
                 requests:
                   cpu: "5m"
@@ -42,7 +42,7 @@ spec:
                 - |
                   echo "→ Avvio garbage collection immagini..."
                   RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST \
-                    -H "Authorization: Bearer $NOTIFY_API_KEY" \
+                    -H "Authorization: Bearer $API_KEY" \
                     -H "Content-Type: application/json" \
                     http://k9-server.k9.svc.cluster.local:3001/api/admin/gc-images)
                   HTTP_CODE=$(echo "$RESPONSE" | tail -1)
