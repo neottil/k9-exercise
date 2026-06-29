@@ -49,9 +49,10 @@ jobs:
 
           HAS_CLIENT=false; HAS_SERVER=false; HAS_K8S=false
 
-          echo "$CHANGED" | grep -qE '^client/' && HAS_CLIENT=true || true
-          echo "$CHANGED" | grep -qE '^server/' && HAS_SERVER=true || true
-          echo "$CHANGED" | grep -qE '^k8s/'    && HAS_K8S=true    || true
+          echo "$CHANGED" | grep -qE '^client/'       && HAS_CLIENT=true || true
+          echo "$CHANGED" | grep -qE '^server/'       && HAS_SERVER=true || true
+          echo "$CHANGED" | grep -qE '^k8s/'          && HAS_K8S=true    || true
+          echo "$CHANGED" | grep -qE '^package\.json' && HAS_K8S=true    || true
 
           if $HAS_CLIENT || $HAS_SERVER || $HAS_K8S; then DEPLOY=true; else DEPLOY=false; fi
 

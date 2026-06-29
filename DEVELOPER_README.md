@@ -648,8 +648,28 @@ GitHub Secrets da impostare: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`.
 Il `docker compose -f local/docker-compose.yml up -d` avvia anche minIO
 (API `:9000`, console web `:9001`, credenziali `minioadmin`/`minioadmin`).
 
-In produzione la console non è esposta: si raggiunge via tunnel SSH +
-`kubectl port-forward` (vedi [analisi/25_gestione_immagini.md](analisi/25_gestione_immagini.md#accedere-alla-console-in-locale-tunnel-ssh)).
+### Console minIO in produzione (tunnel SSH)
+
+La console non è esposta in Ingress. Per accederci dal browser locale:
+
+```bash
+# 1. Sul VPS: forward del pod MinIO verso localhost del VPS
+kubectl port-forward -n k9 statefulset/minio 9001:9001 &
+
+# 2. Dal tuo PC: tunnel SSH che fa arrivare il port-forward in locale
+ssh -i ~/.ssh/k9_deploy -L 9001:localhost:9001 -N deploy@<IP_VPS>
+```
+
+Apri poi `http://localhost:9001` nel browser.
+
+> **Attenzione — inizializzazione credenziali**: MinIO scrive le credenziali
+> (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) sul PersistentVolume **al primo
+> avvio**. I riavvii successivi leggono dal disco, ignorando le env var.
+> Se il pod è stato avviato prima che il secret `minio-secret` fosse popolato
+> correttamente (es. GitHub Secret non ancora configurato), MinIO usa i valori
+> di quel primo avvio (default `minioadmin`/`minioadmin` se le env erano vuote).
+> Per riallineare le credenziali occorre eliminare il PVC e lasciare che MinIO
+> si reinizializzi con i valori corretti del secret.
 
 ---
 
