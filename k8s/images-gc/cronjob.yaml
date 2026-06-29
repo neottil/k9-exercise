@@ -13,8 +13,8 @@ metadata:
 spec:
   schedule: "0 3 * * 0"  # ogni domenica alle 3:00
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
   jobTemplate:
     spec:
       template:
