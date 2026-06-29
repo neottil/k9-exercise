@@ -21,6 +21,7 @@ const Insert = () => {
   const { showSuccess, showError, showErrors } = useNotification();
 
   const [exerciseToSave, setExerciseToSave] = useState<Exercise>(deepCopy(defaultExercise));
+  const [newImages, setNewImages] = useState<File[]>([]);
   const [saveAction, setSaveAction] = useState<boolean>(false);
   const [fetchLoading, setFetchLoading] = useState<boolean>(!!id);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -53,12 +54,31 @@ const Insert = () => {
     });
   }, []);
 
+  // Aggiunge nuovi file immagine (già compressi da ImagesField).
+  const onAddImages = useCallback((files: File[]) => {
+    setNewImages((prev) => [...prev, ...files]);
+  }, []);
+
+  // Rimuove un nuovo file non ancora caricato.
+  const onRemoveNewImage = useCallback((index: number) => {
+    setNewImages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Rimuove un'immagine già esistente: togliere il riferimento è sufficiente,
+  // il file fisico verrà raccolto dal garbage collector lato server.
+  const onRemoveExistingImage = useCallback((imageId: string) => {
+    setExerciseToSave((prev) => ({
+      ...prev,
+      images: (prev.images ?? []).filter((img) => img.id !== imageId),
+    }));
+  }, []);
+
   const save = useCallback(async (): Promise<boolean> => {
     try {
       if (id) {
-        await updateExerciseApi(id, exerciseToSave);
+        await updateExerciseApi(id, exerciseToSave, newImages);
       } else {
-        await createExerciseApi(exerciseToSave);
+        await createExerciseApi(exerciseToSave, newImages);
       }
       showSuccess("Esercizio salvato correttamente");
       return true;
@@ -68,7 +88,7 @@ const Insert = () => {
       showError(message, details);
       return false;
     }
-  }, [exerciseToSave, id, showSuccess, showError]);
+  }, [exerciseToSave, newImages, id, showSuccess, showError]);
 
   useEffect(() => {
     const handleSave = async () => {
@@ -126,7 +146,14 @@ const Insert = () => {
       minHeight={400}
     >
       <Box sx={{ m: 1 }}>
-        <ExerciseForm exercise={exerciseToSave} onChange={updateExerciseToSave} />
+        <ExerciseForm
+          exercise={exerciseToSave}
+          onChange={updateExerciseToSave}
+          newImages={newImages}
+          onAddImages={onAddImages}
+          onRemoveExistingImage={onRemoveExistingImage}
+          onRemoveNewImage={onRemoveNewImage}
+        />
         <Box sx={{ my: 2 }}>
           <Button fullWidth variant="contained" onClick={OnClickSave}>
             Salva

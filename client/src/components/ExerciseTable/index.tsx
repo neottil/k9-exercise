@@ -16,6 +16,7 @@ import { Exercise } from "../../interfaces/exerciseInterfaces";
 import { useFilters } from "../../contexts/FiltersContext";
 import {
   createTypeColumn,
+  createImagesColumn,
   instructorLevel as instructorLevelCol,
   variant,
   description,
@@ -26,6 +27,7 @@ import {
   movementPlan,
   difficultyLevel,
 } from "./columnsDef";
+import ImagesModal from "./ImagesModal";
 
 interface ExerciseTableProps {
   rows: Array<Exercise>;
@@ -40,7 +42,7 @@ const StyledTableContainer = styled(Box)(({ theme }) => ({
 }));
 
 // Colonne statiche — definite fuori dal componente, non ri-create ad ogni render.
-// "type" (con bottone edit) è creata tramite factory in columnsDef.tsx.
+// "type" (con bottone edit) e "images" sono create tramite factory in columnsDef.tsx.
 const staticColumns: GridColDef[] = [
   instructorLevelCol,
   variant,
@@ -62,12 +64,17 @@ const ExerciseTable = ({ rows, loading, error }: ExerciseTableProps) => {
   // Riga selezionata: usata su touch per mostrare il bottone edit al tap
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
+  // Esercizio di cui si stanno visualizzando le immagini nella modale.
+  const [imagesExercise, setImagesExercise] = useState<Exercise | null>(null);
+
   // Colonna "Tipologia" con bottone edit — definita in columnsDef.tsx tramite factory.
   const typeWithEdit = useMemo(() => createTypeColumn(navigate), [navigate]);
+  // Colonna "Immagini" con icona occhio → apre la modale a carosello.
+  const imagesColumn = useMemo(() => createImagesColumn(setImagesExercise), []);
 
   const columns = useMemo(
-    () => [typeWithEdit, ...staticColumns],
-    [typeWithEdit]
+    () => [typeWithEdit, ...staticColumns, imagesColumn],
+    [typeWithEdit, imagesColumn]
   );
 
   const getRowHeight = useCallback(() => "auto", []);
@@ -130,6 +137,12 @@ const ExerciseTable = ({ rows, loading, error }: ExerciseTableProps) => {
             opacity: 1,
           },
         }}
+      />
+      <ImagesModal
+        open={imagesExercise !== null}
+        exerciseId={imagesExercise?.id ?? ""}
+        images={imagesExercise?.images ?? []}
+        onClose={() => setImagesExercise(null)}
       />
     </StyledTableContainer>
   );

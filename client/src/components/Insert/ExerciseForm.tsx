@@ -15,15 +15,27 @@ import { StatBarsField, WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatB
 import TypeSelect, { DEFAULT as TypeSelectDefaultValue } from "../TypeSelect";
 import ArrayField from "../ArrayField";
 import LevelSelect from "../LevelSelect";
-import { type Exercise, movementPlans } from "../../interfaces/exerciseInterfaces";
+import ImagesField from "./ImagesField";
+import { type Exercise, movementPlans, MAX_IMAGES } from "../../interfaces/exerciseInterfaces";
 import { capitalize } from "../../utils/stringUtils";
 
 export interface ExerciseFormProps {
   exercise: Exercise;
   onChange: (name: string, value: string | string[] | number) => void;
+  newImages: File[];
+  onAddImages: (files: File[]) => void;
+  onRemoveExistingImage: (id: string) => void;
+  onRemoveNewImage: (index: number) => void;
 }
 
-const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
+const ExerciseForm = ({
+  exercise,
+  onChange,
+  newImages,
+  onAddImages,
+  onRemoveExistingImage,
+  onRemoveNewImage,
+}: ExerciseFormProps) => {
   const [newType, setNewType] = useState(false);
 
   const onTextChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -45,12 +57,14 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
             "tools"
             "setup"
             "area"
+            "images"
           `,
           md: `
             "type variant"
             "description piano"
             "tools setup"
             "area area"
+            "images images"
           `,
         },
       }}
@@ -206,6 +220,19 @@ const ExerciseForm = ({ exercise, onChange }: ExerciseFormProps) => {
             onChange={onChange}
           />
         </Box>
+      </Box>
+
+      {/* Immagini */}
+      <Box sx={{ gridArea: "images" }}>
+        <ImagesField
+          exerciseId={exercise.id}
+          existing={exercise.images ?? []}
+          newFiles={newImages}
+          max={MAX_IMAGES}
+          onAddFiles={onAddImages}
+          onRemoveExisting={onRemoveExistingImage}
+          onRemoveNew={onRemoveNewImage}
+        />
       </Box>
     </Box>
   );

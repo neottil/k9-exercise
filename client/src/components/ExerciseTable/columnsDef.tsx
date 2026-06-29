@@ -5,6 +5,7 @@ import { Chip, Typography } from "@mui/material";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { GridColDef, GridColumnHeaderParams, GridRenderCellParams } from "@mui/x-data-grid";
 import { NavigateFunction } from "react-router-dom";
 import { Exercise } from "../../interfaces/exerciseInterfaces";
@@ -85,6 +86,34 @@ export const createTypeColumn = (navigate: NavigateFunction): GridColDef => ({
       </IconButton>
     </Box>
   ),
+});
+
+/**
+ * Factory per la colonna "Immagini": mostra l'icona occhio solo se l'esercizio
+ * ha immagini; al click apre la modale a carosello tramite il callback onView.
+ */
+export const createImagesColumn = (onView: (exercise: Exercise) => void): GridColDef => ({
+  field: "images",
+  headerName: "Immagini",
+  headerClassName: "super-app-theme--header",
+  renderHeader,
+  filterable: false,
+  sortable: false,
+  minWidth: 90,
+  renderCell: ({ row }: { row: Exercise }) =>
+    row.images?.length ? (
+      <IconButton
+        size="small"
+        color="primary"
+        onClick={(e) => {
+          e.stopPropagation();
+          onView(row);
+        }}
+        title={`Visualizza ${row.images.length} immagin${row.images.length === 1 ? "e" : "i"}`}
+      >
+        <VisibilityIcon fontSize="small" />
+      </IconButton>
+    ) : null,
 });
 
 const variant: GridColDef = {

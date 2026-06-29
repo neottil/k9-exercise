@@ -27,7 +27,8 @@ import { StatBarInline, WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatB
 import TypeSelect, { DEFAULT as TypeSelectDefaultValue } from "../TypeSelect";
 import LevelSelect from "../LevelSelect";
 import ArrayField from "../ArrayField";
-import { movementPlans } from "../../interfaces/exerciseInterfaces";
+import { movementPlans, type ExerciseImage } from "../../interfaces/exerciseInterfaces";
+import { exerciseImageUrl } from "../../api/exercises";
 import { capitalize } from "../../utils/stringUtils";
 
 export const BG_CURRENT  = "#ffebee";
@@ -35,7 +36,7 @@ export const BG_PROPOSED = "#e8f5e9";
 
 export const DISPLAY_FIELDS = [
   "instructorLevel", "type", "variant", "description", "difficultyLevel",
-  "tools", "setup", "movementPlan", "workingArea", "bodyTarget",
+  "tools", "setup", "movementPlan", "workingArea", "bodyTarget", "images",
 ] as const;
 
 export const FIELD_LABELS: Record<string, string> = {
@@ -49,6 +50,7 @@ export const FIELD_LABELS: Record<string, string> = {
   movementPlan:    "Piano di movimento",
   workingArea:     "Area target",
   bodyTarget:      "Body target",
+  images:          "Immagini",
 };
 
 export type FieldSelection = Record<string, boolean | Record<string, boolean>>;
@@ -68,6 +70,29 @@ export const renderValue = (value: unknown): ReactNode => {
     );
   }
   return <Typography variant="body2">{String(value)}</Typography>;
+};
+
+// Anteprime immagini: usa l'endpoint server, che risolve la key sia dalle
+// immagini approvate sia da quelle ancora nel change doc (modifica in attesa).
+const ImagesValue = ({ exerciseId, value }: { exerciseId?: string; value: unknown }) => {
+  const list = Array.isArray(value) ? (value as ExerciseImage[]) : [];
+  if (list.length === 0)
+    return <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>—</Typography>;
+  if (!exerciseId)
+    return renderValue(list.map((img) => img.filename ?? img.id));
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, py: 0.5 }}>
+      {list.map((img) => (
+        <Box
+          key={img.id}
+          component="img"
+          src={exerciseImageUrl(exerciseId, img.id)}
+          alt={img.filename ?? ""}
+          sx={{ width: 64, height: 64, objectFit: "cover", borderRadius: 0.5, border: "1px solid", borderColor: "divider" }}
+        />
+      ))}
+    </Box>
+  );
 };
 
 // ── Editor in-place ──────────────────────────────────────────────────────────
@@ -163,30 +188,35 @@ interface ValueCellProps {
   isEditing: boolean;
   editedValue: unknown;
   onEditedChange: (value: unknown) => void;
+  exerciseId?: string;     // serve a costruire gli URL delle anteprime immagini
 }
 
-const ValueCell = ({ field, currentValue, proposed, isChanged, isEditing, editedValue, onEditedChange }: ValueCellProps) => {
+const ValueCell = ({ field, currentValue, proposed, isChanged, isEditing, editedValue, onEditedChange, exerciseId }: ValueCellProps) => {
   const showCurrent = currentValue !== undefined;
   const editBg = "grey.100";
 
+  // Le immagini non sono modificabili in review: si renderizzano come anteprime.
+  const renderField = (value: unknown): ReactNode =>
+    field === "images" ? <ImagesValue exerciseId={exerciseId} value={value} /> : renderValue(value);
+
   if (!isChanged) {
-    return <Box sx={{ p: 1, opacity: 0.45 }}>{renderValue(showCurrent ? currentValue : proposed)}</Box>;
+    return <Box sx={{ p: 1, opacity: 0.45 }}>{renderField(showCurrent ? currentValue : proposed)}</Box>;
   }
 
   return (
     <>
       {showCurrent && (
         <Box sx={{ bgcolor: BG_CURRENT, p: 1, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
-          {renderValue(currentValue)}
+          {renderField(currentValue)}
         </Box>
       )}
-      {isEditing ? (
+      {isEditing && field !== "images" ? (
         <Box sx={{ bgcolor: editBg }}>
           <FieldEditor field={field} value={editedValue} onChange={onEditedChange} />
         </Box>
       ) : (
         <Box sx={{ bgcolor: BG_PROPOSED, p: 1 }}>
-          {renderValue(proposed)}
+          {renderField(proposed)}
         </Box>
       )}
     </>
@@ -285,6 +315,81 @@ const AreaSubCards = ({
   );
 };
 
+// ── Sub-card immagini ─────────────────────────────────────────────────────────
+
+interface ImageSubCardsProps {
+  exerciseId?: string;
+  currentImages: ExerciseImage[];
+  proposedImages: ExerciseImage[];
+  showCheckbox: boolean;
+  imageSelection: Record<string, boolean>;
+  onToggleImage: (imageId: string) => void;
+}
+
+const ImageSubCards = ({
+  exerciseId, currentImages, proposedImages, showCheckbox, imageSelection, onToggleImage,
+}: ImageSubCardsProps) => {
+  const currentIds  = new Set(currentImages.map((img) => img.id));
+  const proposedIds = new Set(proposedImages.map((img) => img.id));
+
+  const keptImages    = currentImages.filter((img) =>  proposedIds.has(img.id));
+  const removedImages = currentImages.filter((img) => !proposedIds.has(img.id));
+  const addedImages   = proposedImages.filter((img) => !currentIds.has(img.id));
+
+  const thumbSx = {
+    width: 72, height: 72, objectFit: "cover" as const,
+    borderRadius: 0.5, border: "1px solid", borderColor: "divider", display: "block",
+  };
+
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+      {keptImages.map((img) => (
+        <Box key={img.id} sx={{ opacity: 0.45 }}>
+          <Box component="img"
+            src={exerciseId ? exerciseImageUrl(exerciseId, img.id) : undefined}
+            alt={img.filename ?? ""}
+            sx={thumbSx}
+          />
+        </Box>
+      ))}
+      {removedImages.map((img) => {
+        const removing = imageSelection[img.id] !== false; // true di default → rimozione applicata
+        return (
+          <Box key={img.id} sx={{ border: 1, borderColor: "error.main", borderRadius: 0.5, overflow: "hidden" }}>
+            <Box sx={{ px: 0.5, py: 0.25, bgcolor: BG_CURRENT, display: "flex", alignItems: "center", gap: 0.5 }}>
+              {showCheckbox && (
+                <Checkbox size="small" checked={removing} onChange={() => onToggleImage(img.id)} sx={{ p: 0 }} />
+              )}
+            </Box>
+            <Box component="img"
+              src={exerciseId ? exerciseImageUrl(exerciseId, img.id) : undefined}
+              alt={img.filename ?? ""}
+              sx={{ ...thumbSx, opacity: removing ? 0.35 : 1 }}
+            />
+          </Box>
+        );
+      })}
+      {addedImages.map((img) => {
+        const checked = !!imageSelection[img.id];
+        return (
+          <Box key={img.id} sx={{ border: 1, borderColor: "success.main", borderRadius: 0.5, overflow: "hidden" }}>
+            {showCheckbox && (
+              <Box sx={{ px: 0.5, py: 0.25, bgcolor: BG_PROPOSED, display: "flex", alignItems: "center" }}>
+                <Checkbox size="small" checked={checked} onChange={() => onToggleImage(img.id)} sx={{ p: 0 }} />
+              </Box>
+            )}
+            <Box component="img"
+              src={exerciseId ? exerciseImageUrl(exerciseId, img.id) : undefined}
+              alt={img.filename ?? ""}
+              sx={{ ...thumbSx, opacity: checked || !showCheckbox ? 1 : 0.35 }}
+            />
+          </Box>
+        );
+      })}
+    </Box>
+  );
+};
+
 // ── Props principali ─────────────────────────────────────────────────────────
 
 export interface ExerciseReviewTableProps {
@@ -292,6 +397,8 @@ export interface ExerciseReviewTableProps {
   proposed: Record<string, unknown>;
   // Valori approvati correnti: se assente → modalità nuovo esercizio (solo verde, no rosso)
   original?: Record<string, unknown>;
+  // Id dell'esercizio: usato per costruire gli URL delle anteprime immagini
+  exerciseId?: string;
   // Campi da evidenziare con pencil: in change mode = Object.keys(change.fields), in new mode = tutti
   changedFields: string[];
   // Checkbox per selezione selettiva (solo change mode)
@@ -313,7 +420,7 @@ export interface ExerciseReviewTableProps {
 // ── Componente ───────────────────────────────────────────────────────────────
 
 const ExerciseReviewTable = ({
-  proposed, original, changedFields, showCheckboxes = false,
+  proposed, original, exerciseId, changedFields, showCheckboxes = false,
   fieldSelection = {}, onToggleField, onToggleSubField,
   editingFields, editedValues, editingSubFields, editedSubValues,
   onToggleEditField, onEditedChange, onToggleEditSubField, onEditedSubChange,
@@ -401,6 +508,34 @@ const ExerciseReviewTable = ({
 
             if (field === "bodyTarget") return null;
 
+            // Immagini in modalità sub-selezione per-immagine (change mode con aggiunte)
+            if (
+              field === "images" &&
+              typeof fieldSelection["images"] === "object" &&
+              fieldSelection["images"] !== null
+            ) {
+              const imageSelection = fieldSelection["images"] as Record<string, boolean>;
+              const currentImgs  = ((original?.images  ?? []) as ExerciseImage[]);
+              const proposedImgs = ((proposed.images ?? []) as ExerciseImage[]);
+              return (
+                <TableRow key="images">
+                  <TableCell colSpan={3} sx={{ p: 1 }}>
+                    <Typography sx={{ fontWeight: "bold", fontSize: 13, px: 1, py: 0.75, bgcolor: "grey.100", borderRadius: 0.5, mb: 1 }}>
+                      {FIELD_LABELS.images}
+                    </Typography>
+                    <ImageSubCards
+                      exerciseId={exerciseId}
+                      currentImages={currentImgs}
+                      proposedImages={proposedImgs}
+                      showCheckbox={showCheckboxes}
+                      imageSelection={imageSelection}
+                      onToggleImage={(imgId) => onToggleSubField?.("images", imgId)}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            }
+
             const checked   = isChanged && !!fieldSelection[field];
             const isEditing = isChanged && !!editingFields[field];
 
@@ -412,13 +547,15 @@ const ExerciseReviewTable = ({
                       {showCheckboxes && onToggleField && (
                         <Checkbox size="small" checked={checked} onChange={() => onToggleField(field)} sx={{ p: 0 }} />
                       )}
-                      <Tooltip title={isEditing ? "Annulla modifica" : "Modifica valore"}>
-                        <IconButton size="small" sx={{ p: 0 }} onClick={() => onToggleEditField(field)}>
-                          {isEditing
-                            ? <CloseIcon sx={{ fontSize: 14, color: "error.main" }} />
-                            : <EditOutlinedIcon sx={{ fontSize: 14, color: "text.disabled" }} />}
-                        </IconButton>
-                      </Tooltip>
+                      {field !== "images" && (
+                        <Tooltip title={isEditing ? "Annulla modifica" : "Modifica valore"}>
+                          <IconButton size="small" sx={{ p: 0 }} onClick={() => onToggleEditField(field)}>
+                            {isEditing
+                              ? <CloseIcon sx={{ fontSize: 14, color: "error.main" }} />
+                              : <EditOutlinedIcon sx={{ fontSize: 14, color: "text.disabled" }} />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                   )}
                 </TableCell>
@@ -434,6 +571,7 @@ const ExerciseReviewTable = ({
                     isEditing={isEditing}
                     editedValue={editedValues[field]}
                     onEditedChange={(v) => onEditedChange(field, v)}
+                    exerciseId={exerciseId}
                   />
                 </TableCell>
               </TableRow>

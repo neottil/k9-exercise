@@ -219,6 +219,11 @@ jobs:
             --from-literal=SMTP_PASS="${{ secrets.SMTP_PASS }}" \
             --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
+          kubectl create secret generic minio-secret \
+            --from-literal=MINIO_ROOT_USER="${{ vars.MINIO_ROOT_USER }}" \
+            --from-literal=MINIO_ROOT_PASSWORD="${{ secrets.MINIO_ROOT_PASSWORD }}" \
+            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
+
           kubectl create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
             --docker-username=${{ github.repository_owner }} \
@@ -246,6 +251,10 @@ jobs:
           kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
           kubectl apply -f /opt/k9/k8s/server/service.yaml
           kubectl apply -f /opt/k9/k8s/client/service.yaml
+
+          # Storage immagini (minIO) — StatefulSet con volumeClaimTemplates
+          kubectl apply -f /opt/k9/k8s/minio/service.yaml
+          kubectl apply -f /opt/k9/k8s/minio/statefulset.yaml
           envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
           envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
 
@@ -262,6 +271,7 @@ jobs:
           kubectl rollout status deployment/k9-client -n k9 --timeout=120s
 
           kubectl apply -f /opt/k9/k8s/notify/cronjob.yaml
+          kubectl apply -f /opt/k9/k8s/images-gc/cronjob.yaml
           ENDSSH
 
       - name: Job summary

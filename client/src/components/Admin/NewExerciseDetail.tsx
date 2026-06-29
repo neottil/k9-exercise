@@ -100,6 +100,7 @@ const NewExerciseDetail = ({ exercise, onApprove, onReject, loading }: NewExerci
 
         <ExerciseReviewTable
           proposed={exerciseAsMap}
+          exerciseId={exercise.id}
           changedFields={[...DISPLAY_FIELDS]}
           showCheckboxes={false}
           editingFields={editingFields}

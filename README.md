@@ -142,6 +142,7 @@ La pagina Home mostra la **tabella di tutti gli esercizi approvati** nel databas
 | **Body Target** | Istogramma visuale delle 5 zone corporee (0–5) |
 | **Piano di Movimento** | Chip con i piani di movimento attivi (Mediano/Trasverso/Dorsale) |
 | **Difficoltà** | Valore numerico da 1 a 5, difficoltà della variante all'interno della tipologia |
+| **Immagini** | Icona 👁 se l'esercizio ha immagini: cliccala per aprire la galleria a scorrimento |
 
 ### 4.2 Pulsante modifica (✎)
 
@@ -150,7 +151,13 @@ La pagina Home mostra la **tabella di tutti gli esercizi approvati** nel databas
 
 Cliccando ✎ si apre il form di modifica precompilato con i dati dell'esercizio selezionato.
 
-### 4.3 Ordinamento e filtri colonna
+### 4.3 Galleria immagini (👁)
+
+Se un esercizio ha immagini, nella colonna **Immagini** compare l'icona 👁.
+Cliccandola si apre una finestra che mostra le immagini una alla volta, con le
+frecce per scorrere avanti e indietro.
+
+### 4.4 Ordinamento e filtri colonna
 
 La tabella supporta ordinamento e filtraggio nativo:
 - Clicca sull'intestazione di una colonna per **ordinare** (asc/desc)
@@ -292,6 +299,16 @@ Indica con un valore da **0 a 5** l'intensità di lavoro per ciascuna zona corpo
 | **Core** | Addome, stabilizzatori del tronco |
 | **Colonna** | Rachide, muscolatura paravertebrale |
 | **Fullbody** | Coinvolge tutto il corpo uniformemente |
+
+#### Immagini *(facoltativo)*
+Puoi allegare fino a **3 immagini** per esercizio.
+
+1. Clicca il riquadro **＋** per scegliere uno o più file immagine
+2. Le anteprime appaiono in fila; il contatore mostra quante immagini hai (es. *2/3*)
+3. Passa il mouse (o tocca) un'anteprima e usa l'icona cestino per rimuoverla
+4. Le immagini vengono ottimizzate automaticamente prima del caricamento
+
+Le immagini si vedono poi nella galleria 👁 della tabella (vedi sezione 4.3).
 
 ### 6.2 Salvataggio
 

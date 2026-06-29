@@ -41,24 +41,43 @@ export const getExercise = async (id: string): Promise<Exercise> => {
   return res.json();
 };
 
-export const createExercise = async (exercise: Exercise): Promise<Exercise> => {
+// Costruisce il FormData multipart: l'esercizio come JSON nel campo "exercise"
+// (include le immagini esistenti da mantenere) + i nuovi file in "images".
+const buildExerciseFormData = (exercise: Exercise, newImages: File[]): FormData => {
+  const fd = new FormData();
+  fd.append("exercise", JSON.stringify(exercise));
+  for (const file of newImages) fd.append("images", file);
+  return fd;
+};
+
+export const createExercise = async (exercise: Exercise, newImages: File[] = []): Promise<Exercise> => {
+  // Niente header Content-Type: il browser lo imposta con il boundary multipart.
   const res = await apiFetch(BASE_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(exercise),
+    body: buildExerciseFormData(exercise, newImages),
   });
   if (!res.ok) throw await apiError(res, "Errore nel salvataggio dell'esercizio");
   return res.json();
 };
 
-export const updateExercise = async (id: string, exercise: Exercise): Promise<Exercise> => {
+export const updateExercise = async (id: string, exercise: Exercise, newImages: File[] = []): Promise<Exercise> => {
   const res = await apiFetch(`${BASE_URL}/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(exercise),
+    body: buildExerciseFormData(exercise, newImages),
   });
   if (!res.ok) throw await apiError(res, "Errore nell'aggiornamento dell'esercizio");
   return res.json();
+};
+
+/** URL del binario immagine — utilizzabile direttamente come `<img src>`. */
+export const exerciseImageUrl = (exerciseId: string, imageId: string): string =>
+  `${BASE_URL}/${exerciseId}/images/${imageId}`;
+
+/** Scarica il binario di un'immagine come Blob (per la modale a carosello). */
+export const fetchExerciseImage = async (exerciseId: string, imageId: string): Promise<Blob> => {
+  const res = await apiFetch(exerciseImageUrl(exerciseId, imageId));
+  if (!res.ok) throw await apiError(res, "Errore nel recupero dell'immagine");
+  return res.blob();
 };
 
 export const listExerciseTypes = async (): Promise<string[]> => {

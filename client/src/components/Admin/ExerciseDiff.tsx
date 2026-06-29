@@ -6,6 +6,7 @@ import { Box, Button, Divider, Typography } from "@mui/material";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import type { PendingItem } from "../../interfaces/adminInterfaces";
+import type { ExerciseImage } from "../../interfaces/exerciseInterfaces";
 import { WORKING_AREA_LABELS, BODY_TARGET_LABELS } from "../StatBars";
 import ExerciseReviewTable, { type FieldSelection } from "./ExerciseReviewTable";
 
@@ -47,6 +48,17 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
         for (const sub of Object.keys(subLabels)) {
           if ((cur?.[sub] ?? 0) !== (prop[sub] ?? 0)) subSel[sub] = true;
         }
+        initial[field] = subSel;
+      } else if (field === "images") {
+        const proposedImgs   = (chMap[field] as ExerciseImage[]) ?? [];
+        const allCurrentImgs = (exMap.images as ExerciseImage[] | undefined) ?? [];
+        const currentIds     = new Set(allCurrentImgs.map((i) => i.id));
+        const proposedIds    = new Set(proposedImgs.map((i) => i.id));
+        const addedImgs      = proposedImgs.filter((img) => !currentIds.has(img.id));
+        const removedImgs    = allCurrentImgs.filter((img) => !proposedIds.has(img.id));
+        const subSel: Record<string, boolean> = {};
+        for (const img of addedImgs)   subSel[img.id] = true;  // default: applica l'aggiunta
+        for (const img of removedImgs) subSel[img.id] = true;  // default: applica la rimozione
         initial[field] = subSel;
       } else {
         initial[field] = true;
@@ -118,6 +130,8 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
   const hasAnySelected = Object.entries(fieldSelection).some(([field, sel]) => {
     if (field === "workingArea" || field === "bodyTarget")
       return Object.values(sel as Record<string, boolean>).some((v) => v);
+    if (field === "images" && typeof sel === "object" && sel !== null)
+      return true; // il set finale è sempre definito in sub-mode, il bottone resta abilitato
     return !!sel;
   });
 
@@ -136,6 +150,22 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
           if (checked) merged[sub] = editedArea[sub] !== undefined ? editedArea[sub] : (proposed[sub] ?? 0);
         }
         result[field] = merged;
+      } else if (field === "images") {
+        if (typeof sel === "object" && sel !== null) {
+          const imgSel         = sel as Record<string, boolean>;
+          const currentImgs    = (exerciseAsMap.images as ExerciseImage[] | undefined) ?? [];
+          const proposedImgs   = (changedAsMap.images  as ExerciseImage[] | undefined) ?? [];
+          const currentIds     = new Set(currentImgs.map((i) => i.id));
+          const proposedIds    = new Set(proposedImgs.map((i) => i.id));
+          const keptImgs       = currentImgs.filter((img) =>  proposedIds.has(img.id));
+          const addedImgs      = proposedImgs.filter((img) => !currentIds.has(img.id));
+          const removedImgs    = currentImgs.filter((img) => !proposedIds.has(img.id));
+          const selectedAdded   = addedImgs.filter((img) =>  !!imgSel[img.id]); // checked = aggiunta approvata
+          const restoredRemoved = removedImgs.filter((img) => !imgSel[img.id]); // unchecked = rimozione rigettata, immagine conservata
+          result[field] = [...keptImgs, ...selectedAdded, ...restoredRemoved];
+        } else if (sel) {
+          result[field] = changedAsMap[field];
+        }
       } else {
         if (sel) result[field] = editedValues[field] !== undefined ? editedValues[field] : changedAsMap[field];
       }
@@ -172,6 +202,7 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
         <ExerciseReviewTable
           proposed={changedAsMap}
           original={exerciseAsMap}
+          exerciseId={exercise.id}
           changedFields={changedFields}
           showCheckboxes
           fieldSelection={fieldSelection}

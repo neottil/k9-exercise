@@ -14,7 +14,9 @@ import MongoStore from "connect-mongo";
 import exerciseRoutes from "./routes/exercises.js";
 import authRoutes from "./routes/auth.js";
 import notifyRoutes from "./routes/notify.js";
+import gcImagesRoutes from "./routes/adminImages.js";
 import { requireAuth } from "./middleware/requireAuth.js";
+import { ensureBucket } from "./config/minio.js";
 
 // Il .env è alla root del monorepo (due livelli sopra server/src/)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +68,7 @@ app.use(
 app.use("/api/auth", authRoutes);
 app.use("/api/exercises", requireAuth, exerciseRoutes);
 app.use("/api/admin/notify", notifyRoutes);
+app.use("/api/admin/gc-images", gcImagesRoutes);
 
 app.get("/api/info", (_req, res) => {
   res.json({ version: serverVersion });
@@ -144,4 +147,8 @@ const connectWithRetry = async (): Promise<void> => {
 app.listen(PORT, () => {
   console.log(`[SERVER] Avviato sulla porta ${PORT} | ${new Date().toISOString()}`);
   connectWithRetry();
+  // Crea il bucket immagini se non esiste. Non blocca l'avvio: in caso di
+  // errore (minIO non ancora pronto) logga e i singoli upload falliranno
+  // con un errore esplicito.
+  ensureBucket();
 });

@@ -25,6 +25,22 @@ const BodyTargetSchema = new Schema(
   { _id: false }
 );
 
+// Metadati di un'immagine associata all'esercizio. Il binario vive su minIO:
+// qui si salva solo il riferimento (key) più i metadati. Vedi
+// analisi/25_gestione_immagini.md.
+const ImageSchema = new Schema(
+  {
+    id: { type: String, required: true }, // UUID, identifica l'immagine
+    key: { type: String, required: true }, // key S3 (contiene l'UUID)
+    filename: String, // nome file originale
+    mimeType: String, // es. "image/webp"
+    size: Number, // byte (dopo compressione)
+    uploadedAt: { type: Date, default: Date.now },
+    uploadedBy: String, // username
+  },
+  { _id: false }
+);
+
 const ExerciseSchema = new Schema(
   {
     _id: { type: String },
@@ -38,6 +54,7 @@ const ExerciseSchema = new Schema(
     setup: String,
     difficultyLevel: Number,
     instructorLevel: { type: String, default: "BSS" },
+    images: { type: [ImageSchema], default: [] },
     state: String,
     user: String,
     userUpdate: String,
