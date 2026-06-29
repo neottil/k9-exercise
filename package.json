@@ -10,7 +10,6 @@
     "lock:docker": "bash scripts/docker-lock.sh"
   },
   "devDependencies": {
-    "concurrently": "^10.0.0",
-    "puppeteer": "^25.2.1"
+    "concurrently": "^10.0.0"
   }
 }
