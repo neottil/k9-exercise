@@ -11,10 +11,10 @@
 const EMAIL            = "token@esempio.com";
 const USERNAME         = "approver";
 const ROLE             = "admin";                    // "viewer" | "admin"
-const INSTRUCTOR_LEVEL = "BSS";   // "BSS" | "CTS"
+const INSTRUCTOR_LEVEL = "CTS";   // "BSS" | "CTS"
 const EXPIRES_SECONDS  = 300;                        // durata del token in secondi (default WP: 300 = 5 min)
-const BASE_URL      = "http://localhost:5173";    // porta del Vite dev server (proxy verso il backend)
-//const BASE_URL         = "https://k9-exercise.lucaneotti.click";
+// const BASE_URL      = "http://localhost:5173";    // porta del Vite dev server (proxy verso il backend)
+const BASE_URL         = "https://k9-exercise.lucaneotti.click";
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createHmac } from "crypto";
@@ -61,7 +61,7 @@ const token   = `${header}.${payload}.${sig}`;
 // NON puntare direttamente al backend (3001): il redirect finale finirebbe su 3001 senza frontend.
 const url = `${BASE_URL}/api/auth/wp-callback?token=${encodeURIComponent(token)}`;
 
-const expDate = new Date((now + EXPIRES_SECONDS) * 1000).toLocaleTimeString("it-IT");
+const expDate = new Date((now + EXPIRES_SECONDS) * 1000).toLocaleDateString("it-IT");
 
 console.log("─────────────────────────────────────────────");
 console.log(`  email    : ${EMAIL}`);
