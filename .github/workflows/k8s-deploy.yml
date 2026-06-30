@@ -28,6 +28,18 @@ on:
         type: string
         required: false
         default: ''
+      has_client:
+        type: string
+        required: false
+        default: 'true'
+      has_server:
+        type: string
+        required: false
+        default: 'true'
+      has_k8s:
+        type: string
+        required: false
+        default: 'true'
 
 jobs:
   deploy:
@@ -37,7 +49,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Checkout k8s manifests at specific version
-        if: inputs.k8s_version != ''
+        if: inputs.environment == 'production'
         uses: actions/checkout@v6
         with:
           ref: k8s-${{ inputs.k8s_version }}
@@ -64,23 +76,27 @@ jobs:
               ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
           export KUBECONFIG=/home/deploy/.kube/config
 
+          HAS_CLIENT="${{ inputs.has_client }}"
+          HAS_SERVER="${{ inputs.has_server }}"
+          HAS_K8S="${{ inputs.has_k8s }}"
+
+          # ── Comune ────────────────────────────────────────────────────────────────
           kubectl apply -f /opt/k9/k8s/namespace.yaml
 
-          kubectl create secret generic k9-secrets \
-            --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
-            --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
-            --from-literal=K9_JWT_SECRET="${{ secrets.K9_JWT_SECRET }}" \
-            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
-
-          kubectl create secret generic k9-notify-secret \
-            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
-            --from-literal=SMTP_PASS="${{ secrets.SMTP_PASS }}" \
-            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
-
-          kubectl create secret generic minio-secret \
-            --from-literal=MINIO_ROOT_USER="${{ vars.MINIO_ROOT_USER }}" \
-            --from-literal=MINIO_ROOT_PASSWORD="${{ secrets.MINIO_ROOT_PASSWORD }}" \
-            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
+          if ! kubectl get configmap k9-versions -n k9 &>/dev/null; then
+            kubectl create configmap k9-versions \
+              --from-literal=CLIENT_VERSION="${{ inputs.client_version }}" \
+              --from-literal=SERVER_VERSION="${{ inputs.server_version }}" \
+              --from-literal=INFRA_VERSION="${{ inputs.k8s_version }}" \
+              --namespace=k9
+          else
+            [ "$HAS_CLIENT" = "true" ] && kubectl patch configmap k9-versions -n k9 --type=merge \
+              -p '{"data":{"CLIENT_VERSION":"${{ inputs.client_version }}"}}'
+            [ "$HAS_SERVER" = "true" ] && kubectl patch configmap k9-versions -n k9 --type=merge \
+              -p '{"data":{"SERVER_VERSION":"${{ inputs.server_version }}"}}'
+            [ "$HAS_K8S"    = "true" ] && kubectl patch configmap k9-versions -n k9 --type=merge \
+              -p '{"data":{"INFRA_VERSION":"${{ inputs.k8s_version }}"}}'
+          fi
 
           kubectl create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
@@ -88,44 +104,71 @@ jobs:
             --docker-password="${{ secrets.GHCR_PAT }}" \
             --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
-          export DOMAIN="${{ vars.DOMAIN }}"
-          export LOGIN_TYPE="${{ vars.LOGIN_TYPE }}"
-          export LOGIN_SITE_URL="${{ vars.LOGIN_SITE_URL }}"
-          export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
-          export SMTP_HOST="${{ vars.SMTP_HOST }}"
-          export SMTP_PORT="${{ vars.SMTP_PORT }}"
-          export SMTP_USER="${{ vars.SMTP_USER }}"
-          export NOTIFY_RECIPIENTS="${{ vars.NOTIFY_RECIPIENTS }}"
-          export APP_URL="https://${{ vars.DOMAIN }}"
+          # ── K8s infrastruttura ────────────────────────────────────────────────────
+          if [ "$HAS_K8S" = "true" ]; then
+            export DOMAIN="${{ vars.DOMAIN }}"
+            export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
 
-          kubectl apply -f /opt/k9/k8s/traefik-config.yaml
+            kubectl apply -f /opt/k9/k8s/traefik-config.yaml
 
-          if kubectl get crd clusterissuers.cert-manager.io &>/dev/null; then
-            kubectl wait --for=condition=available deployment \
-              --all --namespace cert-manager --timeout=60s || true
-            envsubst '${LETSENCRYPT_EMAIL}' < /opt/k9/k8s/cert-manager/clusterissuer.yaml | kubectl apply -f -
+            if kubectl get crd clusterissuers.cert-manager.io &>/dev/null; then
+              kubectl wait --for=condition=available deployment \
+                --all --namespace cert-manager --timeout=60s || true
+              envsubst '${LETSENCRYPT_EMAIL}' < /opt/k9/k8s/cert-manager/clusterissuer.yaml | kubectl apply -f -
+            fi
+
+            kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
+            kubectl apply -f /opt/k9/k8s/server/service.yaml
+            kubectl apply -f /opt/k9/k8s/client/service.yaml
+            kubectl apply -f /opt/k9/k8s/minio/service.yaml
+            kubectl apply -f /opt/k9/k8s/minio/statefulset.yaml
+            envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml    | kubectl apply -f -
+            envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml | kubectl apply -f -
+
+            kubectl apply -f /opt/k9/k8s/notify/cronjob.yaml
+            kubectl apply -f /opt/k9/k8s/images-gc/cronjob.yaml
           fi
 
-          kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
-          kubectl apply -f /opt/k9/k8s/server/service.yaml
-          kubectl apply -f /opt/k9/k8s/client/service.yaml
-          kubectl apply -f /opt/k9/k8s/minio/service.yaml
-          kubectl apply -f /opt/k9/k8s/minio/statefulset.yaml
-          envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
-          envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
+          # ── Server ────────────────────────────────────────────────────────────────
+          if [ "$HAS_SERVER" = "true" ] || [ "$HAS_K8S" = "true" ]; then
+            kubectl create secret generic k9-secrets \
+              --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+              --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+              --from-literal=K9_JWT_SECRET="${{ secrets.K9_JWT_SECRET }}" \
+              --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
-          echo "→ Deploy server:${{ inputs.server_version }}"
-          export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ inputs.server_version }}"
-          envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
-          kubectl rollout restart deployment/k9-server -n k9
-          kubectl rollout status deployment/k9-server -n k9 --timeout=120s
+            kubectl create secret generic k9-notify-secret \
+              --from-literal=API_KEY="${{ secrets.API_KEY }}" \
+              --from-literal=SMTP_PASS="${{ secrets.SMTP_PASS }}" \
+              --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
-          echo "→ Deploy client:${{ inputs.client_version }}"
-          export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ inputs.client_version }}"
-          envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
-          kubectl rollout restart deployment/k9-client -n k9
-          kubectl rollout status deployment/k9-client -n k9 --timeout=120s
+            kubectl create secret generic minio-secret \
+              --from-literal=MINIO_ROOT_USER="${{ vars.MINIO_ROOT_USER }}" \
+              --from-literal=MINIO_ROOT_PASSWORD="${{ secrets.MINIO_ROOT_PASSWORD }}" \
+              --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
 
-          kubectl apply -f /opt/k9/k8s/notify/cronjob.yaml
-          kubectl apply -f /opt/k9/k8s/images-gc/cronjob.yaml
+            export LOGIN_TYPE="${{ vars.LOGIN_TYPE }}"
+            export LOGIN_SITE_URL="${{ vars.LOGIN_SITE_URL }}"
+            export SMTP_HOST="${{ vars.SMTP_HOST }}"
+            export SMTP_PORT="${{ vars.SMTP_PORT }}"
+            export SMTP_USER="${{ vars.SMTP_USER }}"
+            export NOTIFY_RECIPIENTS="${{ vars.NOTIFY_RECIPIENTS }}"
+            export APP_URL="https://${{ vars.DOMAIN }}"
+
+            echo "→ Deploy server:${{ inputs.server_version }}"
+            export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ inputs.server_version }}"
+            envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' \
+              < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
+            kubectl rollout restart deployment/k9-server -n k9
+            kubectl rollout status deployment/k9-server -n k9 --timeout=120s
+          fi
+
+          # ── Client ────────────────────────────────────────────────────────────────
+          if [ "$HAS_CLIENT" = "true" ] || [ "$HAS_K8S" = "true" ]; then
+            echo "→ Deploy client:${{ inputs.client_version }}"
+            export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ inputs.client_version }}"
+            envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
+            kubectl rollout restart deployment/k9-client -n k9
+            kubectl rollout status deployment/k9-client -n k9 --timeout=120s
+          fi
           ENDSSH

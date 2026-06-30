@@ -61,17 +61,15 @@ const token   = `${header}.${payload}.${sig}`;
 // NON puntare direttamente al backend (3001): il redirect finale finirebbe su 3001 senza frontend.
 const url = `${BASE_URL}/api/auth/wp-callback?token=${encodeURIComponent(token)}`;
 
-const expDate = new Date((now + EXPIRES_SECONDS) * 1000).toLocaleDateString("it-IT");
+const expDate = new Date((now + EXPIRES_SECONDS) * 1000).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "medium" });
 
 console.log("─────────────────────────────────────────────");
 console.log(`  email    : ${EMAIL}`);
 console.log(`  username : ${USERNAME}`);
 console.log(`  role     : ${ROLE}`);
 console.log(`  level    : ${INSTRUCTOR_LEVEL}`);
-console.log(`  scade    : ${expDate} (tra ${EXPIRES_SECONDS}s)`);
+console.log(`  scade    : ${expDate}`);
 console.log("─────────────────────────────────────────────");
-console.log("\nToken JWT:");
-console.log(token);
-console.log("\nURL di test (apri nel browser con client e server in esecuzione):");
+console.log("\nURL:");
 console.log(url);
 console.log("");

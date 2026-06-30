@@ -10,18 +10,23 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 
-import { version as clientVersion } from "../../../package.json";
 import { useAuth } from "../../contexts/AuthContext";
 
+interface InfoResponse {
+  serverVersion: string;
+  clientVersion: string | null;
+  infraVersion: string | null;
+}
+
 const About = () => {
-  const [serverVersion, setServerVersion] = useState<string | null>(null);
+  const [info, setInfo] = useState<InfoResponse | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
     fetch("/api/info")
       .then((r) => r.json())
-      .then((data: { version: string }) => setServerVersion(data.version))
-      .catch(() => setServerVersion("N/A"));
+      .then((data: InfoResponse) => setInfo(data))
+      .catch(() => setInfo({ serverVersion: "N/A", clientVersion: "N/A", infraVersion: "N/A" }));
   }, []);
 
   return (
@@ -37,15 +42,17 @@ const About = () => {
           <Typography variant="overline" color="primary" sx={{ letterSpacing: 1.5 }}>
             Versioni
           </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 3, mt: 1, mb: 4 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography color="text.secondary" variant="body2">Frontend</Typography>
-              <Chip label={`v${clientVersion}`} size="small" color="primary" />
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography color="text.secondary" variant="body2">Server</Typography>
-              <Chip label={serverVersion ? `v${serverVersion}` : "…"} size="small" color="primary" />
-            </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 3, mt: 1, mb: 4, flexWrap: "wrap" }}>
+            {[
+              { label: "Frontend", value: info?.clientVersion },
+              { label: "Server",   value: info?.serverVersion },
+              { label: "Infra",    value: info?.infraVersion },
+            ].map(({ label, value }) => (
+              <Box key={label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography color="text.secondary" variant="body2">{label}</Typography>
+                <Chip label={value ? `v${value}` : "…"} size="small" color="primary" />
+              </Box>
+            ))}
           </Box>
 
           <Divider sx={{ mb: 3 }} />

@@ -143,6 +143,10 @@ jobs:
     with:
       server_version: ${{ needs.analyze.outputs.server_version }}
       client_version: ${{ needs.analyze.outputs.client_version }}
+      k8s_version:    ${{ needs.analyze.outputs.k8s_version }}
+      has_client:     ${{ needs.analyze.outputs.has_client }}
+      has_server:     ${{ needs.analyze.outputs.has_server }}
+      has_k8s:        ${{ needs.analyze.outputs.has_k8s }}
       environment: staging
     secrets: inherit
 

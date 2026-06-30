@@ -20,9 +20,6 @@ import { ensureBucket } from "./config/minio.js";
 
 // Il .env è alla root del monorepo (due livelli sopra server/src/)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serverVersion = (JSON.parse(
-  readFileSync(path.resolve(__dirname, "../package.json"), "utf8")
-) as { version: string }).version;
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const app = express();
@@ -71,7 +68,11 @@ app.use("/api/admin/notify", notifyRoutes);
 app.use("/api/admin/gc-images", gcImagesRoutes);
 
 app.get("/api/info", (_req, res) => {
-  res.json({ version: serverVersion });
+  res.json({
+    serverVersion: process.env.SERVER_VERSION ?? null,
+    clientVersion: process.env.CLIENT_VERSION ?? null,
+    infraVersion:  process.env.INFRA_VERSION  ?? null,
+  });
 });
 
 app.get("/health", (_req, res) => {

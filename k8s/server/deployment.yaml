@@ -68,6 +68,21 @@ spec:
               value: "${NOTIFY_RECIPIENTS}"
             - name: APP_URL
               value: "${APP_URL}"
+            - name: CLIENT_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: k9-versions
+                  key: CLIENT_VERSION
+            - name: SERVER_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: k9-versions
+                  key: SERVER_VERSION
+            - name: INFRA_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: k9-versions
+                  key: INFRA_VERSION
             - name: MINIO_ENDPOINT
               value: "minio.k9.svc.cluster.local"
             - name: MINIO_PORT
