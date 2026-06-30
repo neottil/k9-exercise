@@ -12,8 +12,6 @@ jobs:
 
   analyze:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
       has_client: ${{ steps.analyze.outputs.has_client }}
       has_server: ${{ steps.analyze.outputs.has_server }}
@@ -26,7 +24,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2   # necessario per git diff HEAD~1
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Analyze commit
         id: analyze
@@ -66,44 +63,9 @@ jobs:
           echo "deploy=$DEPLOY"         >> $GITHUB_OUTPUT
           echo "::notice::modifiche rilevate→ client=$HAS_CLIENT  server=$HAS_SERVER  k8s=$HAS_K8S  deploy=$DEPLOY"
 
-      - name: Create/update git tags
+      - name: Read versions
         id: versions
         run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-
-          HAS_CLIENT="${{ steps.analyze.outputs.has_client }}"
-          HAS_SERVER="${{ steps.analyze.outputs.has_server }}"
-          HAS_K8S="${{ steps.analyze.outputs.has_k8s }}"
-
-          # Funzione per creare/aggiornare tag
-          create_or_update_tag() {
-            local component=$1
-            local version=$2
-            local tag="${component}-${version}"
-
-            git tag -f "$tag"
-            git push origin "$tag" --force
-            echo "✓ Tag $tag creato/aggiornato"
-          }
-
-          # Crea tag per ogni componente modificato
-          if [ "$HAS_SERVER" = "true" ]; then
-            SERVER_VERSION=$(node -p "require('./server/package.json').version")
-            create_or_update_tag "server" "$SERVER_VERSION"
-          fi
-
-          if [ "$HAS_CLIENT" = "true" ]; then
-            CLIENT_VERSION=$(node -p "require('./client/package.json').version")
-            create_or_update_tag "client" "$CLIENT_VERSION"
-          fi
-
-          if [ "$HAS_K8S" = "true" ]; then
-            ROOT_VERSION=$(node -p "require('./package.json').version")
-            create_or_update_tag "k8s" "$ROOT_VERSION"
-          fi
-
-          # Esponi le versioni come output
           echo "client_version=$(node -p "require('./client/package.json').version")" >> $GITHUB_OUTPUT
           echo "server_version=$(node -p "require('./server/package.json').version")" >> $GITHUB_OUTPUT
           echo "k8s_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
@@ -269,30 +231,128 @@ jobs:
           kubectl apply -f /opt/k9/k8s/images-gc/cronjob.yaml
           ENDSSH
 
+
+  # ── 4. Releases ────────────────────────────────────────────────────────────────
+  #
+  # Crea/aggiorna i tag git e le GitHub Release per ogni componente modificato.
+  # Gira solo dopo che deploy-staging è andato a buon fine: un deploy fallito
+  # non produce tag né release.
+
+  releases:
+    needs: [analyze, deploy-staging]
+    runs-on: ubuntu-latest
+    if: needs.deploy-staging.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create/update tags and GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          HAS_CLIENT="${{ needs.analyze.outputs.has_client }}"
+          HAS_SERVER="${{ needs.analyze.outputs.has_server }}"
+          HAS_K8S="${{ needs.analyze.outputs.has_k8s }}"
+
+          create_or_update_release() {
+            local component=$1
+            local version=$2
+            local tag="${component}-${version}"
+
+            case "$component" in
+              client) title="Client v${version}" ;;
+              server) title="Server v${version}" ;;
+              k8s)    title="K8s v${version}"    ;;
+            esac
+
+            git tag -f "$tag"
+            git push origin "$tag" --force
+            echo "✓ Tag $tag creato/aggiornato"
+
+            if gh release view "$tag" &>/dev/null; then
+              gh release edit "$tag" --title "$title"
+              echo "✓ Release $tag aggiornata"
+            else
+              gh release create "$tag" --title "$title" --generate-notes
+              echo "✓ Release $tag creata"
+            fi
+          }
+
+          if [ "$HAS_SERVER" = "true" ]; then create_or_update_release "server" "${{ needs.analyze.outputs.server_version }}"; fi
+          if [ "$HAS_CLIENT" = "true" ]; then create_or_update_release "client" "${{ needs.analyze.outputs.client_version }}"; fi
+          if [ "$HAS_K8S" = "true" ];    then create_or_update_release "k8s"    "${{ needs.analyze.outputs.k8s_version }}";    fi
+
+  # ── 5. Summary ─────────────────────────────────────────────────────────────────
+  #
+  # Gira sempre (if: always()) come ultimo job e produce il riepilogo finale
+  # con lo stato di ogni fase, le immagini buildate e le release create.
+
+  summary:
+    needs: [analyze, build, deploy-staging, releases]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
       - name: Job summary
-        if: always()
+        env:
+          BUILD_RESULT:    ${{ needs.build.result }}
+          DEPLOY_RESULT:   ${{ needs.deploy-staging.result }}
+          RELEASES_RESULT: ${{ needs.releases.result }}
         run: |
           HAS_CLIENT="${{ needs.analyze.outputs.has_client }}"
           HAS_SERVER="${{ needs.analyze.outputs.has_server }}"
           HAS_K8S="${{ needs.analyze.outputs.has_k8s }}"
           SHORT_SHA="${GITHUB_SHA:0:7}"
 
+          status_icon() {
+            case "$1" in
+              success)  echo "✅" ;;
+              failure)  echo "❌" ;;
+              skipped)  echo "⏭️" ;;
+              *)        echo "⏳" ;;
+            esac
+          }
+
           {
             echo "## Build & Deploy Staging — $SHORT_SHA"
+            echo ""
+            echo "| Fase | Stato |"
+            echo "|------|-------|"
+            echo "| **Build**    | $(status_icon "$BUILD_RESULT") |"
+            echo "| **Deploy**   | $(status_icon "$DEPLOY_RESULT") |"
+            echo "| **Releases** | $(status_icon "$RELEASES_RESULT") |"
             echo ""
             echo "| | |"
             echo "|---|---|"
             echo "| **Commit** | \`${{ github.event.head_commit.message }}\` |"
             echo "| **Autore** | ${{ github.actor }} |"
             echo ""
-            echo "### Immagini Docker"
-            echo ""
-            if [ "$HAS_SERVER" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.analyze.outputs.server_version }}\`"; fi
-            if [ "$HAS_CLIENT" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.analyze.outputs.client_version }}\`"; fi
-            echo ""
+
+            if [ "$HAS_SERVER" = "true" ] || [ "$HAS_CLIENT" = "true" ]; then
+              echo "### Immagini Docker"
+              echo ""
+              if [ "$HAS_SERVER" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.analyze.outputs.server_version }}\`"; fi
+              if [ "$HAS_CLIENT" = "true" ]; then echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.analyze.outputs.client_version }}\`"; fi
+              echo ""
+            fi
+
             echo "### Deploy → staging (${{ vars.DOMAIN }})"
             echo ""
-            if [ "$HAS_SERVER" = "true" ]; then echo "- server **${{ needs.analyze.outputs.server_version }}** deployato"; fi
-            if [ "$HAS_CLIENT" = "true" ]; then echo "- client **${{ needs.analyze.outputs.client_version }}** deployato"; fi
-            if [ "$HAS_K8S" = "true" ]; then echo "- k8s manifests **${{ needs.analyze.outputs.k8s_version }}** deployato"; fi
+            if [ "$HAS_SERVER" = "true" ]; then echo "- server **${{ needs.analyze.outputs.server_version }}**"; fi
+            if [ "$HAS_CLIENT" = "true" ]; then echo "- client **${{ needs.analyze.outputs.client_version }}**"; fi
+            if [ "$HAS_K8S" = "true" ];    then echo "- k8s **${{ needs.analyze.outputs.k8s_version }}**"; fi
+            echo ""
+
+            if [ "$RELEASES_RESULT" = "success" ]; then
+              echo "### Release"
+              echo ""
+              if [ "$HAS_SERVER" = "true" ]; then echo "- [server-${{ needs.analyze.outputs.server_version }}](https://github.com/${{ github.repository }}/releases/tag/server-${{ needs.analyze.outputs.server_version }})"; fi
+              if [ "$HAS_CLIENT" = "true" ]; then echo "- [client-${{ needs.analyze.outputs.client_version }}](https://github.com/${{ github.repository }}/releases/tag/client-${{ needs.analyze.outputs.client_version }})"; fi
+              if [ "$HAS_K8S" = "true" ];    then echo "- [k8s-${{ needs.analyze.outputs.k8s_version }}](https://github.com/${{ github.repository }}/releases/tag/k8s-${{ needs.analyze.outputs.k8s_version }})"; fi
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
