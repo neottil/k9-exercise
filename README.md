@@ -32,11 +32,35 @@
 
 > Le modifiche agli esercizi già approvati non sono applicate immediatamente: rimangono in stato **"in attesa"** fino a quando un admin le approva o le rifiuta.
 
+### Livello istruttore
+
+Ogni utente ha un **livello istruttore** che determina quali esercizi può visualizzare:
+
+| Livello | Esercizi visibili |
+|---------|-------------------|
+| **BSS** | Solo esercizi di livello BSS |
+| **CTS** | Tutti gli esercizi (BSS e CTS) |
+
+Il livello viene assegnato al momento del login e dipende dalla modalità di accesso configurata (vedi sezione 2).
+
 ---
 
 ## 2. Accesso e registrazione
 
-### 2.1 Login
+L'applicazione supporta due modalità di login, configurate dall'amministratore di sistema:
+
+| Modalità | Descrizione |
+|----------|-------------|
+| **Token** *(consigliata)* | Il login avviene tramite un sito esterno (es. WordPress) che rilascia un token sicuro. Username e livello istruttore vengono trasmessi automaticamente. |
+| **Form** | Login diretto con email e password. Username e livello istruttore non sono disponibili in questa modalità. |
+
+### 2.1 Login con token (modalità WordPress)
+
+L'utente viene reindirizzato automaticamente dal sito esterno all'applicazione. Non è richiesta nessuna azione manuale: il token viene validato e la sessione creata in modo trasparente.
+
+Ruolo, username e livello istruttore (BSS/CTS) vengono ricevuti direttamente dal token e non richiedono configurazione aggiuntiva.
+
+### 2.2 Login con form
 
 All'apertura dell'applicazione viene mostrata la pagina di login.
 
@@ -67,16 +91,20 @@ All'apertura dell'applicazione viene mostrata la pagina di login.
 
 > **Sessione scaduta** — Se la sessione è scaduta (dopo 2 ore di inattività), alla riapertura della pagina compare un avviso giallo: *"Sessione scaduta. Effettua nuovamente il login."*
 
-### 2.2 Registrazione
+> **Nota**: con la modalità form, username e livello istruttore non sono disponibili. Gli esercizi di livello CTS non saranno visibili a meno che il ruolo non venga configurato manualmente.
 
-Clicca su **Registrati** nella pagina di login per creare un nuovo account. Inserisci email e password, poi conferma.
+### 2.3 Registrazione
+
+Disponibile solo in modalità **form**. Clicca su **Registrati** nella pagina di login per creare un nuovo account. Inserisci email e password, poi conferma.
 
 > I nuovi account vengono creati con ruolo **utente** standard. Il ruolo admin deve essere assegnato manualmente da chi gestisce il database.
 
-### 2.3 Logout
+### 2.4 Logout
 
 - **Desktop**: icona **→ (porta d'uscita)** in alto a destra nella barra di navigazione. Un tooltip mostra l'email dell'utente connesso.
 - **Mobile / tablet**: la voce **Logout** è disponibile in fondo al menu ≡ (hamburger), separata da una riga divisoria.
+
+> In modalità **token** il pulsante di logout è visibile ma disabilitato: la sessione è gestita dal sito esterno.
 
 ---
 
@@ -134,6 +162,7 @@ La pagina Home mostra la **tabella di tutti gli esercizi approvati** nel databas
 | Colonna | Contenuto |
 |---------|-----------|
 | **Tipologia** | Categoria dell'esercizio. Contiene il pulsante ✎ per modificare |
+| **Livello** | Livello istruttore richiesto: **BSS** (chip blu) o **CTS** (chip arancione) |
 | **Variante** | Eventuale variante o sottotipo dell'esercizio |
 | **Descrizione** | Testo descrittivo dell'esercizio |
 | **Attrezzi** | Elenco degli attrezzi necessari, mostrati come chip colorati |
@@ -243,6 +272,14 @@ Dal menu burger → **Inserisci** (oppure naviga su `/insert`).
 
 #### Difficoltà *(obbligatorio)*
 Seleziona un valore da **1** (facile) a **5** (molto difficile). La difficoltà non va intesa come assolua, ma della variante proposta rispetto alla tipologia di esercizio.
+
+#### Livello istruttore *(obbligatorio)*
+Indica il livello minimo richiesto per accedere all'esercizio. Si seleziona accanto al campo **Variante**.
+
+| Valore | Significato |
+|--------|-------------|
+| **BSS** | Esercizio base, visibile a tutti gli istruttori |
+| **CTS** | Esercizio avanzato, visibile solo agli istruttori CTS |
 
 #### Tipologia *(obbligatorio)*
 Indica la categoria dell'esercizio (es. *Sit*, *Down*, *Recall*…).
@@ -569,6 +606,7 @@ Le notifiche vengono inviate più volte al giorno (ogni 3 ore circa, dalle 6:00 
 | Campo | Tipo | Obbligatorio | Note |
 |-------|------|:---:|------|
 | **Tipologia** | Testo | ✓ | Categoria principale dell'esercizio |
+| **Livello** | BSS / CTS | ✓ | Livello istruttore richiesto per visualizzare l'esercizio |
 | **Variante** | Testo | — | Variante o sottotipo |
 | **Descrizione** | Testo lungo | ✓ | Come si esegue l'esercizio |
 | **Difficoltà** | Numero 1–5 | ✓ | Livello di difficoltà complessivo |
@@ -608,4 +646,4 @@ Per uso commerciale o per integrare il software in un prodotto a pagamento, cont
 
 ---
 
-*Manuale aggiornato al 18/06/2026*
+*Manuale aggiornato al 30/06/2026*

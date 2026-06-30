@@ -11,21 +11,29 @@ on:
         description: 'Versione client da promuovere (vuoto = ultima da package.json)'
         required: false
         default: ''
+      k8s_version:
+        description: 'Versione k8s dei manifest da deployare (es. 1.5.1 → tag k8s-1.5.1)'
+        required: true
 
 jobs:
-  # ── Deploy production ──────────────────────────────────────────────────────────
+  # ── 1. Resolve versions ────────────────────────────────────────────────────────
   #
-  # Deploya su production le immagini già buildante da deploy.yml (staging),
-  # senza rebuild. Usa i secret/variabili dell'environment "production" di GitHub.
-  #
-  # Le versioni si specificano come input del workflow_dispatch.
-  # Se omesse, usa le versioni correnti in package.json (ultima versione su staging).
-  # Il deploy aggiorna sempre sia server che client.
+  # Risolve le versioni di server e client: usa gli input se specificati,
+  # altrimenti legge i valori correnti dai package.json.
 
-  deploy-production:
+  resolve-versions:
     runs-on: ubuntu-latest
-    environment: production
+    outputs:
+      server_version: ${{ steps.versions.outputs.server_version }}
+      client_version: ${{ steps.versions.outputs.client_version }}
     steps:
+      - name: Validate inputs
+        run: |
+          if [ -z "${{ inputs.k8s_version }}" ]; then
+            echo "::error::k8s_version è obbligatorio per il promote in production"
+            exit 1
+          fi
+
       - uses: actions/checkout@v6
 
       - name: Resolve versions
@@ -45,98 +53,59 @@ jobs:
           echo "client_version=$CLIENT_VERSION" >> $GITHUB_OUTPUT
           echo "→ server=$SERVER_VERSION  client=$CLIENT_VERSION"
 
-      - name: Write SSH key
-        run: |
-          echo "${{ secrets.VPS_SSH_KEY }}" > /tmp/vps_key
-          chmod 600 /tmp/vps_key
+  # ── 2. Deploy production ───────────────────────────────────────────────────────
+  #
+  # Delega il deploy al reusable workflow k8s-deploy.yml.
+  # Secret e variabili vengono letti dall'environment "production" nel workflow chiamato.
+  # k8s_ref permette di specificare quale versione dei manifest k8s deployare.
 
-      - name: Copy k8s manifests to VPS
-        run: |
-          scp -i /tmp/vps_key \
-              -r \
-              -o StrictHostKeyChecking=no \
-              k8s \
-              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/k9/
+  deploy-production:
+    needs: resolve-versions
+    uses: ./.github/workflows/k8s-deploy.yml
+    with:
+      server_version: ${{ needs.resolve-versions.outputs.server_version }}
+      client_version: ${{ needs.resolve-versions.outputs.client_version }}
+      environment: production
+      k8s_version: ${{ inputs.k8s_version }}
+    secrets: inherit
 
-      - name: Deploy to k3s
-        run: |
-          ssh -i /tmp/vps_key \
-              -o StrictHostKeyChecking=no \
-              ${{ vars.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
-          export KUBECONFIG=/home/deploy/.kube/config
-          kubectl apply -f /opt/k9/k8s/namespace.yaml
+  # ── 3. Summary ─────────────────────────────────────────────────────────────────
 
-          kubectl create secret generic k9-secrets \
-            --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
-            --from-literal=SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
-            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
-
-          kubectl create secret generic k9-notify-secret \
-            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
-            --from-literal=SMTP_PASS="${{ secrets.SMTP_PASS }}" \
-            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
-
-          kubectl create secret docker-registry ghcr-secret \
-            --docker-server=ghcr.io \
-            --docker-username=${{ github.repository_owner }} \
-            --docker-password="${{ secrets.GHCR_PAT }}" \
-            --namespace=k9 --dry-run=client -o yaml | kubectl apply -f -
-
-          export DOMAIN="${{ vars.DOMAIN }}"
-          export LOGIN_TYPE="${{ vars.LOGIN_TYPE }}"
-          export LOGIN_SITE_URL="${{ vars.LOGIN_SITE_URL }}"
-          export LETSENCRYPT_EMAIL="${{ vars.LETSENCRYPT_EMAIL }}"
-          export SMTP_HOST="${{ vars.SMTP_HOST }}"
-          export SMTP_PORT="${{ vars.SMTP_PORT }}"
-          export SMTP_USER="${{ vars.SMTP_USER }}"
-          export NOTIFY_RECIPIENTS="${{ vars.NOTIFY_RECIPIENTS }}"
-          export APP_URL="https://${{ vars.DOMAIN }}"
-
-          kubectl apply -f /opt/k9/k8s/traefik-config.yaml
-
-          if kubectl get crd clusterissuers.cert-manager.io &>/dev/null; then
-            kubectl wait --for=condition=available deployment \
-              --all --namespace cert-manager --timeout=60s || true
-            envsubst '${LETSENCRYPT_EMAIL}' < /opt/k9/k8s/cert-manager/clusterissuer.yaml | kubectl apply -f -
-          fi
-
-          kubectl apply -f /opt/k9/k8s/keda-interceptor-svc.yaml
-          kubectl apply -f /opt/k9/k8s/server/service.yaml
-          kubectl apply -f /opt/k9/k8s/client/service.yaml
-          envsubst '${DOMAIN}' < /opt/k9/k8s/ingress.yaml       | kubectl apply -f -
-          envsubst '${DOMAIN}' < /opt/k9/k8s/server/hso.yaml    | kubectl apply -f -
-
-          echo "→ Deploy server:${{ steps.versions.outputs.server_version }}"
-          export SERVER_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-server:${{ steps.versions.outputs.server_version }}"
-          envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' < /opt/k9/k8s/server/deployment.yaml | kubectl apply -f -
-          kubectl rollout restart deployment/k9-server -n k9
-          kubectl rollout status deployment/k9-server -n k9 --timeout=120s
-
-          echo "→ Deploy client:${{ steps.versions.outputs.client_version }}"
-          export CLIENT_IMAGE="ghcr.io/${{ github.repository_owner }}/k9-client:${{ steps.versions.outputs.client_version }}"
-          envsubst '${CLIENT_IMAGE}' < /opt/k9/k8s/client/deployment.yaml | kubectl apply -f -
-          kubectl rollout restart deployment/k9-client -n k9
-          kubectl rollout status deployment/k9-client -n k9 --timeout=120s
-
-          kubectl apply -f /opt/k9/k8s/notify/cronjob.yaml
-          ENDSSH
-
+  summary:
+    needs: [resolve-versions, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
       - name: Job summary
-        if: always()
+        env:
+          DEPLOY_RESULT: ${{ needs.deploy-production.result }}
         run: |
-          SHORT_SHA="${GITHUB_SHA:0:7}"
+          status_icon() {
+            case "$1" in
+              success)  echo "✅" ;;
+              failure)  echo "❌" ;;
+              skipped)  echo "⏭️" ;;
+              *)        echo "⏳" ;;
+            esac
+          }
+
           {
-            echo "## Promote to Production — $SHORT_SHA"
+            echo "## Promote to Production"
+            echo ""
+            echo "| Fase | Stato |"
+            echo "|------|-------|"
+            echo "| **Deploy** | $(status_icon "$DEPLOY_RESULT") |"
             echo ""
             echo "| | |"
             echo "|---|---|"
             echo "| **Avviato da** | ${{ github.actor }} |"
-            echo "| **Dominio** | ${{ vars.DOMAIN }} |"
+            echo "| **k8s version** | \`${{ inputs.k8s_version || 'HEAD (main)' }}\` |"
             echo ""
             echo "### Versioni deployate"
             echo ""
             echo "| Componente | Versione |"
             echo "|---|---|"
-            echo "| server | \`${{ steps.versions.outputs.server_version }}\` |"
-            echo "| client | \`${{ steps.versions.outputs.client_version }}\` |"
+            echo "| server | \`${{ needs.resolve-versions.outputs.server_version }}\` |"
+            echo "| client | \`${{ needs.resolve-versions.outputs.client_version }}\` |"
+            echo "| k8s    | \`${{ inputs.k8s_version || 'HEAD (main)' }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
