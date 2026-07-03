@@ -85,7 +85,12 @@ router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Re
       return;
     }
 
-    const sessionUser = { email: user.email, role: user.role };
+    const sessionUser = {
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      instructorLevel: user.instructorLevel,
+    };
     req.session.user = sessionUser;
     res.json(sessionUser);
   } catch (err) {
@@ -101,10 +106,22 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
     return;
   }
 
-  const { email, password, firstName, lastName } = req.body as { email?: string; password?: string; firstName?: string; lastName?: string };
+  const { email, password, username, instructorLevel, firstName, lastName } = req.body as {
+    email?: string;
+    password?: string;
+    username?: string;
+    instructorLevel?: string;
+    firstName?: string;
+    lastName?: string;
+  };
 
-  if (!email || !password) {
-    res.status(400).json({ error: "Email e password obbligatori" });
+  if (!email || !password || !username || !instructorLevel) {
+    res.status(400).json({ error: "Email, password, username e livello istruttore sono obbligatori" });
+    return;
+  }
+
+  if (instructorLevel !== "BSS" && instructorLevel !== "CTS") {
+    res.status(400).json({ error: "Livello istruttore non valido" });
     return;
   }
 
@@ -123,9 +140,11 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
     const passwordHash = await bcrypt.hash(password, 12);
     await User.create({
       email: email.toLowerCase(),
+      username: username.trim(),
       passwordHash,
       role: "viewer",
       state: "TO_APPROVE",
+      instructorLevel,
       firstName: firstName?.trim(),
       lastName: lastName?.trim(),
     });

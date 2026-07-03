@@ -13,6 +13,7 @@ import {
   CardContent,
   CircularProgress,
   Link,
+  MenuItem,
   TextField,
   Typography,
 } from "@mui/material";
@@ -31,6 +32,8 @@ const Register = () => {
   const { user, isLoading } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
+  const [instructorLevel, setInstructorLevel] = useState<"BSS" | "CTS" | "">("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -67,9 +70,14 @@ const Register = () => {
       return;
     }
 
+    if (!instructorLevel) {
+      setError("Seleziona il livello istruttore");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const message = await register(email, password, firstName, lastName);
+      const message = await register({ email, password, username, instructorLevel, firstName, lastName });
       setSuccessMessage(message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore durante la registrazione");
@@ -139,6 +147,25 @@ const Register = () => {
                   autoFocus
                   fullWidth
                 />
+                <TextField
+                  label="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  fullWidth
+                />
+                <TextField
+                  select
+                  label="Livello istruttore"
+                  value={instructorLevel}
+                  onChange={(e) => setInstructorLevel(e.target.value as "BSS" | "CTS")}
+                  required
+                  fullWidth
+                >
+                  <MenuItem value="BSS">Balance safe&sound</MenuItem>
+                  <MenuItem value="CTS">Cross Trainer Specialist</MenuItem>
+                </TextField>
+                
                 <Box>
                   <TextField
                     label="Password"

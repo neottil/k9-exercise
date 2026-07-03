@@ -5,6 +5,7 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export type UserRole = "viewer" | "admin";
 export type UserState = "TO_APPROVE" | "APPROVED" | "TOKEN_ACCESS";
+export type InstructorLevel = "BSS" | "CTS";
 
 export interface IUser extends Document {
   email: string;
@@ -12,6 +13,7 @@ export interface IUser extends Document {
   passwordHash?: string;
   role: UserRole;
   state: UserState;
+  instructorLevel?: InstructorLevel;
   firstName?: string;
   lastName?: string;
   lastNotifiedAt?: Date;
@@ -24,6 +26,7 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String },
     role: { type: String, enum: ["viewer", "admin"], default: "viewer" },
     state: { type: String, enum: ["TO_APPROVE", "APPROVED", "TOKEN_ACCESS"], default: "TO_APPROVE" },
+    instructorLevel: { type: String, enum: ["BSS", "CTS"] },
     firstName: { type: String, trim: true },
     lastName: { type: String, trim: true },
     lastNotifiedAt: { type: Date },
