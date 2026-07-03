@@ -11,7 +11,9 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   CircularProgress,
+  FormControlLabel,
   Link,
   MenuItem,
   TextField,
@@ -27,6 +29,7 @@ import {
   isPasswordValid,
   PASSWORD_RULE_LABELS,
 } from "../../utils/passwordValidation";
+import ConsentModal from "../ConsentModal";
 
 const Register = () => {
   const { user, isLoading } = useAuth();
@@ -41,6 +44,8 @@ const Register = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [consentModalOpen, setConsentModalOpen] = useState(false);
 
   if (isDisabledMode || user) return <Navigate to="/" replace />;
 
@@ -72,6 +77,11 @@ const Register = () => {
 
     if (!instructorLevel) {
       setError("Seleziona il livello istruttore");
+      return;
+    }
+
+    if (!consentGiven) {
+      setError("Devi acconsentire al trattamento dati per registrarti");
       return;
     }
 
@@ -199,6 +209,23 @@ const Register = () => {
                   required
                   fullWidth
                 />
+                <FormControlLabel
+                  sx={{ mr: 0 }}
+                  control={
+                    <Checkbox
+                      checked={consentGiven}
+                      onChange={(e) => setConsentGiven(e.target.checked)}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2">
+                      Acconsento al{" "}
+                      <Link component="button" type="button" onClick={() => setConsentModalOpen(true)}>
+                        trattamento dati
+                      </Link>
+                    </Typography>
+                  }
+                />
                 <Button type="submit" variant="contained" color="success" disabled={submitting} fullWidth>
                   {submitting ? <CircularProgress size={22} color="inherit" /> : "Registrati"}
                 </Button>
@@ -213,6 +240,11 @@ const Register = () => {
           )}
         </CardContent>
       </Card>
+      <ConsentModal
+        open={consentModalOpen}
+        closable
+        onClose={() => setConsentModalOpen(false)}
+      />
     </Box>
   );
 };

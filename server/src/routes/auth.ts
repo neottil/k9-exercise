@@ -88,7 +88,7 @@ router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Re
     const sessionUser = {
       email: user.email,
       username: user.username,
-      role: user.role,
+      role: user.role ?? "viewer", // gli utenti form hanno sempre role impostato da /register; fallback difensivo per il type-checker
       instructorLevel: user.instructorLevel,
     };
     req.session.user = sessionUser;

@@ -11,7 +11,7 @@ export interface IUser extends Document {
   email: string;
   username?: string;
   passwordHash?: string;
-  role: UserRole;
+  role?: UserRole;
   state: UserState;
   instructorLevel?: InstructorLevel;
   firstName?: string;
@@ -24,7 +24,7 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     username: { type: String, trim: true },
     passwordHash: { type: String },
-    role: { type: String, enum: ["viewer", "admin"], default: "viewer" },
+    role: { type: String, enum: ["viewer", "admin"] },
     state: { type: String, enum: ["TO_APPROVE", "APPROVED", "TOKEN_ACCESS"], default: "TO_APPROVE" },
     instructorLevel: { type: String, enum: ["BSS", "CTS"] },
     firstName: { type: String, trim: true },
