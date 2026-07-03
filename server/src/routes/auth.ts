@@ -51,7 +51,7 @@ router.get("/me", (req: Request, res: Response): void => {
     res.status(401).json({ error: "Non autenticato" });
     return;
   }
-  res.json(req.session.user);
+  res.json({ ...req.session.user, firstAccess: req.session.firstAccess ?? false });
 });
 
 // POST /api/auth/login
@@ -85,7 +85,12 @@ router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Re
       return;
     }
 
-    const sessionUser = { email: user.email, role: user.role };
+    const sessionUser = {
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      instructorLevel: user.instructorLevel,
+    };
     req.session.user = sessionUser;
     res.json(sessionUser);
   } catch (err) {
@@ -101,10 +106,22 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
     return;
   }
 
-  const { email, password, firstName, lastName } = req.body as { email?: string; password?: string; firstName?: string; lastName?: string };
+  const { email, password, username, instructorLevel, firstName, lastName } = req.body as {
+    email?: string;
+    password?: string;
+    username?: string;
+    instructorLevel?: string;
+    firstName?: string;
+    lastName?: string;
+  };
 
-  if (!email || !password) {
-    res.status(400).json({ error: "Email e password obbligatori" });
+  if (!email || !password || !username || !instructorLevel) {
+    res.status(400).json({ error: "Email, password, username e livello istruttore sono obbligatori" });
+    return;
+  }
+
+  if (instructorLevel !== "BSS" && instructorLevel !== "CTS") {
+    res.status(400).json({ error: "Livello istruttore non valido" });
     return;
   }
 
@@ -123,9 +140,11 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
     const passwordHash = await bcrypt.hash(password, 12);
     await User.create({
       email: email.toLowerCase(),
+      username: username.trim(),
       passwordHash,
       role: "viewer",
       state: "TO_APPROVE",
+      instructorLevel,
       firstName: firstName?.trim(),
       lastName: lastName?.trim(),
     });
@@ -141,7 +160,7 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
 // Disponibile solo quando LOGIN_TYPE=token.
 // Riceve il JWT generato da sito esterno, lo valida con il segreto condiviso
 // e crea la sessione utente senza richiedere password.
-router.get("/wp-callback", (req: Request, res: Response): void => {
+router.get("/wp-callback", async (req: Request, res: Response): Promise<void> => {
   if (!isTokenMode()) {
     res.status(404).json({ error: "Endpoint non disponibile in questa configurazione" });
     return;
@@ -174,10 +193,44 @@ router.get("/wp-callback", (req: Request, res: Response): void => {
       role: payload.role,
       instructorLevel: payload.instructor_level
     };
+
+    const existing = await User.findOne({
+      email: payload.email.toLowerCase(),
+      username: payload.username,
+    });
+
+    if (!existing) {
+      req.session.firstAccess = true;
+    }
+
     res.redirect("/");
   } catch (err) {
     console.error("[wp-callback] token non valido:", err);
     res.status(401).send("Token non valido o scaduto");
+  }
+});
+
+// POST /api/auth/accept-terms
+router.post("/accept-terms", requireDbReady, async (req: Request, res: Response): Promise<void> => {
+  if (!req.session.user) {
+    res.status(401).json({ error: "Non autenticato" });
+    return;
+  }
+
+  const { email, username } = req.session.user;
+
+  try {
+    await User.create({
+      email: email.toLowerCase(),
+      username: username ?? undefined,
+      state: "TOKEN_ACCESS",
+    });
+
+    req.session.firstAccess = false;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[POST /auth/accept-terms] errore:", err);
+    res.status(500).json({ error: "Errore interno" });
   }
 });
 

@@ -4,7 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AuthUser } from "../interfaces/authInterfaces";
-import { getMe, login as apiLogin, logout as apiLogout } from "../api/auth";
+import { getMe, login as apiLogin, logout as apiLogout, acceptTerms as apiAcceptTerms } from "../api/auth";
 import { SESSION_EXPIRED_EVENT } from "../api/apiFetch";
 
 interface AuthContextValue {
@@ -13,6 +13,7 @@ interface AuthContextValue {
   sessionExpired: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  acceptTerms: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -50,8 +51,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSessionExpired(false);
   }, []);
 
+  const acceptTerms = useCallback(async () => {
+    await apiAcceptTerms();
+    setUser(prev => prev ? { ...prev, firstAccess: false } : null);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, sessionExpired, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, sessionExpired, login, logout, acceptTerms }}>
       {children}
     </AuthContext.Provider>
   );
