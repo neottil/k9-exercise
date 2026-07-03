@@ -5,6 +5,7 @@ import { Navigate } from "react-router-dom";
 import { Box, CircularProgress } from "@mui/material";
 import { useAuth } from "../../contexts/AuthContext";
 import type { UserRole } from "../../interfaces/authInterfaces";
+import ConsentModal from "../ConsentModal";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -23,6 +24,8 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   }
 
   if (!user) return <Navigate to="/login" replace />;
+
+  if (user.firstAccess) return <ConsentModal />;
 
   // Se è richiesto un ruolo specifico e l'utente non ce l'ha → redirect alla home
   if (requiredRole && user.role !== requiredRole) {

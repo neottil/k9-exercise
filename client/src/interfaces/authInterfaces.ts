@@ -8,4 +8,5 @@ export interface AuthUser {
   username?: string;
   role: UserRole;
   instructorLevel?: string;
+  firstAccess?: boolean;
 }

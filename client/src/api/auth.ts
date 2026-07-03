@@ -2,6 +2,7 @@
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 
 import { AuthUser } from "../interfaces/authInterfaces";
+import { apiError } from "./apiFetch";
 
 const BASE_URL = "/api/auth";
 
@@ -27,6 +28,11 @@ export const login = async (email: string, password: string): Promise<AuthUser> 
 
 export const logout = async (): Promise<void> => {
   await fetch(`${BASE_URL}/logout`, { method: "POST" });
+};
+
+export const acceptTerms = async (): Promise<void> => {
+  const res = await fetch(`${BASE_URL}/accept-terms`, { method: "POST" });
+  if (!res.ok) throw await apiError(res, "Errore durante l'accettazione dei termini");
 };
 
 export const register = async (email: string, password: string, firstName: string, lastName: string): Promise<string> => {
