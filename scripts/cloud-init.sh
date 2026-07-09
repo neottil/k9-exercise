@@ -15,9 +15,8 @@
 #   4. KEDA — controller autoscaling
 #   5. KEDA HTTP Add-on — scaling su richieste HTTP in ingresso
 #   6. cert-manager — provisioning automatico certificati TLS (Let's Encrypt)
-#   7. Kubernetes Dashboard — UI per pod, risorse ed eventi di scaling
+#   7. Headlamp — UI per pod, risorse ed eventi di scaling
 #
-# Monitoring infrastruttura: usa i Grafici built-in di Hetzner (tab "Graphs")
 #
 # Output:
 #   Log completo  : /var/log/k9-init.log
@@ -46,6 +45,15 @@ apt-get upgrade -y
 # gettext-base fornisce envsubst, usato dalla GitHub Action per sostituire
 # i tag delle immagini nei manifest Kubernetes prima di ogni deploy
 apt-get install -y curl gettext-base
+# installazione helm
+mkdir -p ~/bin
+curl -LO https://get.helm.sh/helm-v4.2.2-linux-amd64.tar.gz
+tar -zxf helm-v4.2.2-linux-amd64.tar.gz
+mv linux-amd64/helm ~/bin/helm
+rm -rf helm-v4.2.2-linux-amd64.tar.gz linux-amd64
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
 log "      OK"
 
 # ── 2. Utente deploy ──────────────────────────────────────────────────────────
@@ -131,22 +139,64 @@ log "      cert-manager pronto"
 log "      Nota: il ClusterIssuer letsencrypt-prod viene applicato"
 log "      dalla GitHub Action al primo deploy (richiede la Variable LETSENCRYPT_EMAIL)"
 
-# ── 7. Kubernetes Dashboard ───────────────────────────────────────────────────
-log "[7/7] Installazione Kubernetes Dashboard..."
-# Dashboard leggera (~50MB) per visualizzare pod, risorse e log.
-kubectl apply -f "https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml"
+# ── 7. Headlamp (Kubernetes UI) ────────────────────────────────────────────
+log "[7/7] Installazione Headlamp..."
+
+# Repository Helm ufficiale di Headlamp
+helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/ > /dev/null 2>&1 || true
+helm repo update > /dev/null
+
+# Installazione (idempotente: se già installato, fa upgrade)
+helm upgrade --install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace
+
+# Attesa che il pod sia pronto
+log "Attendo che Headlamp sia pronto..."
+kubectl rollout status deployment/my-headlamp \
+  --namespace headlamp \
+  --timeout=120s
 
 # Service account con accesso completo al cluster
-kubectl create serviceaccount dashboard-admin \
-  --namespace kubernetes-dashboard \
+kubectl create serviceaccount headlamp-admin \
+  --namespace "headlamp" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl create clusterrolebinding dashboard-admin \
+kubectl create clusterrolebinding headlamp-admin \
   --clusterrole=cluster-admin \
-  --serviceaccount=kubernetes-dashboard:dashboard-admin \
+  --serviceaccount="headlamp:headlamp-admin" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-log "      Kubernetes Dashboard installato"
+# # Token di accesso (valido 1 anno)
+# log "Token di accesso Headlamp (valido 1 anno):"
+# kubectl create token headlamp-admin \
+#   --namespace headlamp \
+#   --duration=8760h
+
+# Token permanente (non scade), legato a un Secret dedicato
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: headlamp-admin-token
+  namespace: headlamp
+  annotations:
+    kubernetes.io/service-account.name: headlamp-admin
+type: kubernetes.io/service-account-token
+EOF
+
+# Attesa che Kubernetes popoli il campo "token" nel secret
+log "Attendo generazione token..."
+for i in {1..10}; do
+  HEADLAMP_TOKEN=$(kubectl get secret headlamp-admin-token -n headlamp -o jsonpath='{.data.token}' 2>/dev/null | base64 -d)
+  [ -n "$HEADLAMP_TOKEN" ] && break
+  sleep 1
+done
+
+log "Token permanente Headlamp:"
+echo "$HEADLAMP_TOKEN"
+
+log "      Headlamp installato"
 
 # ── Completamento ─────────────────────────────────────────────────────────────
 touch /opt/k9/.init-complete
@@ -205,6 +255,24 @@ log " Dettaglio eventi di scaling:"
 log "   kubectl describe hso k9-server -n k9"
 log " Tutti gli eventi del namespace:"
 log "   kubectl get events -n k9 --sort-by='.lastTimestamp'"
+log ""
+log " ── HEADLAMP (Kubernetes UI) ──────────────────────────────"
+log " Headlamp si apre nel browser del TUO PC."
+log " Il tunnel SSH porta la porta dal VPS al tuo PC locale"
+log " attraverso la connessione SSH — nessuna porta da aprire"
+log " sul firewall Hetzner."
+log ""
+log " Step 1 — Sul VPS (lascia girare in background):"
+log "   kubectl port-forward -n headlamp svc/my-headlamp --address='127.0.0.1' 8001:80 &"
+log ""
+log " Step 2 — Sul TUO PC (apre il tunnel, tienilo aperto):"
+log "   ssh -i ~/.ssh/k9_deploy -L 8001:localhost:8001 -N deploy@${VPS_IP}"
+log ""
+log " Step 3 — Nel browser del tuo PC:"
+log "   http://localhost:8001"
+log ""
+log " Step 4 — Token di accesso (copialo nel campo Token di Headlamp):"
+log "   ${HEADLAMP_TOKEN}"
 log ""
 log " ── PROSSIMI PASSI ────────────────────────────────────────"
 log "   1. Aggiungi l'IP ${VPS_IP} alla whitelist MongoDB Atlas"
