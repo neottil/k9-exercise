@@ -12,7 +12,7 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 3. [Indici del database](#indici-del-database)
 4. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
 5. [CI/CD pipeline](#cicd-pipeline)
-6. [Deploy in produzione](#deploy-in-produzione)
+6. [Infrastruttura in produzione](#infrastruttura-in-produzione)
 7. [Sistema di notifiche](#sistema-di-notifiche)
 8. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
 9. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
