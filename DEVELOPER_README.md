@@ -296,9 +296,7 @@ I secret sono configurati **per environment** (staging / production) in GitHub â
 
 ---
 
-## Deploy in produzione
-
-Per il setup completo dell'infrastruttura (VPS Hetzner, DNS, HTTPS, scaling) vedere [README.md](README.md).
+## Infrastruttura in produzione
 
 ### Architettura
 
