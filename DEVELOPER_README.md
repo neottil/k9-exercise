@@ -474,21 +474,18 @@ kubectl set image deployment/k9-server \
   server=ghcr.io/<owner>/k9-server:1.0.0 -n k9
 ```
 
-### Kubernetes Dashboard (accesso locale)
+### Headlamp Dashboard (accesso locale)
 
 ```bash
 # 1. Sul VPS — avvia proxy (lascialo girare)
 ssh -i ~/.ssh/k9_deploy deploy@<IP_VPS>
-kubectl proxy --address='127.0.0.1' --port=8001 &
+kubectl port-forward -n headlamp svc/my-headlamp --address='127.0.0.1' 8001:80 &
 
 # 2. Sul tuo PC — apri tunnel SSH
 ssh -i ~/.ssh/k9_deploy -L 8001:localhost:8001 -N deploy@<IP_VPS>
 
-# 3. Genera il token di accesso (scade dopo 1h)
-kubectl create token dashboard-admin -n kubernetes-dashboard
-
 # 4. Browser
-# http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
+# http://localhost:8001
 ```
 
 ### Comandi kubectl utili
