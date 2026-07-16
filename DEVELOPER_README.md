@@ -434,7 +434,7 @@ Poi configura le GitHub Variables richieste:
 | `COOKIE_SECURE` | `true` |
 
 Al prossimo push, la GitHub Action applica automaticamente:
-- Il `ClusterIssuer` letsencrypt-prod (da `k8s/cert-manager/clusterissuer.yaml`)
+- Il `ClusterIssuer` letsencryp (da `k8s/cert-manager/clusterissuer.yaml`)
 - L'ingress aggiornato con TLS e entrypoint `web,websecure`
 
 Il certificato viene emesso da cert-manager in ~1-2 minuti tramite sfida HTTP-01. Puoi monitorare:

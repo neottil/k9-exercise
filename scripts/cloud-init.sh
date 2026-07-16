@@ -136,7 +136,7 @@ log "      Attendo che i deployment cert-manager siano disponibili..."
 kubectl wait --for=condition=available deployment \
   --all --namespace cert-manager --timeout=300s
 log "      cert-manager pronto"
-log "      Nota: il ClusterIssuer letsencrypt-prod viene applicato"
+log "      Nota: il ClusterIssuer letsencrypt viene applicato"
 log "      dalla GitHub Action al primo deploy (richiede la Variable LETSENCRYPT_EMAIL)"
 
 # ── 7. Headlamp (Kubernetes UI) ────────────────────────────────────────────
