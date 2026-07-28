@@ -111,6 +111,10 @@ jobs:
             echo "| server | ${{ steps.analyze.outputs.has_server }} | ${{ steps.analyze.outputs.deploy_server }} | \`${{ steps.v.outputs.server }}\` |"
             echo ""
             echo "Tag di data per questa run: \`${{ steps.v.outputs.date_tag }}\`"
+            if [ "${{ steps.analyze.outputs.deploy_client }}" != "true" ] && [ "${{ steps.analyze.outputs.deploy_server }}" != "true" ]; then
+              echo ""
+              echo "ℹ️ Nessun deploy necessario: né client né server hanno modifiche rispetto all'ultimo tag di build. Build, deploy e registrazione tag verranno saltati per entrambi gli scope."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-client:
