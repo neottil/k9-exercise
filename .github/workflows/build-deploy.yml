@@ -216,7 +216,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.image.outputs.image_tag }}
-      branch_slug: ${{ steps.image.outputs.branch_slug }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -226,7 +225,6 @@ jobs:
         id: image
         run: |
           BRANCH_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')
-          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
 
           if [ "${{ needs.versions.outputs.has_client }}" = "true" ]; then
             IMAGE_TAG="${{ needs.versions.outputs.date_tag }}"
@@ -260,11 +258,11 @@ jobs:
       image_tag: ${{ needs.resolve-client-image.outputs.image_tag }}
     secrets: inherit
 
-  # Se questa run ha ribuildato: crea un tag NUOVO (nome = nuova data,
-  # riferisce la nuova immagine). Se invece era solo un deploy manifest-only:
-  # SPOSTA in avanti il tag ESISTENTE più recente sul commit di questa run
-  # (stesso nome quindi stessa immagine referenziata, ma segna "fino a qui è
-  # già stato deployato" per il diff del prossimo run).
+  # Crea sempre un tag NUOVO su questo commit (nome = data/ora di questa run),
+  # sia che sia stata ribuildata l'immagine sia che sia stato un deploy
+  # solo-manifest — nessun tag esistente viene mai spostato: ogni deploy
+  # lascia una voce propria nello storico, ed è comunque la baseline per il
+  # diff della prossima run (vedi job `versions`).
   register-client-tag:
     needs: [versions, resolve-client-image, deploy-client]
     if: needs.deploy-client.result == 'success'
@@ -283,18 +281,15 @@ jobs:
 
       - name: Registra il deploy di client
         run: |
-          if [ "${{ needs.versions.outputs.has_client }}" = "true" ]; then
-            TAG="client-${{ needs.versions.outputs.date_tag }}"
-            git tag -a "$TAG" -m "$TAG"
-            git push origin "$TAG"
-            ACTION="creato"
-          else
-            TAG=$(git tag -l "client-${{ needs.resolve-client-image.outputs.branch_slug }}-*" --sort=-creatordate | head -1)
-            git tag -fa "$TAG" -m "$TAG"
-            git push origin "$TAG" --force
-            ACTION="spostato in avanti (deploy manifest-only)"
-          fi
-          echo "✅ Deploy client completato — tag \`$TAG\` $ACTION." >> "$GITHUB_STEP_SUMMARY"
+          # Sempre un tag NUOVO, anche per un deploy solo-manifest (nessun
+          # rebuild): il tag è basato su data/ora quindi è comunque univoco, e
+          # ogni deploy — codice o solo k8s/ — resta tracciato con la propria
+          # voce nello storico, invece di far sparire silenziosamente in un
+          # tag esistente spostato in avanti.
+          TAG="client-${{ needs.versions.outputs.date_tag }}"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+          echo "✅ Deploy client completato — tag \`$TAG\` creato." >> "$GITHUB_STEP_SUMMARY"
 
   # Vedi commento gemello in resolve-client-image.
   resolve-server-image:
@@ -307,7 +302,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.image.outputs.image_tag }}
-      branch_slug: ${{ steps.image.outputs.branch_slug }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -317,7 +311,6 @@ jobs:
         id: image
         run: |
           BRANCH_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')
-          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
 
           if [ "${{ needs.versions.outputs.has_server }}" = "true" ]; then
             IMAGE_TAG="${{ needs.versions.outputs.date_tag }}"
@@ -369,18 +362,12 @@ jobs:
 
       - name: Registra il deploy di server
         run: |
-          if [ "${{ needs.versions.outputs.has_server }}" = "true" ]; then
-            TAG="server-${{ needs.versions.outputs.date_tag }}"
-            git tag -a "$TAG" -m "$TAG"
-            git push origin "$TAG"
-            ACTION="creato"
-          else
-            TAG=$(git tag -l "server-${{ needs.resolve-server-image.outputs.branch_slug }}-*" --sort=-creatordate | head -1)
-            git tag -fa "$TAG" -m "$TAG"
-            git push origin "$TAG" --force
-            ACTION="spostato in avanti (deploy manifest-only)"
-          fi
-          echo "✅ Deploy server completato — tag \`$TAG\` $ACTION." >> "$GITHUB_STEP_SUMMARY"
+          # Vedi commento gemello in register-client-tag: sempre un tag
+          # nuovo, anche per un deploy solo-manifest.
+          TAG="server-${{ needs.versions.outputs.date_tag }}"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+          echo "✅ Deploy server completato — tag \`$TAG\` creato." >> "$GITHUB_STEP_SUMMARY"
 
   # A fine deploy, ripulisce dal registry le immagini taggate con la sola data,
   # mantenendo solo le 3 più recenti per repository immagine. I tag di versione

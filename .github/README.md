@@ -104,8 +104,8 @@ Client e server sono scope indipendenti, colocati con i propri manifest
 (`client/k8s/`, `server/k8s/`). Il pattern usato in `build-deploy.yml`:
 
 1. Ogni volta che uno scope viene **effettivamente deployato con successo** in
-   staging, viene creato/spostato un tag Git `<scope>-main-<data>` sul commit
-   deployato (vedi punto 3).
+   staging, viene creato un tag Git **nuovo** `<scope>-main-<data>` sul commit
+   deployato (vedi punto 3) — mai spostato uno esistente.
 2. Alla run successiva, si cerca l'ultimo tag di quello scope **raggiungibile da
    `HEAD`** (`git tag --merged HEAD --sort=-creatordate -l "<scope>-main-*" | head -1`)
    e si fa `git diff --name-only <tag> HEAD -- <scope>/` per sapere cosa è cambiato
@@ -136,18 +136,25 @@ scope davvero deployata con successo.
 
 ### 3. Ciclo di vita del tag `<scope>-<branch>-<data>`
 
-Un solo tag per (scope, branch): serve sia da baseline per il diff del punto
-precedente sia da riferimento per `tag.yml` (punto 5). Aggiornato **sempre a fine
-job, solo dopo un deploy riuscito**:
+Un tag **nuovo** per ogni deploy riuscito di quello scope su quel branch — mai uno
+spostato. Serve sia da baseline per il diff del punto precedente sia da
+riferimento per `tag.yml` (punto 5). Creato **sempre a fine job, solo dopo un
+deploy riuscito**, sia che ci sia stato un rebuild sia che sia stato un deploy
+solo-manifest (nessuna nuova immagine): il nome del tag è comunque `<branch>-<data
+di questa run>`, quindi univoco di suo, senza bisogno di distinguere i due casi.
 
-- **C'era un rebuild** → si crea un tag **nuovo**, con la data di *questa* run, sul
-  commit appena deployato. Il tag Docker dell'immagine coincide con la parte
-  `<branch>-<data>` del nome del tag Git.
-- **Era un deploy manifest-only** → si **sposta in avanti** (force-update) il tag
-  Git **esistente** più recente di quello scope, sul commit di questa run,
-  **mantenendo lo stesso nome**. Non spostarlo affatto sarebbe sbagliato: la
-  prossima run rifarebbe lo stesso diff e rileverebbe di nuovo lo stesso
-  cambiamento manifest, ripetendo il redeploy ad ogni run futura.
+Perché sempre un tag nuovo e mai uno spostato: primo, tracciabilità — anche un
+deploy che ha toccato solo `<scope>/k8s/*` deve restare visibile come evento a sé
+nello storico dei tag, non sparire dentro il tag della run precedente. Secondo,
+un side-effect utile: forzare lo spostamento di un tag il cui commit tocca
+`.github/workflows/` richiede permessi che `GITHUB_TOKEN` non ha (vedi
+["Insidie note"](#insidie-note-gotcha)) — creare sempre un tag nuovo evita il
+problema alla radice, senza bisogno di un PAT aggiuntivo.
+
+Questo accumula più tag `<scope>-main-*` nel tempo (uno per ogni deploy, anche
+solo-manifest): la pulizia non è compito di questo job, ma di
+`cleanup-build-tags.yml` (punto 6), che mantiene solo il più recente per
+(scope, branch).
 
 Questo passo (job `register-client-tag`/`register-server-tag` in `build-deploy.yml`)
 resta **fuori** dal workflow riutilizzabile di deploy (punto 4): dipende da logica
@@ -330,11 +337,28 @@ come unica fonte di informazione.
   due `Certificate` per lo stesso secret e i due Ingress "litigherebbero". L'altro
   (`server/k8s/ingress.yaml`) referenzia lo stesso `secretName` TLS senza
   richiederlo lui stesso.
-- **`git tag -fa` + `push --force` sposta un tag esistente senza avvisare**: se un
-  tag di versione reale esiste già su un commit diverso da quello che si vorrebbe
-  taggare, `-f` lo sposta silenziosamente. `tag.yml` evita il problema
-  strutturalmente: controlla sempre se il commit è già coperto da un tag reale
-  prima di crearne/spostarne uno.
+- **Nessun workflow sposta mai un tag Git esistente (niente `-f`/`--force`)**: sia
+  `build-deploy.yml` (`register-client-tag`/`register-server-tag`) sia `tag.yml`
+  creano sempre un tag **nuovo**, mai spostano quello vecchio — per due motivi.
+  Primo, tracciabilità: anche un deploy solo-manifest (nessun rebuild, solo
+  `<scope>/k8s/*` cambiato) deve lasciare una propria voce nello storico, non
+  sparire dentro il tag della run precedente — per questo il tag effimero
+  `<scope>-main-*` è sempre nuovo (basato su data/ora, quindi univoco di suo),
+  anche quando l'immagine Docker non cambia. Secondo, un side-effect utile:
+  `GITHUB_TOKEN` non può **forzare** lo spostamento di un ref la cui storia tocca
+  `.github/workflows/` (fallisce con `refusing to allow a GitHub App to create or
+  update workflow ... without 'workflows' permission` — nessuno scope `workflows`
+  è assegnabile al token di default via `permissions:`), ma la creazione di un
+  ref **nuovo** senza `--force` non è soggetta alla stessa restrizione: evitando
+  sempre `--force` non serve nessun PAT aggiuntivo. Per lo stesso motivo,
+  `tag.yml` non sposta mai un tag di versione reale (`<scope>-vX.Y.Z`): se esiste
+  già su un commit diverso da quello da promuovere, si ferma con un `::error::`
+  esplicito (log + riga rossa nel job summary) — serve intervento umano: o si
+  incrementa la versione in `<scope>/package.json` (nuovo tag, nessun conflitto —
+  vale anche per un deploy solo-manifest: se cambi solo i manifest k8s e vuoi
+  poi promuoverlo in produzione, la versione va comunque incrementata), o si
+  cancella manualmente il tag vecchio (`git push origin :refs/tags/<tag> &&
+  git tag -d <tag>`) prima di rilanciare Tag.
 - **Un workflow di deploy con input liberi rischia di deployare qualunque cosa**:
   `promote.yml` accetta `client_version`/`server_version` come stringhe libere —
   senza validazione, un typo o una versione mai taggata potrebbe fallire a metà
@@ -456,9 +480,9 @@ e 5 su ClubManager):
    momento in cui ne servirà un secondo (promozione, rollback manuale, un secondo
    ambiente), la duplicazione va evitata da subito.
 4. Nel workflow di build/deploy, implementa il diff condizionale per scope
-   (pattern 2) e lo schema di tag `<scope>-<branch>-<data>` con la logica "crea se
-   rebuild, sposta se manifest-only" (pattern 3), tenendo il ciclo di vita del tag
-   **fuori** dal workflow riutilizzabile di deploy.
+   (pattern 2) e lo schema di tag `<scope>-<branch>-<data>` sempre creato ex-novo
+   ad ogni deploy riuscito, mai spostato (pattern 3), tenendo il ciclo di vita del
+   tag **fuori** dal workflow riutilizzabile di deploy.
 5. Se il progetto ha un ambiente di produzione fisico separato, **separa
    versioning e deploy in due workflow distinti** (pattern 5): uno decide/tagga la
    versione (nessun `run_id`/lookup di run specifica: legge sempre l'ultimo tag

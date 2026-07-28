@@ -38,6 +38,8 @@ jobs:
       promoted_server: ${{ steps.promuovi.outputs.promoted_server }}
       promoted_any: ${{ steps.promuovi.outputs.promoted_any }}
       cleanup_scope: ${{ steps.promuovi.outputs.cleanup_scope }}
+      errored_client: ${{ steps.promuovi.outputs.errored_client }}
+      errored_server: ${{ steps.promuovi.outputs.errored_server }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -72,6 +74,7 @@ jobs:
           declare -A TITLE=( [client]="Client" [server]="Server" )
           declare -A PROMOTED=( [client]=false [server]=false )
           declare -A RESOLVED_VERSION=( [client]='' [server]='' )
+          declare -A ERRORED=( [client]=false [server]=false )
 
           for SCOPE in client server; do
             echo "=== $SCOPE ==="
@@ -95,8 +98,26 @@ jobs:
 
             echo "  $DEPLOY_TAG -> commit $COMMIT, version $VERSION -> $REAL_TAG"
 
-            git tag -fa "$REAL_TAG" "$COMMIT" -m "$REAL_TAG"
-            git push origin "$REAL_TAG" --force
+            # Mai spostare con --force un tag di versione già esistente: se
+            # esiste ma punta altrove, è quasi certamente un errore umano
+            # (versione non incrementata dopo un hotfix, o package.json
+            # sbagliato) — meglio fermarsi con un messaggio chiaro che
+            # rischiare di far scomparire silenziosamente la release
+            # precedente. Inoltre: GITHUB_TOKEN non può comunque forzare un
+            # ref la cui storia tocca .github/workflows/ (nessuno scope
+            # `workflows` assegnabile), quindi evitare --force qui elimina
+            # anche quel problema alla radice, senza bisogno di un PAT.
+            EXISTING_COMMIT=$(git rev-parse -q --verify "refs/tags/${REAL_TAG}^{commit}" 2>/dev/null || true)
+            if [ -n "$EXISTING_COMMIT" ] && [ "$EXISTING_COMMIT" != "$COMMIT" ]; then
+              echo "::error::Il tag $REAL_TAG esiste già, ma punta al commit $EXISTING_COMMIT (non $COMMIT). Non lo sposto automaticamente. Se la versione in ${SCOPE}/package.json non è stata incrementata dopo l'ultimo deploy, incrementala e rilancia Tag; se invece vuoi davvero ripuntare $REAL_TAG su questo commit, cancellalo prima manualmente (git push origin :refs/tags/$REAL_TAG && git tag -d $REAL_TAG) e rilancia Tag."
+              ERRORED[$SCOPE]=true
+              continue
+            fi
+
+            if [ -z "$EXISTING_COMMIT" ]; then
+              git tag -a "$REAL_TAG" "$COMMIT" -m "$REAL_TAG"
+              git push origin "$REAL_TAG"
+            fi
 
             DATE_TAG="${DEPLOY_TAG#${SCOPE}-}"
             docker buildx imagetools create \
@@ -140,6 +161,15 @@ jobs:
           echo "cleanup_scope=$CLEANUP_SCOPE"      >> "$GITHUB_OUTPUT"
           echo "client_version=${RESOLVED_VERSION[client]}" >> "$GITHUB_OUTPUT"
           echo "server_version=${RESOLVED_VERSION[server]}" >> "$GITHUB_OUTPUT"
+          echo "errored_client=${ERRORED[client]}" >> "$GITHUB_OUTPUT"
+          echo "errored_server=${ERRORED[server]}" >> "$GITHUB_OUTPUT"
+
+          # Non far risultare la run verde se uno scope è stato saltato per un
+          # conflitto di tag: è un problema che richiede intervento umano (vedi
+          # messaggio ::error:: sopra), non va confuso con un "nulla da fare".
+          if [ "${ERRORED[client]}" = "true" ] || [ "${ERRORED[server]}" = "true" ]; then
+            exit 1
+          fi
 
       # NOTA sui limiti di GHCR: il tag di data NON viene eliminato dall'immagine
       # qui sopra. L'API di GitHub Packages cancella per *versione* (= digest),
@@ -176,12 +206,16 @@ jobs:
             echo ""
             echo "| Componente | Versione | Promossa in questa run |"
             echo "|---|---|---|"
-            if [ -n "${{ steps.promuovi.outputs.client_version }}" ]; then
+            if [ "${{ steps.promuovi.outputs.errored_client }}" = "true" ]; then
+              echo "| client | — | ❌ **errore**: tag già esistente su un altro commit, vedi log dello step \`Promuovi client e server\` |"
+            elif [ -n "${{ steps.promuovi.outputs.client_version }}" ]; then
               echo "| client | \`${{ steps.promuovi.outputs.client_version }}\` | ${{ steps.promuovi.outputs.promoted_client == 'true' && 'sì' || 'no (già promossa)' }} |"
             else
               echo "| client | — | mai deployato su main |"
             fi
-            if [ -n "${{ steps.promuovi.outputs.server_version }}" ]; then
+            if [ "${{ steps.promuovi.outputs.errored_server }}" = "true" ]; then
+              echo "| server | — | ❌ **errore**: tag già esistente su un altro commit, vedi log dello step \`Promuovi client e server\` |"
+            elif [ -n "${{ steps.promuovi.outputs.server_version }}" ]; then
               echo "| server | \`${{ steps.promuovi.outputs.server_version }}\` | ${{ steps.promuovi.outputs.promoted_server == 'true' && 'sì' || 'no (già promossa)' }} |"
             else
               echo "| server | — | mai deployato su main |"

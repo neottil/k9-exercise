@@ -175,9 +175,9 @@ versione) e `promote.yml` (la deploya) — vedi sotto.
 ### Tag effimeri `<scope>-<branch>-<data>`
 
 Ad ogni push su `main`, per ciascuno scope (`client`, `server`) che ha subito
-modifiche, `build-deploy.yml` crea o sposta un tag `<scope>-main-<data>` (es.
-`client-main-20260703_2130`) sul commit appena deployato con successo in staging.
-Questo tag serve a due scopi:
+modifiche, `build-deploy.yml` crea **sempre un tag nuovo** `<scope>-main-<data>`
+(es. `client-main-20260703_2130`) sul commit appena deployato con successo in
+staging — mai uno spostato. Questo tag serve a due scopi:
 - **baseline per il diff** della prossima run su quel branch (cosa è cambiato da
   allora sotto `<scope>/`)
 - **riferimento** che `tag.yml` userà per sapere cosa promuovere
@@ -185,12 +185,21 @@ Questo tag serve a due scopi:
 Stesso nome del tag Docker pushato su GHCR (`k9-client:main-20260703_2130`) — nessun
 `run_id` o artifact da tenere sincronizzato, il nome del tag Git *è* il tag Docker.
 
-- Se il codice dello scope è cambiato → build nuovo + tag Git **nuovo**.
-- Se è cambiato **solo** `<scope>/k8s/` (manifest, non codice) → nessun rebuild,
-  il tag Git **esistente** viene solo spostato in avanti sul nuovo commit (stessa
-  immagine, già buildata in precedenza).
+- Se il codice dello scope è cambiato → build nuovo + tag Git nuovo.
+- Se è cambiato **solo** `<scope>/k8s/` (manifest, non codice) → nessun rebuild
+  (l'immagine resta quella già esistente), ma il tag Git è comunque **nuovo**: ogni
+  deploy, anche solo-manifest, lascia una propria voce nello storico invece di
+  sparire dentro il tag della run precedente. Il tag effimero è basato su
+  data/ora quindi è comunque univoco, senza bisogno di bump di versione per
+  questo — il bump serve solo più avanti, quando si vuole **promuovere** quel
+  commit (vedi sotto).
 - Se nessuno dei due → il job di deploy di quello scope non gira affatto, il
   Deployment k8s resta esattamente com'era.
+
+Poiché ogni deploy crea un tag nuovo, i tag `<scope>-main-*` si accumulano nel
+tempo: la pulizia è compito di `cleanup-build-tags.yml` (triggerato da `tag.yml`
+dopo ogni promozione, o lanciabile a mano), che mantiene solo il più recente per
+scope/branch.
 
 ### Assegnare la versione reale (`tag.yml`, manuale — SOLO versioning)
 
@@ -198,9 +207,11 @@ Quando si decide di rilasciare, si lancia manualmente il workflow **Tag**. Per
 ciascuno scope: trova l'ultimo tag `<scope>-main-*`, e se il suo commit non è
 già coperto da un tag `<scope>-vX.Y.Z`, legge la versione da
 `<scope>/package.json` **a quel commit** (bump manuale del `package.json` prima
-di lanciare Tag), crea/sposta il tag reale, e ri-tagga l'immagine Docker già
-esistente **senza rebuild** (`docker buildx imagetools create`). Se uno scope è
-già stato promosso in precedenza, viene saltato (nessuna modifica).
+di lanciare Tag), crea il tag reale (mai spostato: se esiste già su un commit
+diverso, il job si ferma con un errore — vedi la gotcha "insidie note" in
+`.github/README.md`), e ri-tagga l'immagine Docker già esistente **senza
+rebuild** (`docker buildx imagetools create`). Se uno scope è già stato
+promosso in precedenza, viene saltato (nessuna modifica).
 
 Una GitHub Release viene creata/aggiornata qui, sul tag reale — non ad ogni deploy
 in staging. **Questo workflow non deploya nulla**: si ferma dopo aver taggato.
@@ -274,7 +285,7 @@ deploy-client / deploy-server         ←─ chiama deploy-client.yml/deploy-ser
     │  patch ConfigMap k9-versions
     ▼
 register-client-tag / register-server-tag
-    │  crea/sposta il tag <scope>-main-<data>
+    │  crea (sempre nuovo, mai spostato) il tag <scope>-main-<data>
     ▼
 cleanup-registry     — tiene le 3 immagini più recenti per repository
     ▼
