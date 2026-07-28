@@ -1,0 +1,90 @@
+name: Deploy client (reusable)
+
+# Reusable workflow — Deploy client
+#
+# Chiamato sia da build-deploy.yml (staging, image_tag = tag di data) sia da
+# promote.yml (production, image_tag = versione semver reale). Unica fonte di
+# verità per "come si deploya il client su un ambiente k9": renderizza
+# client/k8s/*.yaml, copia sulla VPS, applica, verifica il rollout, aggiorna
+# k9-versions. L'environment passato dal chiamante determina quali
+# Variables/Secrets vengono usati (secrets: inherit lato chiamante).
+#
+# Non gestisce il ciclo di vita dei tag Git (creazione/spostamento
+# client-<branch>-<data>): quello resta nel workflow chiamante, perché dipende
+# da logica specifica di quel contesto (se è stato fatto un rebuild o meno).
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment GitHub da cui leggere Variables/Secrets (es. staging, production)'
+        type: string
+        required: true
+      image_tag:
+        description: 'Tag dell immagine ghcr.io/<owner>/k9-client da deployare (es. main-20260703_2130, oppure 1.6.0)'
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Renderizza manifest k8s (client)
+        env:
+          CLIENT_IMAGE: ghcr.io/${{ github.repository_owner }}/k9-client:${{ inputs.image_tag }}
+          DOMAIN: ${{ vars.DOMAIN }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq gettext-base
+          mkdir -p k8s-rendered
+          envsubst '${CLIENT_IMAGE}' < client/k8s/deployment.yaml > k8s-rendered/client-deployment.yaml
+          cp client/k8s/service.yaml k8s-rendered/client-service.yaml
+          envsubst '${DOMAIN}' < client/k8s/ingress.yaml > k8s-rendered/client-ingress.yaml
+
+      - name: Copia manifest client sulla VPS via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "k8s-rendered/*"
+          target: /opt/k9/k8s
+          strip_components: 1
+
+      - name: Applica manifest client e verifica rollout
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          NS: k9
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          DEPLOY_PATH: /opt/k9/k8s
+          CLIENT_VERSION: ${{ inputs.image_tag }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: NS,GHCR_USER,GHCR_PAT,DEPLOY_PATH,CLIENT_VERSION
+          script: |
+            set -e
+            # Vedi gotcha in DEVELOPER_README.md: kubectl (symlink a k3s) senza
+            # KUBECONFIG esplicito risolve su /etc/rancher/k3s/k3s.yaml (root:root),
+            # illeggibile dall'utente di deploy.
+            export KUBECONFIG="$HOME/.kube/config"
+
+            # Idempotente: ricreato anche dal deploy server, non fa danno (vedi
+            # infra.yml per il commento completo su GHCR_PAT).
+            kubectl create secret docker-registry ghcr-secret -n "$NS" \
+              --docker-server=ghcr.io \
+              --docker-username="$GHCR_USER" \
+              --docker-password="$GHCR_PAT" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            kubectl apply -f "$DEPLOY_PATH/client-deployment.yaml"
+            kubectl apply -f "$DEPLOY_PATH/client-service.yaml"
+            kubectl apply -f "$DEPLOY_PATH/client-ingress.yaml"
+            kubectl rollout restart deployment/k9-client -n "$NS"
+            kubectl rollout status deployment/k9-client -n "$NS" --timeout=120s
+
+            kubectl patch configmap k9-versions -n "$NS" --type=merge \
+              -p "{\"data\":{\"CLIENT_VERSION\":\"$CLIENT_VERSION\"}}"

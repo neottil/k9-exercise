@@ -1,84 +1,89 @@
 name: Promote to Production
 
+# Attivazione MANUALE: deploya in produzione una o entrambe le versioni reali
+# già create dal workflow Tag (client-vX.Y.Z / server-vX.Y.Z). SOLO deploy:
+# non crea né sposta tag, non tocca la GitHub Release, non decide nessuna
+# versione da solo — riceve la versione come input esplicito.
+#
+# Separazione netta rispetto a tag.yml: Tag decide "quale versione esiste",
+# Promote decide "quale versione gira in produzione ora". Possono succedere in
+# momenti diversi (es. taggi 1.6.0 oggi, promuovi in produzione la prossima
+# settimana), e Promote può essere rilanciato in qualunque momento con la
+# stessa versione per risincronizzare la produzione (es. dopo un deploy
+# fallito) senza dover ripassare da Tag.
+#
+# Il deploy vero e proprio è delegato agli STESSI workflow riutilizzabili usati
+# da build-deploy.yml per staging (deploy-client.yml/deploy-server.yml, con
+# environment: production) — nessuna logica di deploy duplicata qui.
 on:
   workflow_dispatch:
     inputs:
       server_version:
-        description: 'Versione server da promuovere (vuoto = ultima da package.json)'
+        description: 'Versione server da deployare in produzione (es. 1.6.0 — deve esistere come tag server-v<versione>, creato dal workflow Tag). Vuoto = non toccare il server.'
         required: false
         default: ''
       client_version:
-        description: 'Versione client da promuovere (vuoto = ultima da package.json)'
+        description: 'Versione client da deployare in produzione (es. 1.6.0 — deve esistere come tag client-v<versione>, creato dal workflow Tag). Vuoto = non toccare il client.'
         required: false
         default: ''
-      k8s_version:
-        description: 'Versione k8s dei manifest da deployare (es. 1.5.1 → tag k8s-1.5.1)'
-        required: true
 
 jobs:
-  # ── 1. Resolve versions ────────────────────────────────────────────────────────
-  #
-  # Risolve le versioni di server e client: usa gli input se specificati,
-  # altrimenti legge i valori correnti dai package.json.
-
-  resolve-versions:
+  # Nessun deploy alla cieca: verifica che almeno una versione sia stata
+  # specificata e che il tag di versione reale corrispondente esista davvero
+  # (creato da tag.yml) — un typo o una versione mai taggata falliscono qui,
+  # non a metà di un deploy su un ambiente reale.
+  validate:
     runs-on: ubuntu-latest
-    outputs:
-      server_version: ${{ steps.versions.outputs.server_version }}
-      client_version: ${{ steps.versions.outputs.client_version }}
     steps:
-      - name: Validate inputs
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verifica input e tag di versione
         run: |
-          if [ -z "${{ inputs.k8s_version }}" ]; then
-            echo "::error::k8s_version è obbligatorio per il promote in production"
+          if [ -z "${{ inputs.server_version }}" ] && [ -z "${{ inputs.client_version }}" ]; then
+            echo "::error::Specifica almeno server_version o client_version."
             exit 1
           fi
 
-      - uses: actions/checkout@v6
-
-      - name: Resolve versions
-        id: versions
-        run: |
-          SERVER_VERSION="${{ inputs.server_version }}"
-          CLIENT_VERSION="${{ inputs.client_version }}"
-
-          if [ -z "$SERVER_VERSION" ]; then
-            SERVER_VERSION=$(node -p "require('./server/package.json').version")
-          fi
-          if [ -z "$CLIENT_VERSION" ]; then
-            CLIENT_VERSION=$(node -p "require('./client/package.json').version")
+          if [ -n "${{ inputs.server_version }}" ]; then
+            if ! git rev-parse -q --verify "refs/tags/server-v${{ inputs.server_version }}" >/dev/null; then
+              echo "::error::Tag server-v${{ inputs.server_version }} non trovato. Lancia prima il workflow Tag."
+              exit 1
+            fi
           fi
 
-          echo "server_version=$SERVER_VERSION" >> $GITHUB_OUTPUT
-          echo "client_version=$CLIENT_VERSION" >> $GITHUB_OUTPUT
-          echo "→ server=$SERVER_VERSION  client=$CLIENT_VERSION"
+          if [ -n "${{ inputs.client_version }}" ]; then
+            if ! git rev-parse -q --verify "refs/tags/client-v${{ inputs.client_version }}" >/dev/null; then
+              echo "::error::Tag client-v${{ inputs.client_version }} non trovato. Lancia prima il workflow Tag."
+              exit 1
+            fi
+          fi
 
-  # ── 2. Deploy production ───────────────────────────────────────────────────────
-  #
-  # Delega il deploy al reusable workflow k8s-deploy.yml.
-  # Secret e variabili vengono letti dall'environment "production" nel workflow chiamato.
-  # k8s_ref permette di specificare quale versione dei manifest k8s deployare.
-
-  deploy-production:
-    needs: resolve-versions
-    uses: ./.github/workflows/k8s-deploy.yml
+  deploy-production-client:
+    needs: validate
+    if: inputs.client_version != ''
+    uses: ./.github/workflows/deploy-client.yml
     with:
-      server_version: ${{ needs.resolve-versions.outputs.server_version }}
-      client_version: ${{ needs.resolve-versions.outputs.client_version }}
       environment: production
-      k8s_version: ${{ inputs.k8s_version }}
+      image_tag: ${{ inputs.client_version }}
     secrets: inherit
 
-  # ── 3. Summary ─────────────────────────────────────────────────────────────────
+  deploy-production-server:
+    needs: validate
+    if: inputs.server_version != ''
+    uses: ./.github/workflows/deploy-server.yml
+    with:
+      environment: production
+      image_tag: ${{ inputs.server_version }}
+    secrets: inherit
 
   summary:
-    needs: [resolve-versions, deploy-production]
+    needs: [validate, deploy-production-client, deploy-production-server]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Job summary
-        env:
-          DEPLOY_RESULT: ${{ needs.deploy-production.result }}
         run: |
           status_icon() {
             case "$1" in
@@ -92,20 +97,12 @@ jobs:
           {
             echo "## Promote to Production"
             echo ""
-            echo "| Fase | Stato |"
-            echo "|------|-------|"
-            echo "| **Deploy** | $(status_icon "$DEPLOY_RESULT") |"
+            echo "| Componente | Versione | Stato |"
+            echo "|---|---|---|"
+            echo "| client | \`${{ inputs.client_version || '—' }}\` | $(status_icon "${{ needs.deploy-production-client.result }}") |"
+            echo "| server | \`${{ inputs.server_version || '—' }}\` | $(status_icon "${{ needs.deploy-production-server.result }}") |"
             echo ""
             echo "| | |"
             echo "|---|---|"
             echo "| **Avviato da** | ${{ github.actor }} |"
-            echo "| **k8s version** | \`${{ inputs.k8s_version || 'HEAD (main)' }}\` |"
-            echo ""
-            echo "### Versioni deployate"
-            echo ""
-            echo "| Componente | Versione |"
-            echo "|---|---|"
-            echo "| server | \`${{ needs.resolve-versions.outputs.server_version }}\` |"
-            echo "| client | \`${{ needs.resolve-versions.outputs.client_version }}\` |"
-            echo "| k8s    | \`${{ inputs.k8s_version || 'HEAD (main)' }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

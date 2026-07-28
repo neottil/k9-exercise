@@ -1,0 +1,109 @@
+name: Deploy server (reusable)
+
+# Reusable workflow — Deploy server
+#
+# Gemello di deploy-client.yml: chiamato sia da build-deploy.yml (staging,
+# image_tag = tag di data) sia da promote.yml (production, image_tag = versione
+# semver reale). Unica fonte di verità per "come si deploya il server su un
+# ambiente k9": renderizza server/k8s/*.yaml, copia sulla VPS, applica, verifica
+# il rollout, aggiorna k9-versions. L'environment passato dal chiamante
+# determina quali Variables/Secrets vengono usati (secrets: inherit lato
+# chiamante).
+#
+# A differenza del client, il server possiede anche k9-secrets (Mongo/sessione/
+# JWT) e manifest aggiuntivi (hso.yaml). Non gestisce il ciclo di vita dei tag
+# Git: resta nel workflow chiamante.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment GitHub da cui leggere Variables/Secrets (es. staging, production)'
+        type: string
+        required: true
+      image_tag:
+        description: 'Tag dell immagine ghcr.io/<owner>/k9-server da deployare (es. main-20260703_2130, oppure 1.6.0)'
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Renderizza manifest k8s (server)
+        env:
+          SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/k9-server:${{ inputs.image_tag }}
+          DOMAIN: ${{ vars.DOMAIN }}
+          LOGIN_TYPE: ${{ vars.LOGIN_TYPE }}
+          LOGIN_SITE_URL: ${{ vars.LOGIN_SITE_URL }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ vars.SMTP_USER }}
+          NOTIFY_RECIPIENTS: ${{ vars.NOTIFY_RECIPIENTS }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq gettext-base
+          mkdir -p k8s-rendered
+          export APP_URL="https://${{ vars.DOMAIN }}"
+          envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' \
+            < server/k8s/deployment.yaml > k8s-rendered/server-deployment.yaml
+          cp server/k8s/service.yaml k8s-rendered/server-service.yaml
+          envsubst '${DOMAIN}' < server/k8s/hso.yaml     > k8s-rendered/server-hso.yaml
+          envsubst '${DOMAIN}' < server/k8s/ingress.yaml > k8s-rendered/server-ingress.yaml
+
+      - name: Copia manifest server sulla VPS via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "k8s-rendered/*"
+          target: /opt/k9/k8s
+          strip_components: 1
+
+      - name: Applica manifest server e verifica rollout
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          NS: k9
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          DEPLOY_PATH: /opt/k9/k8s
+          SERVER_VERSION: ${{ inputs.image_tag }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          K9_JWT_SECRET: ${{ secrets.K9_JWT_SECRET }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: NS,GHCR_USER,GHCR_PAT,DEPLOY_PATH,SERVER_VERSION,MONGODB_URI,SESSION_SECRET,K9_JWT_SECRET
+          script: |
+            set -e
+            export KUBECONFIG="$HOME/.kube/config"
+
+            kubectl create secret docker-registry ghcr-secret -n "$NS" \
+              --docker-server=ghcr.io \
+              --docker-username="$GHCR_USER" \
+              --docker-password="$GHCR_PAT" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            # Config runtime specifica del server (Mongo/sessione/JWT). A
+            # differenza di minio-secret/k9-notify-secret (di competenza di
+            # infra.yml, non toccati qui), questo secret è del tutto locale allo
+            # scope server.
+            kubectl create secret generic k9-secrets -n "$NS" \
+              --from-literal=MONGODB_URI="$MONGODB_URI" \
+              --from-literal=SESSION_SECRET="$SESSION_SECRET" \
+              --from-literal=K9_JWT_SECRET="$K9_JWT_SECRET" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            kubectl apply -f "$DEPLOY_PATH/server-deployment.yaml"
+            kubectl apply -f "$DEPLOY_PATH/server-service.yaml"
+            kubectl apply -f "$DEPLOY_PATH/server-hso.yaml"
+            kubectl apply -f "$DEPLOY_PATH/server-ingress.yaml"
+            kubectl rollout restart deployment/k9-server -n "$NS"
+            kubectl rollout status deployment/k9-server -n "$NS" --timeout=120s
+
+            kubectl patch configmap k9-versions -n "$NS" --type=merge \
+              -p "{\"data\":{\"SERVER_VERSION\":\"$SERVER_VERSION\"}}"

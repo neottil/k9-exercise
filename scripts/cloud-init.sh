@@ -9,14 +9,17 @@
 #   - Esecuzione manuale: bash scripts/cloud-init.sh
 #
 # Cosa installa:
-#   1. Dipendenze di sistema
+#   1. Dipendenze di sistema (include il CLI helm, usato dal workflow Infra)
 #   2. Utente deploy (SSH e kubectl senza root)
 #   3. k3s — Kubernetes leggero con Traefik e CoreDNS inclusi
 #   4. KEDA — controller autoscaling
 #   5. KEDA HTTP Add-on — scaling su richieste HTTP in ingresso
 #   6. cert-manager — provisioning automatico certificati TLS (Let's Encrypt)
-#   7. Headlamp — UI per pod, risorse ed eventi di scaling
 #
+# Headlamp (UI per pod/risorse) NON è installato qui: è parametrizzato tramite
+# l'input `install_headlamp` del workflow Infra (.github/workflows/infra.yml),
+# così può essere abilitato/disabilitato per ambiente e ri-applicato senza
+# dover rieseguire questo script.
 #
 # Output:
 #   Log completo  : /var/log/k9-init.log
@@ -45,14 +48,13 @@ apt-get upgrade -y
 # gettext-base fornisce envsubst, usato dalla GitHub Action per sostituire
 # i tag delle immagini nei manifest Kubernetes prima di ogni deploy
 apt-get install -y curl gettext-base
-# installazione helm
-mkdir -p ~/bin
+# Installazione helm in /usr/local/bin (path di sistema, NON ~/bin di root):
+# il workflow Infra applica Headlamp via SSH come utente "deploy", non root,
+# quindi helm deve essere in un percorso condiviso da tutti gli utenti.
 curl -LO https://get.helm.sh/helm-v4.2.2-linux-amd64.tar.gz
 tar -zxf helm-v4.2.2-linux-amd64.tar.gz
-mv linux-amd64/helm ~/bin/helm
+mv linux-amd64/helm /usr/local/bin/helm
 rm -rf helm-v4.2.2-linux-amd64.tar.gz linux-amd64
-echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
 
 log "      OK"
 
@@ -129,7 +131,7 @@ kubectl wait --for=condition=available deployment \
 log "      KEDA HTTP Add-on pronto"
 
 # ── 6. cert-manager ──────────────────────────────────────────────────────────
-log "[6/7] Installazione cert-manager..."
+log "[6/6] Installazione cert-manager..."
 kubectl apply -f "https://github.com/cert-manager/cert-manager/releases/download/v1.16.0/cert-manager.yaml"
 
 log "      Attendo che i deployment cert-manager siano disponibili..."
@@ -138,65 +140,6 @@ kubectl wait --for=condition=available deployment \
 log "      cert-manager pronto"
 log "      Nota: il ClusterIssuer letsencrypt viene applicato"
 log "      dalla GitHub Action al primo deploy (richiede la Variable LETSENCRYPT_EMAIL)"
-
-# ── 7. Headlamp (Kubernetes UI) ────────────────────────────────────────────
-log "[7/7] Installazione Headlamp..."
-
-# Repository Helm ufficiale di Headlamp
-helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/ > /dev/null 2>&1 || true
-helm repo update > /dev/null
-
-# Installazione (idempotente: se già installato, fa upgrade)
-helm upgrade --install my-headlamp headlamp/headlamp \
-  --namespace headlamp \
-  --create-namespace
-
-# Attesa che il pod sia pronto
-log "Attendo che Headlamp sia pronto..."
-kubectl rollout status deployment/my-headlamp \
-  --namespace headlamp \
-  --timeout=120s
-
-# Service account con accesso completo al cluster
-kubectl create serviceaccount headlamp-admin \
-  --namespace "headlamp" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl create clusterrolebinding headlamp-admin \
-  --clusterrole=cluster-admin \
-  --serviceaccount="headlamp:headlamp-admin" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-# # Token di accesso (valido 1 anno)
-# log "Token di accesso Headlamp (valido 1 anno):"
-# kubectl create token headlamp-admin \
-#   --namespace headlamp \
-#   --duration=8760h
-
-# Token permanente (non scade), legato a un Secret dedicato
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: headlamp-admin-token
-  namespace: headlamp
-  annotations:
-    kubernetes.io/service-account.name: headlamp-admin
-type: kubernetes.io/service-account-token
-EOF
-
-# Attesa che Kubernetes popoli il campo "token" nel secret
-log "Attendo generazione token..."
-for i in {1..10}; do
-  HEADLAMP_TOKEN=$(kubectl get secret headlamp-admin-token -n headlamp -o jsonpath='{.data.token}' 2>/dev/null | base64 -d)
-  [ -n "$HEADLAMP_TOKEN" ] && break
-  sleep 1
-done
-
-log "Token permanente Headlamp:"
-echo "$HEADLAMP_TOKEN"
-
-log "      Headlamp installato"
 
 # ── Completamento ─────────────────────────────────────────────────────────────
 touch /opt/k9/.init-complete
@@ -256,37 +199,29 @@ log "   kubectl describe hso k9-server -n k9"
 log " Tutti gli eventi del namespace:"
 log "   kubectl get events -n k9 --sort-by='.lastTimestamp'"
 log ""
-log " ── HEADLAMP (Kubernetes UI) ──────────────────────────────"
-log " Headlamp si apre nel browser del TUO PC."
-log " Il tunnel SSH porta la porta dal VPS al tuo PC locale"
-log " attraverso la connessione SSH — nessuna porta da aprire"
-log " sul firewall Hetzner."
-log ""
-log " Step 1 — Sul VPS (lascia girare in background):"
-log "   kubectl port-forward -n headlamp svc/my-headlamp --address='127.0.0.1' 8001:80 &"
-log ""
-log " Step 2 — Sul TUO PC (apre il tunnel, tienilo aperto):"
-log "   ssh -i ~/.ssh/k9_deploy -L 8001:localhost:8001 -N deploy@${VPS_IP}"
-log ""
-log " Step 3 — Nel browser del tuo PC:"
-log "   http://localhost:8001"
-log ""
-log " Step 4 — Token di accesso (copialo nel campo Token di Headlamp):"
-log "   ${HEADLAMP_TOKEN}"
+log " ── HEADLAMP (Kubernetes UI, opzionale) ───────────────────"
+log " Non installato da questo script: è parametrizzato tramite l'input"
+log " install_headlamp del workflow Infra (default: true). Il token di"
+log " accesso viene stampato nei log/riepilogo di quella run."
 log ""
 log " ── PROSSIMI PASSI ────────────────────────────────────────"
 log "   1. Aggiungi l'IP ${VPS_IP} alla whitelist MongoDB Atlas"
 log "      cloud.mongodb.com → Network Access → Add IP Address"
-log "   2. Configura i segreti GitHub:"
+log "   2. Configura Secrets e Variables sull'Environment GitHub di questo"
+log "      ambiente (vedi DEVELOPER_README.md, sezione Secrets e Variables"
+log "      richiesti), incluso:"
 log "      VPS_HOST=${VPS_IP}"
 log "      VPS_USER=deploy"
 log "      VPS_SSH_KEY=<contenuto di ~/.ssh/k9_deploy>"
+log "      DOMAIN=<tuo sottodominio>"
 log "      MONGODB_URI=<uri atlas>"
 log "      SESSION_SECRET=<openssl rand -hex 32>"
 log "      GHCR_PAT=<github personal access token read:packages>"
-log "   3. Sostituisci YOUR_DOMAIN in:"
-log "      k8s/ingress.yaml  → campo host:"
-log "      k8s/server/hso.yaml → campo hosts:"
-log "   4. Push su main → la GitHub Action esegue il primo deploy"
+log "   3. Lancia manualmente il workflow Infra su questo Environment —"
+log "      provisiona namespace, secret condivisi, minio, cert-manager,"
+log "      cronjob notify/images-gc (k3s/), Headlamp (opzionale, input"
+log "      install_headlamp)."
+log "   4. Push su main → build-deploy.yml esegue il primo deploy di"
+log "      client e server (client/k8s/, server/k8s/)."
 log ""
 log " Log completo: $LOG"

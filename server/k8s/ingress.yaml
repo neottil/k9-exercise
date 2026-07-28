@@ -1,0 +1,33 @@
+# Le chiamate /api/ passano per il proxy KEDA (conta le richieste e scala).
+#
+# ${DOMAIN} viene sostituito dalla GitHub Action con envsubst (stesso valore
+# di client/k8s/ingress.yaml).
+#
+# TLS: NESSUNA annotation cert-manager.io/cluster-issuer qui — è client/k8s/ingress.yaml
+# l'unico Ingress che richiede il Certificate per questo host. Due Ingress con la
+# stessa annotation per lo stesso host/secretName causerebbero a cert-manager di
+# gestire due Certificate concorrenti sullo stesso secret. Questo Ingress
+# referenzia lo stesso secretName (k9-tls) già emesso dall'altro, senza richiederlo.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: k9-server-ingress
+  namespace: k9
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  tls:
+    - hosts:
+        - ${DOMAIN}
+      secretName: k9-tls
+  rules:
+    - host: ${DOMAIN}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: keda-interceptor
+                port:
+                  number: 8080

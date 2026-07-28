@@ -1,0 +1,392 @@
+name: Build & Deploy
+
+# Client e server sono due scope completamente indipendenti: ognuno ha i propri
+# manifest k8s colocati nel proprio folder (client/k8s/, server/k8s/), il
+# proprio tag Git "<scope>-<branch>-<data>" (stesso tag sia da riferimento per
+# il diff della prossima run, sia da riferimento per il workflow Promote), e
+# build/deploy che girano solo se necessario, senza mai toccare il Deployment
+# k8s dell'altro componente.
+#
+# Il deploy vero e proprio (render manifest, scp, ssh apply, rollout, patch
+# ConfigMap) NON è duplicato qui: vive nei workflow riutilizzabili
+# deploy-client.yml/deploy-server.yml, condivisi con promote.yml (che li
+# richiama con environment: production). Qui restano solo: analisi diff,
+# build Docker, risoluzione di quale immagine deployare, e il ciclo di vita del
+# tag Git — tutta logica specifica di "cosa succede su un push a main".
+#
+# L'infrastruttura condivisa (namespace, minio, secrets comuni, cronjob notify/gc)
+# NON è gestita qui: vedi infra.yml, da eseguire manualmente prima del primo deploy
+# in un ambiente.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  # Calcola le versioni "reali" (da package.json, usate solo dal workflow
+  # Promote) e decide, per client e server INDIPENDENTEMENTE, cosa serve
+  # davvero eseguire.
+  versions:
+    runs-on: ubuntu-latest
+    environment: staging
+    outputs:
+      client: ${{ steps.v.outputs.client }}
+      server: ${{ steps.v.outputs.server }}
+      date_tag: ${{ steps.v.outputs.date_tag }}
+      has_client: ${{ steps.analyze.outputs.has_client }}
+      has_server: ${{ steps.analyze.outputs.has_server }}
+      deploy_client: ${{ steps.analyze.outputs.deploy_client }}
+      deploy_server: ${{ steps.analyze.outputs.deploy_server }}
+    steps:
+      # fetch-depth: 0 necessario per "git tag --merged" e il diff sotto (serve
+      # tutta la history + i tag, non solo l'ultimo commit).
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Per ciascuno scope (client/server), cerca l'ultimo tag "<scope>-<branch>-*"
+      # di QUESTO branch e diffa SOLO il proprio folder:
+      #   - qualcosa sotto <scope>/ (esclusi i manifest) cambiato -> rebuild (has_<scope>=true)
+      #   - solo <scope>/k8s/ cambiato (manifest, non codice) -> nessun rebuild, ma
+      #     il manifest va comunque riapplicato riusando l'ultima immagine di quello
+      #     scope effettivamente deployata (deploy_<scope>=true, has_<scope>=false)
+      #   - niente cambiato sotto <scope>/ -> il job di deploy di quello scope non
+      #     gira affatto, il suo Deployment resta esattamente com'era
+      # "force-deploy" nel messaggio di commit forza rebuild+deploy di entrambi
+      # (scappatoia manuale se il diff dovesse non rilevare qualcosa).
+      # Se non è mai stata fatta una build per quello scope su questo branch
+      # (nessun tag trovato), builda e deploya tutto per sicurezza.
+      - name: Analizza modifiche (client e server indipendentemente)
+        id: analyze
+        run: |
+          BRANCH_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')
+          FORCE=false
+          echo "$(git log -1 --format=%s)" | grep -q 'force-deploy' && FORCE=true || true
+
+          for SCOPE in client server; do
+            if $FORCE; then
+              echo "[$SCOPE] force-deploy rilevato — rebuild e deploy forzati."
+              HAS_CODE=true; HAS_K8S=true
+            else
+              PREV_TAG=$(git tag --merged HEAD --sort=-creatordate -l "${SCOPE}-${BRANCH_SLUG}-*" | head -1)
+
+              if [ -z "$PREV_TAG" ]; then
+                echo "[$SCOPE] Nessun tag precedente su questo branch: prima build, eseguo tutto."
+                HAS_CODE=true
+                HAS_K8S=true
+              else
+                CHANGED=$(git diff --name-only "$PREV_TAG" HEAD -- "${SCOPE}/")
+                echo "[$SCOPE] Diff rispetto a $PREV_TAG..HEAD:"
+                echo "$CHANGED"
+
+                HAS_CODE=false; HAS_K8S=false
+                echo "$CHANGED" | grep -qE "^${SCOPE}/k8s/" && HAS_K8S=true || true
+                echo "$CHANGED" | grep -vE "^${SCOPE}/k8s/" | grep -qE "^${SCOPE}/" && HAS_CODE=true || true
+              fi
+            fi
+
+            DEPLOY=false
+            if $HAS_CODE || $HAS_K8S; then DEPLOY=true; fi
+
+            echo "has_${SCOPE}=$HAS_CODE"  >> "$GITHUB_OUTPUT"
+            echo "deploy_${SCOPE}=$DEPLOY" >> "$GITHUB_OUTPUT"
+            echo "[$SCOPE] -> has_${SCOPE}=$HAS_CODE  deploy_${SCOPE}=$DEPLOY"
+          done
+
+      - id: v
+        run: |
+          BRANCH_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')
+          echo "client=$(node -p "require('./client/package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "server=$(node -p "require('./server/package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "date_tag=${BRANCH_SLUG}-$(date -u +%Y%m%d_%H%M)" >> "$GITHUB_OUTPUT"
+
+  build-client:
+    needs: versions
+    if: needs.versions.outputs.has_client == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Tag pushati: solo quello di data + latest. Il tag di versione reale
+      # (client-vX.Y.Z) viene aggiunto dal workflow Promote dopo una promozione.
+      - uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: ./client
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            VITE_ENABLE_WITH_OPERATION_FILTER=${{ vars.ENABLE_WITH_OPERATION_FILTER }}
+            VITE_LOGIN_TYPE=${{ vars.LOGIN_TYPE }}
+            VITE_LOGIN_SITE_URL=${{ vars.LOGIN_SITE_URL }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.versions.outputs.date_tag }}
+            ghcr.io/${{ github.repository_owner }}/k9-client:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-server:
+    needs: versions
+    if: needs.versions.outputs.has_server == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: ./server
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.versions.outputs.date_tag }}
+            ghcr.io/${{ github.repository_owner }}/k9-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Determina quale immagine client deployare in staging (non deploya ancora):
+  # se questa run ha ribuildato, usa il tag di data appena pushato. Altrimenti
+  # (deploy_client=true solo per un cambio manifest) cerca l'ultimo tag
+  # "client-<branch>-*" — l'ultima immagine client davvero deployata con
+  # successo su questo branch — e riusa quella, senza rebuild.
+  resolve-client-image:
+    needs: [versions, build-client]
+    if: |
+      always() &&
+      needs.versions.outputs.deploy_client == 'true' &&
+      needs.versions.result == 'success' &&
+      (needs.build-client.result == 'success' || needs.build-client.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.image.outputs.image_tag }}
+      branch_slug: ${{ steps.image.outputs.branch_slug }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Determina l'immagine client da usare
+        id: image
+        run: |
+          BRANCH_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')
+          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ needs.versions.outputs.has_client }}" = "true" ]; then
+            echo "image_tag=${{ needs.versions.outputs.date_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            PREV=$(git tag -l "client-${BRANCH_SLUG}-*" --sort=-creatordate | head -1)
+            if [ -z "$PREV" ]; then
+              echo "ERRORE: nessuna immagine client risulta mai deployata su questo branch, e questa run non ne ha buildata una nuova. Impossibile continuare." >&2
+              exit 1
+            fi
+            echo "image_tag=${PREV#client-}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Applica SOLO i manifest sotto client/k8s/ (via il workflow riutilizzabile
+  # deploy-client.yml) e fa il rollout del solo Deployment client. Se server
+  # non cambia, il suo Deployment non viene MAI toccato da questa run.
+  deploy-client:
+    needs: resolve-client-image
+    uses: ./.github/workflows/deploy-client.yml
+    with:
+      environment: staging
+      image_tag: ${{ needs.resolve-client-image.outputs.image_tag }}
+    secrets: inherit
+
+  # Se questa run ha ribuildato: crea un tag NUOVO (nome = nuova data,
+  # riferisce la nuova immagine). Se invece era solo un deploy manifest-only:
+  # SPOSTA in avanti il tag ESISTENTE più recente sul commit di questa run
+  # (stesso nome quindi stessa immagine referenziata, ma segna "fino a qui è
+  # già stato deployato" per il diff del prossimo run).
+  register-client-tag:
+    needs: [versions, resolve-client-image, deploy-client]
+    if: needs.deploy-client.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Config git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Registra il deploy di client
+        run: |
+          if [ "${{ needs.versions.outputs.has_client }}" = "true" ]; then
+            TAG="client-${{ needs.versions.outputs.date_tag }}"
+            git tag -a "$TAG" -m "$TAG"
+            git push origin "$TAG"
+          else
+            TAG=$(git tag -l "client-${{ needs.resolve-client-image.outputs.branch_slug }}-*" --sort=-creatordate | head -1)
+            git tag -fa "$TAG" -m "$TAG"
+            git push origin "$TAG" --force
+          fi
+
+  # Vedi commento gemello in resolve-client-image.
+  resolve-server-image:
+    needs: [versions, build-server]
+    if: |
+      always() &&
+      needs.versions.outputs.deploy_server == 'true' &&
+      needs.versions.result == 'success' &&
+      (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.image.outputs.image_tag }}
+      branch_slug: ${{ steps.image.outputs.branch_slug }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Determina l'immagine server da usare
+        id: image
+        run: |
+          BRANCH_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')
+          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ needs.versions.outputs.has_server }}" = "true" ]; then
+            echo "image_tag=${{ needs.versions.outputs.date_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            PREV=$(git tag -l "server-${BRANCH_SLUG}-*" --sort=-creatordate | head -1)
+            if [ -z "$PREV" ]; then
+              echo "ERRORE: nessuna immagine server risulta mai deployata su questo branch, e questa run non ne ha buildata una nuova. Impossibile continuare." >&2
+              exit 1
+            fi
+            echo "image_tag=${PREV#server-}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Applica SOLO i manifest sotto server/k8s/ (via il workflow riutilizzabile
+  # deploy-server.yml) e fa il rollout del solo Deployment server. Se client
+  # non cambia, il suo Deployment non viene MAI toccato da questa run.
+  deploy-server:
+    needs: resolve-server-image
+    uses: ./.github/workflows/deploy-server.yml
+    with:
+      environment: staging
+      image_tag: ${{ needs.resolve-server-image.outputs.image_tag }}
+    secrets: inherit
+
+  register-server-tag:
+    needs: [versions, resolve-server-image, deploy-server]
+    if: needs.deploy-server.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Config git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Registra il deploy di server
+        run: |
+          if [ "${{ needs.versions.outputs.has_server }}" = "true" ]; then
+            TAG="server-${{ needs.versions.outputs.date_tag }}"
+            git tag -a "$TAG" -m "$TAG"
+            git push origin "$TAG"
+          else
+            TAG=$(git tag -l "server-${{ needs.resolve-server-image.outputs.branch_slug }}-*" --sort=-creatordate | head -1)
+            git tag -fa "$TAG" -m "$TAG"
+            git push origin "$TAG" --force
+          fi
+
+  # A fine deploy, ripulisce dal registry le immagini taggate con la sola data,
+  # mantenendo solo le 3 più recenti per repository immagine. I tag di versione
+  # reale (X.Y.Z, assegnati dal workflow Promote) sono esclusi e non vengono
+  # mai toccati da questa pulizia.
+  cleanup-registry:
+    needs: [versions, deploy-client, deploy-server]
+    if: |
+      always() &&
+      needs.versions.result == 'success' &&
+      (needs.deploy-client.result == 'success' || needs.deploy-client.result == 'skipped') &&
+      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      (needs.deploy-client.result == 'success' || needs.deploy-server.result == 'success')
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        image: [k9-client, k9-server]
+    steps:
+      - name: Rimuovi vecchi tag di data (mantieni le 3 più recenti)
+        uses: actions/delete-package-versions@v5
+        with:
+          owner: ${{ github.repository_owner }}
+          package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 3
+          ignore-versions: '^\d+\.\d+\.\d+$'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Riepilogo finale — gira sempre, anche se qualche step precedente fallisce.
+  summary:
+    needs: [versions, build-client, build-server, deploy-client, deploy-server]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Job summary
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          status_icon() {
+            case "$1" in
+              success)  echo "✅" ;;
+              failure)  echo "❌" ;;
+              skipped)  echo "⏭️" ;;
+              *)        echo "⏳" ;;
+            esac
+          }
+
+          {
+            echo "## Build & Deploy — $SHORT_SHA"
+            echo ""
+            echo "| Fase | Stato |"
+            echo "|------|-------|"
+            echo "| **Build client**  | $(status_icon "${{ needs.build-client.result }}") |"
+            echo "| **Build server**  | $(status_icon "${{ needs.build-server.result }}") |"
+            echo "| **Deploy client** | $(status_icon "${{ needs.deploy-client.result }}") |"
+            echo "| **Deploy server** | $(status_icon "${{ needs.deploy-server.result }}") |"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Commit** | \`${{ github.event.head_commit.message }}\` |"
+            echo "| **Autore** | ${{ github.actor }} |"
+            echo "| **Tag di data** | \`${{ needs.versions.outputs.date_tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

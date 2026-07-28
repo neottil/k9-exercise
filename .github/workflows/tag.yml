@@ -1,0 +1,199 @@
+name: Tag
+
+# Attivazione MANUALE: promuove lo stato attualmente deployato su `main` a
+# versione "reale" (rilascio) — SOLO versioning, nessun deploy. Client e server
+# builda/deploya in modo indipendente (vedi build-deploy.yml): ognuno avanza con
+# le proprie run, nei propri momenti — non esiste un singolo "run da promuovere".
+#
+# Per questo, invece di un run_id, questo workflow legge sempre l'ultimo tag
+# "<scope>-main-*" per ciascuno dei due scope (client, server) indipendentemente
+# — creato da Build & Deploy solo dopo un rollout riuscito in staging. È
+# intrinsecamente "solo main": questi tag esistono solo con "-main-" nel nome,
+# quindi non c'è modo di promuovere per sbaglio un branch diverso.
+#
+# Per ciascuno scope: se il commit dell'ultimo tag "<scope>-main-*" ha GIÀ un
+# tag di versione reale (client-v*/server-v*) che punta esattamente lì, quello
+# scope è già stato promosso l'ultima volta — nessuno spostamento di tag,
+# nessun ri-tag Docker, nessuna nuova GitHub Release, viene saltato.
+#
+# Il deploy in produzione NON avviene qui: vedi promote.yml, che riceve in
+# input la versione da deployare (creata da questo workflow) ed esegue solo il
+# deploy. Separazione netta: Tag decide "quale versione esiste", Promote
+# decide "quale versione gira in produzione ora" — possono succedere in momenti
+# diversi (es. taggi 1.6.0 oggi, promuovi in produzione la prossima settimana).
+on:
+  workflow_dispatch: {}
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      actions: write
+    outputs:
+      client_version: ${{ steps.promuovi.outputs.client_version }}
+      server_version: ${{ steps.promuovi.outputs.server_version }}
+      promoted_client: ${{ steps.promuovi.outputs.promoted_client }}
+      promoted_server: ${{ steps.promuovi.outputs.promoted_server }}
+      promoted_any: ${{ steps.promuovi.outputs.promoted_any }}
+      cleanup_scope: ${{ steps.promuovi.outputs.cleanup_scope }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Config git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Per ciascuno dei 2 scope: trova l'ultimo tag <scope>-main-*, controlla se
+      # il suo commit è già coperto da un tag di versione reale (già promosso:
+      # salta), altrimenti legge la versione dal package.json AL COMMIT di quel
+      # tag (non da HEAD: ogni scope può essere più avanti/indietro rispetto
+      # all'altro), crea o sposta il tag di versione reale corrispondente su
+      # quel commit, ri-tagga l'immagine Docker esistente (nessun rebuild) e
+      # crea/aggiorna la GitHub Release.
+      - name: Promuovi client e server (solo gli scope che ne hanno bisogno)
+        id: promuovi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          declare -A IMAGE=( [client]=k9-client [server]=k9-server )
+          declare -A TITLE=( [client]="Client" [server]="Server" )
+          declare -A PROMOTED=( [client]=false [server]=false )
+          declare -A RESOLVED_VERSION=( [client]='' [server]='' )
+
+          for SCOPE in client server; do
+            echo "=== $SCOPE ==="
+            DEPLOY_TAG=$(git tag -l "${SCOPE}-main-*" --sort=-creatordate | head -1)
+            if [ -z "$DEPLOY_TAG" ]; then
+              echo "  Nessun tag ${SCOPE}-main-* trovato: '$SCOPE' non è mai stato deployato su main, salto."
+              continue
+            fi
+
+            COMMIT=$(git rev-list -n1 "$DEPLOY_TAG")
+
+            ALREADY_PROMOTED=$(git tag --points-at "$COMMIT" | grep -E "^${SCOPE}-v[0-9]+\.[0-9]+\.[0-9]+$" || true)
+            if [ -n "$ALREADY_PROMOTED" ]; then
+              echo "  $DEPLOY_TAG (commit $COMMIT) è già promosso come $ALREADY_PROMOTED: nessuna modifica, salto."
+              RESOLVED_VERSION[$SCOPE]="${ALREADY_PROMOTED#${SCOPE}-v}"
+              continue
+            fi
+
+            VERSION=$(git show "${DEPLOY_TAG}:${SCOPE}/package.json" | node -e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).version)")
+            REAL_TAG="${SCOPE}-v${VERSION}"
+
+            echo "  $DEPLOY_TAG -> commit $COMMIT, version $VERSION -> $REAL_TAG"
+
+            git tag -fa "$REAL_TAG" "$COMMIT" -m "$REAL_TAG"
+            git push origin "$REAL_TAG" --force
+
+            DATE_TAG="${DEPLOY_TAG#${SCOPE}-}"
+            docker buildx imagetools create \
+              --tag "ghcr.io/${{ github.repository_owner }}/${IMAGE[$SCOPE]}:${VERSION}" \
+              "ghcr.io/${{ github.repository_owner }}/${IMAGE[$SCOPE]}:${DATE_TAG}"
+
+            if gh release view "$REAL_TAG" &>/dev/null; then
+              gh release edit "$REAL_TAG" --title "${TITLE[$SCOPE]} v${VERSION}"
+              echo "  ✓ Release $REAL_TAG aggiornata"
+            else
+              gh release create "$REAL_TAG" --title "${TITLE[$SCOPE]} v${VERSION}" --generate-notes
+              echo "  ✓ Release $REAL_TAG creata"
+            fi
+
+            PROMOTED[$SCOPE]=true
+            RESOLVED_VERSION[$SCOPE]="$VERSION"
+          done
+
+          PROMOTED_ANY=false
+          if [ "${PROMOTED[client]}" = "true" ] || [ "${PROMOTED[server]}" = "true" ]; then
+            PROMOTED_ANY=true
+          else
+            echo ""
+            echo "Nessuno scope aveva bisogno di essere promosso."
+          fi
+
+          # Scope da passare al trigger di cleanup: se è stato promosso un solo
+          # scope, limita la pulizia a quello (non ha senso ripulire anche
+          # l'altro, che non è cambiato); se sono stati promossi entrambi, vuoto
+          # = pulisce entrambi.
+          CLEANUP_SCOPE=""
+          if [ "${PROMOTED[client]}" = "true" ] && [ "${PROMOTED[server]}" != "true" ]; then
+            CLEANUP_SCOPE="client"
+          elif [ "${PROMOTED[server]}" = "true" ] && [ "${PROMOTED[client]}" != "true" ]; then
+            CLEANUP_SCOPE="server"
+          fi
+
+          echo "promoted_any=$PROMOTED_ANY"       >> "$GITHUB_OUTPUT"
+          echo "promoted_client=${PROMOTED[client]}" >> "$GITHUB_OUTPUT"
+          echo "promoted_server=${PROMOTED[server]}" >> "$GITHUB_OUTPUT"
+          echo "cleanup_scope=$CLEANUP_SCOPE"      >> "$GITHUB_OUTPUT"
+          echo "client_version=${RESOLVED_VERSION[client]}" >> "$GITHUB_OUTPUT"
+          echo "server_version=${RESOLVED_VERSION[server]}" >> "$GITHUB_OUTPUT"
+
+      # NOTA sui limiti di GHCR: il tag di data NON viene eliminato dall'immagine
+      # qui sopra. L'API di GitHub Packages cancella per *versione* (= digest),
+      # non per singolo tag: poiché il tag di versione reale appena creato punta
+      # allo stesso digest del tag di data, cancellare quella versione
+      # rimuoverebbe anche il tag reale appena assegnato. Il tag di data resta
+      # quindi come alias secondario finché non viene rimosso da
+      # cleanup-registry (Build & Deploy) o dal Cleanup build tags triggerato
+      # sotto — entrambi saltano sempre le immagini che hanno anche un tag X.Y.Z.
+
+      # Ripulisce i tag client-main-*/server-main-* (Git e Docker) rimasti da
+      # tentativi precedenti su main non promossi, MANTENENDO il più recente per
+      # scope (preserve_latest=true, il default): quello appena promosso qui
+      # sopra resta come baseline per il prossimo diff di Build & Deploy.
+      # Fire-and-forget: non aspetta che finisca. Gira solo se è stato promosso
+      # almeno uno scope.
+      - name: Pulisci i vecchi tag client-main-*/server-main-* (Git e Docker)
+        if: steps.promuovi.outputs.promoted_any == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run cleanup-build-tags.yml \
+            --repo "${{ github.repository }}" \
+            -f branch=main \
+            -f scope="${{ steps.promuovi.outputs.cleanup_scope }}" \
+            -f preserve_latest=true \
+            -f dry_run=false
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Tag"
+            echo ""
+            echo "| Componente | Versione | Promossa in questa run |"
+            echo "|---|---|---|"
+            if [ -n "${{ steps.promuovi.outputs.client_version }}" ]; then
+              echo "| client | \`${{ steps.promuovi.outputs.client_version }}\` | ${{ steps.promuovi.outputs.promoted_client == 'true' && 'sì' || 'no (già promossa)' }} |"
+            else
+              echo "| client | — | mai deployato su main |"
+            fi
+            if [ -n "${{ steps.promuovi.outputs.server_version }}" ]; then
+              echo "| server | \`${{ steps.promuovi.outputs.server_version }}\` | ${{ steps.promuovi.outputs.promoted_server == 'true' && 'sì' || 'no (già promossa)' }} |"
+            else
+              echo "| server | — | mai deployato su main |"
+            fi
+            echo ""
+            if [ "${{ steps.promuovi.outputs.promoted_client }}" = "true" ]; then
+              echo "- [client-v${{ steps.promuovi.outputs.client_version }}](https://github.com/${{ github.repository }}/releases/tag/client-v${{ steps.promuovi.outputs.client_version }})"
+            fi
+            if [ "${{ steps.promuovi.outputs.promoted_server }}" = "true" ]; then
+              echo "- [server-v${{ steps.promuovi.outputs.server_version }}](https://github.com/${{ github.repository }}/releases/tag/server-v${{ steps.promuovi.outputs.server_version }})"
+            fi
+            echo ""
+            echo "Per deployare queste versioni in produzione, lancia **Promote to Production**"
+            echo "con \`client_version\`/\`server_version\` valorizzati di conseguenza."
+          } >> "$GITHUB_STEP_SUMMARY"

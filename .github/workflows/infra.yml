@@ -1,0 +1,200 @@
+name: Infra
+
+# Attivazione MANUALE: provisiona (o ri-applica in modo idempotente) l'infrastruttura
+# condivisa del namespace k9 — namespace, ghcr-secret, ConfigMap k9-versions (valori
+# iniziali), minio (storage immagini), k9-notify-secret, traefik-config, ClusterIssuer
+# cert-manager, CronJob notify/images-gc, Headlamp (UI Kubernetes, opzionale — vedi
+# input install_headlamp). Manifest in k3s/.
+#
+# Da eseguire una volta per ciascun ambiente (staging, production) prima del primo
+# deploy applicativo (build-deploy.yml / promote.yml), o quando serve ri-applicare
+# l'infrastruttura condivisa.
+#
+# Scope volutamente separato da Build & Deploy e da Promote, che gestiscono solo
+# client e server applicativi (vedi DEVELOPER_README.md, sezione CI/CD pipeline). A
+# differenza di progetti con un database in-cluster da inizializzare, qui non viene
+# generato nessun segreto casuale: tutti i secret (Mongo URI, minio password, ...)
+# sono già GitHub Secrets espliciti impostati manualmente sull'Environment.
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Ambiente target (deve esistere come Environment del repo, con le proprie Variables/Secrets)'
+        type: environment
+        required: true
+      install_headlamp:
+        description: 'Installa/aggiorna Headlamp (UI Kubernetes, richiede cluster-admin). Idempotente: se già installato, fa upgrade.'
+        type: boolean
+        default: true
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Valori iniziali della ConfigMap k9-versions, usati solo se la ConfigMap
+      # non esiste ancora (prima esecuzione in questo ambiente). Alle esecuzioni
+      # successive build-deploy.yml/promote.yml aggiornano CLIENT_VERSION/SERVER_VERSION
+      # con quanto effettivamente deployato; qui aggiorniamo solo INFRA_VERSION.
+      - name: Leggi versioni
+        id: versions
+        run: |
+          echo "client_version=$(node -p "require('./client/package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "server_version=$(node -p "require('./server/package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "infra_version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Copia i manifest k3s/ sulla VPS via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "k3s/*"
+          target: /opt/k9/k3s
+          strip_components: 1
+
+      - name: Applica l'infrastruttura condivisa
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          NS: k9
+          PATH_REMOTE: /opt/k9/k3s
+          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          MINIO_ROOT_USER: ${{ vars.MINIO_ROOT_USER }}
+          MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
+          API_KEY: ${{ secrets.API_KEY }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          CLIENT_VERSION_INIT: ${{ steps.versions.outputs.client_version }}
+          SERVER_VERSION_INIT: ${{ steps.versions.outputs.server_version }}
+          INFRA_VERSION: ${{ steps.versions.outputs.infra_version }}
+          INSTALL_HEADLAMP: ${{ inputs.install_headlamp }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ vars.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: NS,PATH_REMOTE,LETSENCRYPT_EMAIL,GHCR_USER,GHCR_PAT,MINIO_ROOT_USER,MINIO_ROOT_PASSWORD,API_KEY,SMTP_PASS,CLIENT_VERSION_INIT,SERVER_VERSION_INIT,INFRA_VERSION,INSTALL_HEADLAMP
+          script: |
+            set -e
+            # Vedi gotcha in DEVELOPER_README.md: kubectl (symlink a k3s) senza
+            # KUBECONFIG esplicito risolve su /etc/rancher/k3s/k3s.yaml (root:root),
+            # illeggibile dall'utente di deploy.
+            export KUBECONFIG="$HOME/.kube/config"
+
+            kubectl apply -f "$PATH_REMOTE/namespace.yaml"
+
+            # Immagini ghcr.io private di default: senza questo Secret
+            # (imagePullSecrets nei Deployment) i pod restano in ImagePullBackOff.
+            # GHCR_PAT è un token dedicato (read:packages), non il GITHUB_TOKEN
+            # della run: quello vale solo per la durata della pipeline, i pod
+            # devono poter fare pull in qualunque momento futuro.
+            kubectl create secret docker-registry ghcr-secret -n "$NS" \
+              --docker-server=ghcr.io \
+              --docker-username="$GHCR_USER" \
+              --docker-password="$GHCR_PAT" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            if ! kubectl get configmap k9-versions -n "$NS" &>/dev/null; then
+              kubectl create configmap k9-versions -n "$NS" \
+                --from-literal=CLIENT_VERSION="$CLIENT_VERSION_INIT" \
+                --from-literal=SERVER_VERSION="$SERVER_VERSION_INIT" \
+                --from-literal=INFRA_VERSION="$INFRA_VERSION"
+            else
+              kubectl patch configmap k9-versions -n "$NS" --type=merge \
+                -p "{\"data\":{\"INFRA_VERSION\":\"$INFRA_VERSION\"}}"
+            fi
+
+            kubectl create secret generic minio-secret -n "$NS" \
+              --from-literal=MINIO_ROOT_USER="$MINIO_ROOT_USER" \
+              --from-literal=MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            kubectl apply -f "$PATH_REMOTE/minio/service.yaml"
+            kubectl apply -f "$PATH_REMOTE/minio/statefulset.yaml"
+
+            kubectl create secret generic k9-notify-secret -n "$NS" \
+              --from-literal=API_KEY="$API_KEY" \
+              --from-literal=SMTP_PASS="$SMTP_PASS" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            kubectl apply -f "$PATH_REMOTE/notify/cronjob.yaml"
+            kubectl apply -f "$PATH_REMOTE/images-gc/cronjob.yaml"
+
+            kubectl apply -f "$PATH_REMOTE/traefik-config.yaml"
+            kubectl apply -f "$PATH_REMOTE/keda-interceptor-svc.yaml"
+
+            if kubectl get crd clusterissuers.cert-manager.io &>/dev/null; then
+              kubectl wait --for=condition=available deployment \
+                --all --namespace cert-manager --timeout=60s || true
+              envsubst '${LETSENCRYPT_EMAIL}' < "$PATH_REMOTE/cert-manager/clusterissuer.yaml" | kubectl apply -f -
+            fi
+
+            # Headlamp (UI Kubernetes) — opzionale, controllato da install_headlamp.
+            # Il CLI helm è già installato system-wide da scripts/cloud-init.sh.
+            # Idempotente: helm upgrade --install aggiorna se già presente; il
+            # Secret del token non viene mai rigenerato se esiste già (il valore
+            # resta lo stesso finché il ServiceAccount non cambia).
+            if [ "$INSTALL_HEADLAMP" = "true" ]; then
+              echo "→ Installazione/aggiornamento Headlamp..."
+              helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/ > /dev/null 2>&1 || true
+              helm repo update > /dev/null
+
+              helm upgrade --install my-headlamp headlamp/headlamp \
+                --namespace headlamp \
+                --create-namespace
+
+              kubectl rollout status deployment/my-headlamp \
+                --namespace headlamp \
+                --timeout=120s
+
+              kubectl create serviceaccount headlamp-admin \
+                --namespace headlamp \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              kubectl create clusterrolebinding headlamp-admin \
+                --clusterrole=cluster-admin \
+                --serviceaccount=headlamp:headlamp-admin \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              kubectl apply -f - <<EOF
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: headlamp-admin-token
+              namespace: headlamp
+              annotations:
+                kubernetes.io/service-account.name: headlamp-admin
+            type: kubernetes.io/service-account-token
+            EOF
+
+              echo "Attendo generazione token..."
+              for i in $(seq 1 10); do
+                HEADLAMP_TOKEN=$(kubectl get secret headlamp-admin-token -n headlamp -o jsonpath='{.data.token}' 2>/dev/null | base64 -d)
+                [ -n "$HEADLAMP_TOKEN" ] && break
+                sleep 1
+              done
+              echo "Token permanente Headlamp (copialo, non verrà ristampato se non cambia):"
+              echo "$HEADLAMP_TOKEN"
+            else
+              echo "→ install_headlamp=false: Headlamp non installato/non toccato."
+            fi
+
+      - name: Riepilogo
+        if: always()
+        run: |
+          {
+            echo "## Infra — riepilogo (${{ job.status }})"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Ambiente** | \`${{ inputs.env }}\` |"
+            echo "| **Namespace** | \`k9\` |"
+            echo "| **INFRA_VERSION** | \`${{ steps.versions.outputs.infra_version }}\` |"
+            echo "| **install_headlamp** | \`${{ inputs.install_headlamp }}\` (token nei log dello step precedente, se true) |"
+            echo ""
+            echo "Valori iniziali scritti in \`k9-versions\` (solo se la ConfigMap non esisteva già):"
+            echo "- CLIENT_VERSION=\`${{ steps.versions.outputs.client_version }}\`"
+            echo "- SERVER_VERSION=\`${{ steps.versions.outputs.server_version }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

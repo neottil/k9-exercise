@@ -79,33 +79,51 @@ Aprendo quell'URL con server e client in esecuzione, la sessione viene creata e 
 ```
 k9-exercise/
 ├── client/             # React + Vite (SPA)
-│   └── src/
-│       ├── components/ # Componenti UI (Admin, AppBar, ExerciseTable, Insert, View…)
-│       └── ...
+│   ├── src/
+│   │   ├── components/ # Componenti UI (Admin, AppBar, ExerciseTable, Insert, View…)
+│   │   └── ...
+│   └── k8s/            # Manifest k8s specifici del client (colocati col codice)
+│       ├── deployment.yaml
+│       ├── service.yaml
+│       └── ingress.yaml   # Path "/", porta l'annotation cert-manager (TLS)
 ├── server/             # Express + TypeScript
-│   └── src/
-│       ├── models/     # Schema Mongoose (Exercise, ExerciseChange, User)
-│       │               # Exercise e User hanno il campo lastNotifiedAt (Date)
-│       ├── routes/     # API REST: exercises (incl. /to-approve, /approve-new, /reject-new), auth, notify
-│       └── middleware/ # requireAuth, requireDbReady
-├── k8s/                # Manifest Kubernetes
-│   ├── client/         # Deployment + Service nginx
-│   ├── server/         # Deployment + Service + HTTPScaledObject KEDA
-│   ├── notify/         # CronJob notifiche (curlimages/curl)
+│   ├── src/
+│   │   ├── models/     # Schema Mongoose (Exercise, ExerciseChange, User)
+│   │   │               # Exercise e User hanno il campo lastNotifiedAt (Date)
+│   │   ├── routes/     # API REST: exercises (incl. /to-approve, /approve-new, /reject-new), auth, notify
+│   │   └── middleware/ # requireAuth, requireDbReady
+│   └── k8s/            # Manifest k8s specifici del server (colocati col codice)
+│       ├── deployment.yaml
+│       ├── service.yaml
+│       ├── hso.yaml       # HTTPScaledObject KEDA
+│       └── ingress.yaml   # Path "/api", nessuna annotation cert-manager (vedi sotto)
+├── k3s/                # Infrastruttura condivisa — applicata SOLO da infra.yml
 │   ├── namespace.yaml
-│   ├── ingress.yaml    # Traefik ingress (usa ${DOMAIN})
-│   └── keda-interceptor-svc.yaml
+│   ├── traefik-config.yaml
+│   ├── keda-interceptor-svc.yaml
+│   ├── cert-manager/
+│   │   └── clusterissuer.yaml
+│   ├── minio/          # StatefulSet + Service (storage immagini esercizi)
+│   ├── notify/         # CronJob notifiche (curlimages/curl)
+│   └── images-gc/      # CronJob garbage collection immagini
 ├── bruno/              # Collezione Bruno per test API
 │   ├── environments/   # development.bru, production.bru
 │   └── notify/         # trigger notify.bru
 ├── scripts/
-│   ├── cloud-init.sh   # Inizializzazione VPS (k3s, KEDA, dashboard)
+│   ├── cloud-init.sh   # Inizializzazione VPS (k3s, KEDA, dashboard) — manuale
 │   └── docker-lock.sh  # Rigenera package-lock.json su linux/amd64
 ├── local/
 │   └── docker-compose.yml  # MongoDB locale con replica set
-└── .github/workflows/
-    ├── deploy.yml      # CI/CD: build, versioning, deploy
-    └── promote.yml     # Promozione staging → production
+└── .github/
+    ├── README.md                 # Pattern architetturali dei workflow CI/CD
+    └── workflows/
+        ├── infra.yml              # Manuale: provisiona k3s/ per un ambiente
+        ├── build-deploy.yml       # Push su main: build+deploy condizionale client/server
+        ├── deploy-client.yml      # Riutilizzabile (workflow_call): deploy client
+        ├── deploy-server.yml      # Riutilizzabile (workflow_call): deploy server
+        ├── tag.yml                # Manuale: promozione a versione reale (SOLO versioning)
+        ├── promote.yml            # Manuale: deploy in produzione (SOLO deploy, input espliciti)
+        └── cleanup-build-tags.yml # Manuale/auto: pulizia tag di build superati
 ```
 
 ---
@@ -145,87 +163,131 @@ Gli indici **non** si creano con uno script manuale: sono dichiarati negli schem
 
 ---
 
-## Conventional commits e versioning automatico
+## Versioning e tag Git
 
-La GitHub Action calcola il tipo di bump dalla commit message e i tag vengono creati e pushati automaticamente.
+Client e server sono due **scope indipendenti**, ognuno con i propri manifest k8s
+colocati nella propria cartella (`client/k8s/`, `server/k8s/`) e il proprio ciclo
+di tag Git. Il versioning è disaccoppiato dal build: `build-deploy.yml` crea solo
+tag **effimeri** di data. Assegnare la versione **reale** (semver) e farla girare
+in produzione sono **due passaggi manuali separati** — `tag.yml` (assegna la
+versione) e `promote.yml` (la deploya) — vedi sotto.
 
-### Formato commit
+### Tag effimeri `<scope>-<branch>-<data>`
 
-```
-<tipo>(<scope>): <descrizione>
+Ad ogni push su `main`, per ciascuno scope (`client`, `server`) che ha subito
+modifiche, `build-deploy.yml` crea o sposta un tag `<scope>-main-<data>` (es.
+`client-main-20260703_2130`) sul commit appena deployato con successo in staging.
+Questo tag serve a due scopi:
+- **baseline per il diff** della prossima run su quel branch (cosa è cambiato da
+  allora sotto `<scope>/`)
+- **riferimento** che `tag.yml` userà per sapere cosa promuovere
 
-[body opzionale]
-```
+Stesso nome del tag Docker pushato su GHCR (`k9-client:main-20260703_2130`) — nessun
+`run_id` o artifact da tenere sincronizzato, il nome del tag Git *è* il tag Docker.
 
-### Regole di bump
+- Se il codice dello scope è cambiato → build nuovo + tag Git **nuovo**.
+- Se è cambiato **solo** `<scope>/k8s/` (manifest, non codice) → nessun rebuild,
+  il tag Git **esistente** viene solo spostato in avanti sul nuovo commit (stessa
+  immagine, già buildata in precedenza).
+- Se nessuno dei due → il job di deploy di quello scope non gira affatto, il
+  Deployment k8s resta esattamente com'era.
 
-| Commit | Bump | Esempio |
-|--------|------|---------|
-| `tipo!:` oppure `BREAKING CHANGE` nel body | **major** | `feat!: nuovo schema autenticazione` |
-| `feat:` | **minor** | `feat(client): filtro per difficoltà` |
-| Tutto il resto (`fix`, `chore`, `docs`, ...) | **patch** | `fix(server): gestione errore 404` |
+### Assegnare la versione reale (`tag.yml`, manuale — SOLO versioning)
 
-### Scope e tag generati
+Quando si decide di rilasciare, si lancia manualmente il workflow **Tag**. Per
+ciascuno scope: trova l'ultimo tag `<scope>-main-*`, e se il suo commit non è
+già coperto da un tag `<scope>-vX.Y.Z`, legge la versione da
+`<scope>/package.json` **a quel commit** (bump manuale del `package.json` prima
+di lanciare Tag), crea/sposta il tag reale, e ri-tagga l'immagine Docker già
+esistente **senza rebuild** (`docker buildx imagetools create`). Se uno scope è
+già stato promosso in precedenza, viene saltato (nessuna modifica).
 
-La action analizza quali cartelle sono cambiate nella commit e crea i tag di conseguenza:
+Una GitHub Release viene creata/aggiornata qui, sul tag reale — non ad ogni deploy
+in staging. **Questo workflow non deploya nulla**: si ferma dopo aver taggato.
 
-| File modificati | Tag creato | Package.json bumped |
-|----------------|------------|---------------------|
-| `client/**` | `client-X.Y.Z` | `client/package.json` |
-| `server/**` | `server-X.Y.Z` | `server/package.json` |
-| `k8s/**` | `k8s-X.Y.Z` | `package.json` (root) |
+### Deploy in produzione (`promote.yml`, manuale — SOLO deploy)
 
-Gli scope sono **indipendenti**: una commit che tocca `client/` e `k8s/` genera entrambi i tag.
-Solo le modifiche a `client/` o `server/` triggerano un build Docker e deploy sul cluster.
+Riceve `client_version`/`server_version` come **input espliciti** (uno solo,
+entrambi, o rilanciato più volte con lo stesso valore per risincronizzare la
+produzione dopo un deploy fallito). Verifica che il tag `<scope>-v<versione>`
+esista davvero (fallisce subito con un errore chiaro altrimenti), poi deploya
+tramite gli stessi workflow riutilizzabili usati da `build-deploy.yml`
+(`deploy-client.yml`/`deploy-server.yml`, con `environment: production`).
+**Questo workflow non tagga né crea Release**: si limita a far girare in
+produzione la versione indicata.
+
+Tag e Promote sono deliberatamente disaccoppiati nel tempo: puoi taggare `1.6.0`
+oggi e promuoverla in produzione solo la settimana prossima, o ripetere
+`promote.yml` più volte con la stessa versione senza dover ripassare da `tag.yml`.
+
+### Pulizia (`cleanup-build-tags.yml`)
+
+Elimina i tag `<scope>-<branch>-<data>` (Git + immagini Docker corrispondenti su
+GHCR) superati, mantenendo sempre il più recente per (scope, branch) se
+`preserve_latest=true` (default) — sicuro da lanciare anche su un branch ancora
+attivo come `main`, dato che dopo la pulizia resta comunque un tag da cui
+calcolare il prossimo diff. Triggerato automaticamente (fire-and-forget) a fine
+di ogni `tag.yml` che promuove almeno uno scope. Non tocca mai i tag di versione
+reale (`client-v*`/`server-v*`).
 
 ---
 
 ## CI/CD pipeline
 
-Ogni push su `main` esegue la GitHub Action `.github/workflows/deploy.yml`:
+Sette workflow con responsabilità separate (vedi anche la sezione precedente per la
+logica di versioning, e [`.github/README.md`](.github/README.md) per i pattern
+architetturali completi):
+
+| Workflow | Trigger | Scopo |
+|---|---|---|
+| `infra.yml` | Manuale | Provisiona/aggiorna l'infrastruttura condivisa (`k3s/`) per un Environment, incluso Headlamp (opzionale, input `install_headlamp`). Da lanciare una tantum per ambiente, prima del primo deploy applicativo. |
+| `build-deploy.yml` | Push su `main`, o manuale | Builda le immagini Docker cambiate e le deploya in **staging**, in modo condizionale e indipendente per scope (client/server). |
+| `deploy-client.yml` / `deploy-server.yml` | Solo `workflow_call` (riutilizzabile) | Applicano i manifest `<scope>/k8s/*`, verificano il rollout, aggiornano `k9-versions`. Chiamati sia da `build-deploy.yml` (staging) sia da `promote.yml` (produzione) — nessuna logica di deploy duplicata. |
+| `tag.yml` | Manuale | Assegna la versione reale allo stato deployato su `main`, senza rebuild: tag Git, ri-tag Docker, GitHub Release. **Non deploya.** |
+| `promote.yml` | Manuale, input `client_version`/`server_version` | Deploya in **produzione** la versione indicata richiamando `deploy-client.yml`/`deploy-server.yml`. **Non tagga né rilascia.** |
+| `cleanup-build-tags.yml` | Manuale, o automatico dopo `tag.yml` | Ripulisce i tag Git e le immagini Docker dei build superati. |
 
 ```
 push su main
     │
     ▼
-Analyze commit
-    │  rileva scope (client/server/k8s)
-    │
+versions            — per client e server: diff dall'ultimo tag <scope>-main-*
+    │                  (solo codice → rebuild; solo <scope>/k8s/ → deploy senza
+    │                  rebuild; niente → il job di deploy non gira)
     ▼
-Create git tags
-    │  crea/aggiorna tag: client-X.Y.Z, server-X.Y.Z, k8s-X.Y.Z
-    │  (sposta tag esistente se già presente)
-    │
+build-client / build-server           ←─ condizionale, in parallelo
+    │  docker/build-push-action → ghcr.io/<owner>/k9-{client,server}:<data>
     ▼
-Build Docker  ←─ solo se client o server sono cambiati
-    │  docker/build-push-action → ghcr.io/<owner>/k9-{client,server}:<version>
-    │
+resolve-client-image / resolve-server-image
+    │  determina quale tag deployare (quello appena buildato, o l'ultimo
+    │  già deployato con successo se era solo un cambio manifest)
     ▼
-Deploy su k3s  ←─ se build ha successo
-    │  scp manifest → ssh kubectl apply → rollout status
-    │
+deploy-client / deploy-server         ←─ chiama deploy-client.yml/deploy-server.yml
+    │  (environment: staging) — render manifest, scp, ssh kubectl apply, rollout,
+    │  patch ConfigMap k9-versions
     ▼
-Job summary  ←─ sempre (anche se step precedenti falliscono)
+register-client-tag / register-server-tag
+    │  crea/sposta il tag <scope>-main-<data>
+    ▼
+cleanup-registry     — tiene le 3 immagini più recenti per repository
+    ▼
+summary              — sempre (anche se step precedenti falliscono)
 ```
 
-### Convenzione di versioning e tagging
+`tag.yml` (manuale, separato) legge `<scope>/package.json` al commit dell'ultimo tag
+`<scope>-main-*`, assegna la versione reale, ri-tagga l'immagine Docker senza
+rebuild e crea la GitHub Release. **Non deploya nulla.** `promote.yml` (manuale,
+separato) riceve `client_version`/`server_version` come input, verifica che i tag
+esistano, e deploya in produzione richiamando **gli stessi**
+`deploy-client.yml`/`deploy-server.yml` usati in staging (con
+`environment: production` e la versione come `image_tag`) — vedi sezione
+[Versioning e tag Git](#versioning-e-tag-git) sopra per i dettagli.
 
-La versione di ogni componente è definita nel rispettivo `package.json`:
-
-| Componente | Versione da | Tag formato | Significato |
-|-----------|-----------|------------|------------|
-| **Client** | `client/package.json` | `client-X.Y.Z` | Versione release React SPA |
-| **Server** | `server/package.json` | `server-X.Y.Z` | Versione release Express API |
-| **k8s** | `/package.json` (root) | `k8s-X.Y.Z` | Versione release manifesti Kubernetes |
-
-**Esempio**: Se aggiorni solo il server, la GitHub Action:
-1. Legge versione da `server/package.json` (es. `1.5.0`)
-2. Crea/aggiorna il tag `server-1.5.0`
-3. Builda e deploya solo il server
-
-Se modifichi solo `k8s/`, viene creato il tag `k8s-X.Y.Z` dal package.json root, ma **non** viene buildato nulla — i manifest vengono semplicemente aggiornati sul cluster.
-
-**Aggiornamento versioni**: Modifica i rispettivi `package.json` manualmente, poi fai un commit. La GitHub Action rileverà le modifiche e creerà i tag automaticamente. Se il tag esiste già, verrà spostato al commit attuale con un avviso nei log.
+**Aggiornamento versioni**: la versione promuovibile è quella nel `package.json`
+dello scope. Modificalo manualmente quando decidi cosa deve finire nella
+prossima release, poi lancia `tag.yml` — non serve farlo ad ogni commit, solo
+prima di un rilascio. Il deploy in produzione (`promote.yml`) è un passo
+separato, da eseguire quando decidi di far girare quella versione.
 
 ### Aggiornamento dipendenze e package-lock.json
 
@@ -250,17 +312,17 @@ Configurare in **GitHub → Settings → Secrets and variables → Actions**.
 
 I secret sono configurati **per environment** (staging / production) in GitHub → Settings → Environments.
 
-| Nome | Descrizione |
-|------|-------------|
-| `VPS_HOST` | IP del VPS |
-| `VPS_SSH_KEY` | Chiave privata SSH (`~/.ssh/k9_deploy`) — non il `.pub` |
-| `MONGODB_URI` | Stringa di connessione MongoDB Atlas |
-| `SESSION_SECRET` | Stringa random — `openssl rand -hex 32` |
-| `GHCR_PAT` | Personal Access Token GitHub con scope `read:packages` ¹ |
-| `API_KEY` | Token per autenticare il CronJob sulla route `/api/admin/notify` ² |
-| `SMTP_PASS` | Password SMTP / App Password Gmail ³ |
-| `K9_JWT_SECRET` | Segreto condiviso con WordPress per firmare/verificare il JWT — `openssl rand -base64 32` ⁴ |
-| `MINIO_ROOT_PASSWORD` | Password root minIO — `openssl rand -hex 32` |
+| Nome | Descrizione | Usato da |
+|------|-------------|----------|
+| `VPS_HOST` | IP del VPS | `infra`, `build-deploy`, `tag` |
+| `VPS_SSH_KEY` | Chiave privata SSH (`~/.ssh/k9_deploy`) — non il `.pub` | `infra`, `build-deploy`, `tag` |
+| `GHCR_PAT` | Personal Access Token GitHub con scope `read:packages` ¹ | `infra`, `build-deploy`, `tag` |
+| `MONGODB_URI` | Stringa di connessione MongoDB Atlas | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
+| `SESSION_SECRET` | Stringa random — `openssl rand -hex 32` | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
+| `K9_JWT_SECRET` | Segreto condiviso con WordPress per firmare/verificare il JWT — `openssl rand -base64 32` ⁴ | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
+| `API_KEY` | Token per autenticare il CronJob sulla route `/api/admin/notify` ² | `infra` |
+| `SMTP_PASS` | Password SMTP / App Password Gmail ³ | `infra` |
+| `MINIO_ROOT_PASSWORD` | Password root minIO — `openssl rand -hex 32` | `infra` |
 
 > ¹ Serve al VPS per fare `imagePullSecrets` da GHCR. Crearlo in: profilo GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → `read:packages`.
 >
@@ -280,19 +342,19 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 
 #### Variables
 
-| Nome | Valore esempio | Descrizione |
-|------|---------------|-------------|
-| `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) |
-| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject |
-| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Usata dal server a runtime e passata dalla Action come build-arg `VITE_LOGIN_TYPE` al Dockerfile del client |
-| `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) |
-| `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build |
-| `LOGIN_SITE_URL` | `www.k9crosstraining.com` | Url to external site that manage login token |
-| `SMTP_HOST` | `smtp.gmail.com` | Host SMTP per le notifiche email |
-| `SMTP_PORT` | `587` | Porta SMTP |
-| `SMTP_USER` | `tuagmail@gmail.com` | Indirizzo email mittente |
-| `NOTIFY_RECIPIENTS` | `a@esempio.com,b@esempio.com` | Destinatari notifiche, separati da virgola |
-| `MINIO_ROOT_USER` | Utente root minIO (storage immagini) |
+| Nome | Valore esempio | Descrizione | Usato da |
+|------|---------------|-------------|----------|
+| `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) | `infra`, `build-deploy`, `tag` |
+| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject | `build-deploy`, `tag` (render di `client/k8s/ingress.yaml`, `server/k8s/{ingress,hso}.yaml`) |
+| `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) | `infra` (render di `k3s/cert-manager/clusterissuer.yaml`) |
+| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Usata dal server a runtime e passata come build-arg `VITE_LOGIN_TYPE` al Dockerfile del client | `build-deploy`, `tag` |
+| `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build | `build-deploy` (build-client) |
+| `LOGIN_SITE_URL` | `www.k9crosstraining.com` | Url to external site that manage login token | `build-deploy`, `tag` |
+| `SMTP_HOST` | `smtp.gmail.com` | Host SMTP per le notifiche email | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
+| `SMTP_PORT` | `587` | Porta SMTP | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
+| `SMTP_USER` | `tuagmail@gmail.com` | Indirizzo email mittente | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
+| `NOTIFY_RECIPIENTS` | `a@esempio.com,b@esempio.com` | Destinatari notifiche, separati da virgola | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
+| `MINIO_ROOT_USER` | | Utente root minIO (storage immagini) | `infra` |
 
 ---
 
@@ -387,12 +449,16 @@ Lo script si trova in [`scripts/cloud-init.sh`](scripts/cloud-init.sh). Copiane 
 
 | Step | Operazione |
 |------|-----------|
-| 1 | Aggiornamento sistema + installazione `curl`, `gettext-base` |
+| 1 | Aggiornamento sistema + installazione `curl`, `gettext-base`, CLI `helm` (system-wide, in `/usr/local/bin`) |
 | 2 | Creazione utente `deploy` (SSH e kubectl senza root) |
 | 3 | Installazione k3s (Kubernetes + Traefik + CoreDNS) |
 | 4 | Installazione KEDA (controller autoscaling) |
 | 5 | Installazione KEDA HTTP Add-on (scaling su richieste HTTP) |
-| 6 | Installazione Kubernetes Dashboard |
+| 6 | Installazione cert-manager |
+
+Headlamp (UI Kubernetes) **non** è installato da questo script: è opzionale e
+parametrizzato tramite l'input `install_headlamp` del workflow **Infra** (vedi
+sezione [CI/CD pipeline](#cicd-pipeline)).
 
 Al termine scrive `/opt/k9/.init-complete` come marker e log in `/var/log/k9-init.log`.
 
@@ -413,7 +479,7 @@ Aggiungi un record DNS sul tuo provider:
 |------|------|--------|
 | `A` | `k9` (o il sottodominio preferito) | IP del VPS Hetzner |
 
-Poi imposta la Variable `DOMAIN` su GitHub con il sottodominio completo (es. `k9.tuodominio.com`) e fai push — il deploy applica la modifica automaticamente tramite `envsubst`.
+Poi imposta la Variable `DOMAIN` su GitHub con il sottodominio completo (es. `k9.tuodominio.com`). Viene applicata da `deploy-client.yml`/`deploy-server.yml` (richiamati sia da `build-deploy.yml` in staging sia da `promote.yml` in produzione) tramite `envsubst` in `client/k8s/ingress.yaml` e `server/k8s/{ingress,hso}.yaml`.
 
 #### 5. HTTPS con cert-manager
 
@@ -433,9 +499,7 @@ Poi configura le GitHub Variables richieste:
 | `LETSENCRYPT_EMAIL` | La tua email (riceve avvisi di scadenza da Let's Encrypt) |
 | `COOKIE_SECURE` | `true` |
 
-Al prossimo push, la GitHub Action applica automaticamente:
-- Il `ClusterIssuer` letsencryp (da `k8s/cert-manager/clusterissuer.yaml`)
-- L'ingress aggiornato con TLS e entrypoint `web,websecure`
+Il `ClusterIssuer` (`k3s/cert-manager/clusterissuer.yaml`) è infrastruttura condivisa: viene applicato da **`infra.yml`** (manuale), non da un push. Al primo deploy applicativo (`build-deploy.yml`), l'Ingress del client (unico dei due a portare l'annotation `cert-manager.io/cluster-issuer`, vedi commento in `client/k8s/ingress.yaml`) richiede il Certificate.
 
 Il certificato viene emesso da cert-manager in ~1-2 minuti tramite sfida HTTP-01. Puoi monitorare:
 
@@ -444,15 +508,24 @@ kubectl get certificate -n k9         # Ready: True quando il cert è emesso
 kubectl describe certificate k9-tls -n k9   # dettaglio eventi
 ```
 
+#### 6. Ordine di primo avvio per un nuovo ambiente
+
+1. `cloud-init.sh` (manuale, User data Hetzner o SSH) — bootstrap VPS: k3s, KEDA, cert-manager.
+2. Workflow **Infra** (manuale, Environment del nuovo ambiente) — namespace, ghcr-secret, ConfigMap `k9-versions`, minio, k9-notify-secret, traefik-config, ClusterIssuer, CronJob notify/images-gc, Headlamp (opzionale, input `install_headlamp`).
+3. Push su `main` → **Build & Deploy** esegue il primo deploy di client e server in staging.
+4. Quando pronto per il rilascio: workflow **Tag** (manuale) → assegna la versione reale (tag Git, ri-tag Docker, GitHub Release), senza deployare nulla.
+5. Workflow **Promote** (manuale, input `client_version`/`server_version`) → deploya quella versione in produzione (richiede che anche l'Environment `production` abbia già eseguito il passo 2).
+
 **HTTP → HTTPS redirect** (opzionale, dopo che il certificato è attivo):
 
-Aggiorna `k8s/traefik-config.yaml` aggiungendo:
+Aggiorna `k3s/traefik-config.yaml` aggiungendo:
 ```yaml
     ports:
       web:
         redirectTo:
           port: websecure
 ```
+Poi rilancia il workflow **Infra** per quell'ambiente (`k3s/` è applicato solo da lì, non da `build-deploy.yml`).
 
 ---
 
@@ -473,6 +546,10 @@ kubectl set image deployment/k9-server \
 ```
 
 ### Headlamp Dashboard (accesso locale)
+
+Opzionale — installato dal workflow **Infra** solo se `install_headlamp=true`
+(default). Il token di accesso viene stampato nei log dello step "Applica
+l'infrastruttura condivisa" di quella run (non ristampato se non cambia).
 
 ```bash
 # 1. Sul VPS — avvia proxy (lascialo girare)
@@ -505,7 +582,7 @@ Un Kubernetes CronJob chiama periodicamente l'endpoint `POST /api/admin/notify`,
 ### Flusso
 
 ```
-CronJob (k8s/notify/cronjob.yaml)
+CronJob (k3s/notify/cronjob.yaml)
     │  ogni ora dalle 6:00 alle 21:00
     ▼
 POST /api/admin/notify
@@ -533,7 +610,7 @@ Presente sia su `User` che su `Exercise`. Viene:
 
 `0 6,9,12,15,18,21 * * *` — ogni 3 ore dalle 6:00 alle 21:00.
 
-Per cambiare la frequenza modificare il campo `schedule` in `k8s/notify/cronjob.yaml` e fare push.
+Per cambiare la frequenza modificare il campo `schedule` in `k3s/notify/cronjob.yaml` e rilanciare il workflow **Infra** per l'ambiente interessato (un push su `main` non lo applica: è infrastruttura condivisa, non gestita da `build-deploy.yml`).
 
 ### Variabili e secret richiesti
 
@@ -592,7 +669,7 @@ Client ──(multipart: exercise JSON + file)──▶ POST/PUT /api/exercises
 
 ### Job di garbage collection
 
-CronJob `k8s/images-gc/cronjob.yaml` ogni **domenica alle 3:00** (`0 3 * * 0`)
+CronJob `k3s/images-gc/cronjob.yaml` ogni **domenica alle 3:00** (`0 3 * * 0`)
 chiama `POST /api/admin/gc-images`. Cancella da minIO gli oggetti non referenziati
 né dagli esercizi né dai change doc in attesa, **più vecchi di 2h** (grace period).
 Due guardie di sicurezza:
@@ -621,7 +698,7 @@ Risposta `409` se il numero di orfani supera il tetto di 50 per run (misura di s
 
 ### Infrastruttura e variabili
 
-Manifest in `k8s/minio/` (StatefulSet single-node con `volumeClaimTemplates` 20Gi,
+Manifest in `k3s/minio/` (StatefulSet single-node con `volumeClaimTemplates` 20Gi,
 service ClusterIP + headless). Lo StatefulSet è già predisposto per lo scaling:
 ogni replica avrebbe il proprio PVC (`storage-minio-N`) e un DNS stabile.
 
@@ -632,7 +709,7 @@ forma distribuita (`server http://minio-{0...3}.minio-headless…/data`) e
 erasure-coded. Lo StatefulSet evita però di cambiare Kind in futuro.
 
 Secret `minio-secret` (`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`) creato dal
-workflow di deploy. Il server legge:
+workflow **Infra** (non da `build-deploy.yml`). Il server legge:
 - `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_BUCKET`, `MINIO_ACCESS_KEY` (valori in chiaro)
 - `MINIO_SECRET_KEY` (dal secret)
 
@@ -994,6 +1071,13 @@ LOGIN_TYPE=token K9_JWT_SECRET=test-secret node scripts/generate-wp-token.mjs
 ---
 
 ## Comandi pulizia registry git
+
+> Per i tag di build effimeri (`client-<branch>-<data>`/`server-<branch>-<data>`)
+> lo strumento primario è il workflow **`cleanup-build-tags.yml`** (vedi
+> [Versioning e tag Git](#versioning-e-tag-git)), che ripulisce sia i tag Git sia
+> le immagini Docker rispettando `preserve_latest`. Il comando sotto copre un
+> caso diverso e più raro: immagini rimaste **senza nessun tag** (es. dopo un
+> push fallito a metà, o un digest orfano).
 
 Dopo aver installato gh ed eseguito la login con questo comando si eliminano tutte le immagini che non hanno tag
 
