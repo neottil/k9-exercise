@@ -107,3 +107,13 @@ jobs:
 
             kubectl patch configmap k9-versions -n "$NS" --type=merge \
               -p "{\"data\":{\"SERVER_VERSION\":\"$SERVER_VERSION\"}}"
+
+      - name: Riepilogo deploy server
+        if: always()
+        run: |
+          {
+            echo "#### Deploy server → \`${{ inputs.environment }}\`"
+            echo ""
+            echo "- **Immagine**: \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ inputs.image_tag }}\`"
+            echo "- **Esito rollout**: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

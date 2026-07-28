@@ -247,6 +247,13 @@ architetturali completi):
 | `promote.yml` | Manuale, input `client_version`/`server_version` | Deploya in **produzione** la versione indicata richiamando `deploy-client.yml`/`deploy-server.yml`. **Non tagga né rilascia.** |
 | `cleanup-build-tags.yml` | Manuale, o automatico dopo `tag.yml` | Ripulisce i tag Git e le immagini Docker dei build superati. |
 
+> **Riepilogo per-step**: ogni step che decide/calcola qualcosa di rilevante
+> (versioni, se serve un rebuild, quale immagine verrà deployata e perché, esito
+> del rollout) scrive subito il proprio pezzo nel Job Summary della run, non solo
+> il job `summary` finale — così anche se un job successivo fallisce, il Summary
+> mostra comunque tutto ciò che era stato deciso fino a quel punto. Vedi pattern 8
+> in [`.github/README.md`](.github/README.md).
+
 ```
 push su main
     │

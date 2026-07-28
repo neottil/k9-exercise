@@ -32,6 +32,7 @@ lì, anche se in quel progetto `Tag` non deploya da nessuna parte.
     - [5. Tag e Promote separati](#5-tag-e-promote-separati)
     - [6. Pulizia dei tag superati](#6-pulizia-dei-tag-superati)
     - [7. Toggle opzionali per gli addon di infra](#7-toggle-opzionali-per-gli-addon-di-infra)
+    - [8. Riepilogo incrementale, non solo un job finale](#8-riepilogo-incrementale-non-solo-un-job-finale)
   - [Insidie note (gotcha)](#insidie-note-gotcha)
   - [Workflow, uno per uno](#workflow-uno-per-uno)
     - [`infra.yml`](#infrayml)
@@ -276,6 +277,32 @@ tool di debug, componenti che aumentano la superficie di attacco) è un candidat
 per un toggle così, invece di essere baked-in nello script di bootstrap del cluster
 (che gira una sola volta, non è ri-eseguibile per ambiente).
 
+### 8. Riepilogo incrementale, non solo un job finale
+
+Ogni step che calcola o decide qualcosa di rilevante (versioni, se serve un
+rebuild, quale immagine verrà deployata e perché, l'esito di un rollout) scrive
+subito il proprio pezzo su `$GITHUB_STEP_SUMMARY`, invece di accumulare tutto in
+un unico job `summary` a fine pipeline:
+
+```bash
+{
+  echo "### Immagine da deployare"
+  echo ""
+  echo "- **client**: \`$IMAGE_TAG\` — $REASON"
+} >> "$GITHUB_STEP_SUMMARY"
+```
+
+Motivazione: `$GITHUB_STEP_SUMMARY` è **cumulativo** all'interno di una run — ogni
+`>>` di ogni step, in ogni job, si accoda allo stesso report finale — quindi non
+c'è downside a scriverci lungo tutta la pipeline invece che in un solo posto. Il
+vantaggio concreto è la diagnosi: se un job successivo fallisce (tipicamente
+proprio un errore infrastrutturale come nel gotcha sul namespace `Terminating`
+sotto), il summary mostra comunque tutto ciò che è stato **deciso e calcolato**
+fino a quel punto — quali versioni, se client/server dovevano essere deployati,
+quale immagine era stata risolta — senza dover aprire i log grezzi di ogni step
+per ricostruirlo. Il job `summary` finale resta, ma come recap complessivo, non
+come unica fonte di informazione.
+
 ## Insidie note (gotcha)
 
 - **`kubectl` su k3s senza `KUBECONFIG` esplicito**: se `kubectl` è un symlink al
@@ -329,6 +356,22 @@ per un toggle così, invece di essere baked-in nello script di bootstrap del clu
   dispatch esplicito (`gh workflow run`), che funziona normalmente anche con il
   `GITHUB_TOKEN` della run (usato da `tag.yml` per triggerare
   `cleanup-build-tags.yml`).
+- **Namespace bloccato in `Terminating` dopo un `kubectl delete namespace` manuale,
+  e ripetere il delete non serve a nulla**: il namespace non è "in coda", è
+  bloccato — una risorsa al suo interno ha un finalizer che non si completa mai
+  (sospetti tipici: PVC il cui volume non si stacca, o una custom resource — es.
+  `HTTPScaledObject` di KEDA — il cui controller non risponde più). Sintomo
+  caratteristico: `infra.yml` non dà errore (sta solo aggiornando risorse
+  **già esistenti**, un `apply`/update è permesso anche in un namespace
+  Terminating), ma un deploy applicativo fallisce con
+  `unable to create new content in namespace ... because it is being terminated`
+  (creare un oggetto **nuovo**, tipicamente un Ingress già ripulito dal
+  controller di terminazione, è invece bloccato). Fix: trova la risorsa con
+  finalizer pendente (`kubectl get namespace k9 -o json | jq '.status.conditions'`,
+  poi cerca `metadata.finalizers` non vuoto su PVC/CR nel namespace) e rimuovilo
+  con `kubectl patch <kind> <nome> -n k9 --type=merge -p '{"metadata":{"finalizers":null}}'`.
+  Se il namespace resta comunque bloccato, forza la rimozione del finalizer
+  `kubernetes` sul namespace stesso via `/api/v1/namespaces/k9/finalize`.
 
 ## Workflow, uno per uno
 
@@ -427,6 +470,10 @@ e 5 su ClubManager):
 7. Per addon di infra opzionali (dashboard, tool di debug), usa un input booleano
    con default che preserva il comportamento attuale (pattern 7), invece di
    baked-in nello script di bootstrap del cluster.
-8. Rivedi la lista delle [insidie note](#insidie-note-gotcha): quasi tutte si
+8. Scrivi su `$GITHUB_STEP_SUMMARY` subito dopo ogni step che decide o calcola
+   qualcosa di rilevante, non solo in un job `summary` finale (pattern 8) — è
+   cumulativo, non c'è downside, e salva tempo di debug quando un job successivo
+   fallisce.
+9. Rivedi la lista delle [insidie note](#insidie-note-gotcha): quasi tutte si
    presentano identiche su qualunque stack k3s + GHCR + GitHub Actions,
    indipendentemente dal linguaggio/framework applicativo.

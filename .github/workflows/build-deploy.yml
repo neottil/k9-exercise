@@ -100,6 +100,19 @@ jobs:
           echo "server=$(node -p "require('./server/package.json').version")" >> "$GITHUB_OUTPUT"
           echo "date_tag=${BRANCH_SLUG}-$(date -u +%Y%m%d_%H%M)" >> "$GITHUB_OUTPUT"
 
+      - name: Riepilogo analisi
+        run: |
+          {
+            echo "## Analisi modifiche"
+            echo ""
+            echo "| Scope | Codice cambiato | Deploy necessario | Versione package.json |"
+            echo "|---|---|---|---|"
+            echo "| client | ${{ steps.analyze.outputs.has_client }} | ${{ steps.analyze.outputs.deploy_client }} | \`${{ steps.v.outputs.client }}\` |"
+            echo "| server | ${{ steps.analyze.outputs.has_server }} | ${{ steps.analyze.outputs.deploy_server }} | \`${{ steps.v.outputs.server }}\` |"
+            echo ""
+            echo "Tag di data per questa run: \`${{ steps.v.outputs.date_tag }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build-client:
     needs: versions
     if: needs.versions.outputs.has_client == 'true'
@@ -120,7 +133,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4
 
       # Tag pushati: solo quello di data + latest. Il tag di versione reale
-      # (client-vX.Y.Z) viene aggiunto dal workflow Promote dopo una promozione.
+      # (client-vX.Y.Z) viene aggiunto dal workflow Tag dopo una promozione.
       - uses: docker/build-push-action@v7
         env:
           DOCKER_BUILD_SUMMARY: false
@@ -137,6 +150,13 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/k9-client:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Riepilogo build
+        run: |
+          echo "### Build client" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:${{ needs.versions.outputs.date_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:latest\`" >> "$GITHUB_STEP_SUMMARY"
 
   build-server:
     needs: versions
@@ -170,6 +190,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Riepilogo build
+        run: |
+          echo "### Build server" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:${{ needs.versions.outputs.date_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`ghcr.io/${{ github.repository_owner }}/k9-server:latest\`" >> "$GITHUB_STEP_SUMMARY"
+
   # Determina quale immagine client deployare in staging (non deploya ancora):
   # se questa run ha ribuildato, usa il tag di data appena pushato. Altrimenti
   # (deploy_client=true solo per un cambio manifest) cerca l'ultimo tag
@@ -198,15 +225,25 @@ jobs:
           echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
 
           if [ "${{ needs.versions.outputs.has_client }}" = "true" ]; then
-            echo "image_tag=${{ needs.versions.outputs.date_tag }}" >> "$GITHUB_OUTPUT"
+            IMAGE_TAG="${{ needs.versions.outputs.date_tag }}"
+            REASON="rebuild in questa run"
+            echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           else
             PREV=$(git tag -l "client-${BRANCH_SLUG}-*" --sort=-creatordate | head -1)
             if [ -z "$PREV" ]; then
               echo "ERRORE: nessuna immagine client risulta mai deployata su questo branch, e questa run non ne ha buildata una nuova. Impossibile continuare." >&2
               exit 1
             fi
-            echo "image_tag=${PREV#client-}" >> "$GITHUB_OUTPUT"
+            IMAGE_TAG="${PREV#client-}"
+            REASON="riusata (solo manifest cambiato), da tag $PREV"
+            echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           fi
+
+          {
+            echo "### Immagine da deployare"
+            echo ""
+            echo "- **client**: \`$IMAGE_TAG\` — $REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Applica SOLO i manifest sotto client/k8s/ (via il workflow riutilizzabile
   # deploy-client.yml) e fa il rollout del solo Deployment client. Se server
@@ -246,11 +283,14 @@ jobs:
             TAG="client-${{ needs.versions.outputs.date_tag }}"
             git tag -a "$TAG" -m "$TAG"
             git push origin "$TAG"
+            ACTION="creato"
           else
             TAG=$(git tag -l "client-${{ needs.resolve-client-image.outputs.branch_slug }}-*" --sort=-creatordate | head -1)
             git tag -fa "$TAG" -m "$TAG"
             git push origin "$TAG" --force
+            ACTION="spostato in avanti (deploy manifest-only)"
           fi
+          echo "✅ Deploy client completato — tag \`$TAG\` $ACTION." >> "$GITHUB_STEP_SUMMARY"
 
   # Vedi commento gemello in resolve-client-image.
   resolve-server-image:
@@ -276,15 +316,25 @@ jobs:
           echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
 
           if [ "${{ needs.versions.outputs.has_server }}" = "true" ]; then
-            echo "image_tag=${{ needs.versions.outputs.date_tag }}" >> "$GITHUB_OUTPUT"
+            IMAGE_TAG="${{ needs.versions.outputs.date_tag }}"
+            REASON="rebuild in questa run"
+            echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           else
             PREV=$(git tag -l "server-${BRANCH_SLUG}-*" --sort=-creatordate | head -1)
             if [ -z "$PREV" ]; then
               echo "ERRORE: nessuna immagine server risulta mai deployata su questo branch, e questa run non ne ha buildata una nuova. Impossibile continuare." >&2
               exit 1
             fi
-            echo "image_tag=${PREV#server-}" >> "$GITHUB_OUTPUT"
+            IMAGE_TAG="${PREV#server-}"
+            REASON="riusata (solo manifest cambiato), da tag $PREV"
+            echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           fi
+
+          {
+            echo "### Immagine da deployare"
+            echo ""
+            echo "- **server**: \`$IMAGE_TAG\` — $REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Applica SOLO i manifest sotto server/k8s/ (via il workflow riutilizzabile
   # deploy-server.yml) e fa il rollout del solo Deployment server. Se client
@@ -319,11 +369,14 @@ jobs:
             TAG="server-${{ needs.versions.outputs.date_tag }}"
             git tag -a "$TAG" -m "$TAG"
             git push origin "$TAG"
+            ACTION="creato"
           else
             TAG=$(git tag -l "server-${{ needs.resolve-server-image.outputs.branch_slug }}-*" --sort=-creatordate | head -1)
             git tag -fa "$TAG" -m "$TAG"
             git push origin "$TAG" --force
+            ACTION="spostato in avanti (deploy manifest-only)"
           fi
+          echo "✅ Deploy server completato — tag \`$TAG\` $ACTION." >> "$GITHUB_STEP_SUMMARY"
 
   # A fine deploy, ripulisce dal registry le immagini taggate con la sola data,
   # mantenendo solo le 3 più recenti per repository immagine. I tag di versione
@@ -350,6 +403,11 @@ jobs:
         with:
           owner: ${{ github.repository_owner }}
           package-name: ${{ matrix.image }}
+
+      - name: Riepilogo pulizia
+        if: always()
+        run: |
+          echo "- **${{ matrix.image }}**: mantenute le 3 versioni più recenti (tag semver esclusi)" >> "$GITHUB_STEP_SUMMARY"
           package-type: container
           min-versions-to-keep: 3
           ignore-versions: '^\d+\.\d+\.\d+$'
