@@ -403,15 +403,15 @@ jobs:
         with:
           owner: ${{ github.repository_owner }}
           package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 3
+          ignore-versions: '^\d+\.\d+\.\d+$'
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Riepilogo pulizia
         if: always()
         run: |
           echo "- **${{ matrix.image }}**: mantenute le 3 versioni più recenti (tag semver esclusi)" >> "$GITHUB_STEP_SUMMARY"
-          package-type: container
-          min-versions-to-keep: 3
-          ignore-versions: '^\d+\.\d+\.\d+$'
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   # Riepilogo finale — gira sempre, anche se qualche step precedente fallisce.
   summary:
