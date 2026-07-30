@@ -20,7 +20,18 @@ name: Build & Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      # Scavalca l'analisi del diff: builda e deploya ENTRAMBI gli scope a
+      # prescindere da cosa è cambiato rispetto all'ultimo tag. Serve quando lo
+      # stato del cluster non è più deducibile dalla history dei commit — il
+      # caso tipico è un namespace ricreato da zero (ConfigMap e Secret
+      # applicativi non esistono più, ma per il diff "non è cambiato niente" e
+      # i job di deploy non girerebbero affatto).
+      force_all:
+        description: 'Forza rebuild e redeploy di client e server, ignorando il diff'
+        type: boolean
+        default: false
 
 jobs:
   # Calcola le versioni "reali" (da package.json, usate solo dal workflow
@@ -52,20 +63,22 @@ jobs:
       #     scope effettivamente deployata (deploy_<scope>=true, has_<scope>=false)
       #   - niente cambiato sotto <scope>/ -> il job di deploy di quello scope non
       #     gira affatto, il suo Deployment resta esattamente com'era
-      # "force-deploy" nel messaggio di commit forza rebuild+deploy di entrambi
-      # (scappatoia manuale se il diff dovesse non rilevare qualcosa).
+      # L'input force_all (solo workflow_dispatch) salta l'analisi del tutto e
+      # tratta entrambi gli scope come "codice + manifest cambiati". Sui push
+      # la variabile è stringa vuota, quindi il confronto con "true" è falso e
+      # il comportamento normale resta invariato.
       # Se non è mai stata fatta una build per quello scope su questo branch
       # (nessun tag trovato), builda e deploya tutto per sicurezza.
       - name: Analizza modifiche (client e server indipendentemente)
         id: analyze
+        env:
+          FORCE_ALL: ${{ inputs.force_all }}
         run: |
           BRANCH_SLUG=$(echo '${{ github.ref_name }}' | tr '/' '-')
-          FORCE=false
-          echo "$(git log -1 --format=%s)" | grep -q 'force-deploy' && FORCE=true || true
 
           for SCOPE in client server; do
-            if $FORCE; then
-              echo "[$SCOPE] force-deploy rilevato — rebuild e deploy forzati."
+            if [ "$FORCE_ALL" = "true" ]; then
+              echo "[$SCOPE] force_all attivo: rebuild e redeploy forzati, diff ignorato."
               HAS_CODE=true; HAS_K8S=true
             else
               PREV_TAG=$(git tag --merged HEAD --sort=-creatordate -l "${SCOPE}-${BRANCH_SLUG}-*" | head -1)

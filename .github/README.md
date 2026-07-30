@@ -50,7 +50,7 @@ lì, anche se in quel progetto `Tag` non deploya da nessuna parte.
 | Workflow | Trigger | Scopo |
 |---|---|---|
 | [`infra.yml`](workflows/infra.yml) | Manuale (`workflow_dispatch`) | Provisiona/aggiorna infrastruttura condivisa e a lunga vita: namespace, minio, secrets comuni, cert-manager, Headlamp (opzionale). Da lanciare una tantum per ambiente. |
-| [`build-deploy.yml`](workflows/build-deploy.yml) | Push su `main`, o manuale | Builda le immagini Docker cambiate e le deploya in **staging**, in modo condizionale e indipendente per scope (client/server). |
+| [`build-deploy.yml`](workflows/build-deploy.yml) | Push su `main`, o manuale (input `force_all`) | Builda le immagini Docker cambiate e le deploya in **staging**, in modo condizionale e indipendente per scope (client/server). Con `force_all` ribuilda e rideploya tutto, ignorando il diff. |
 | [`deploy-client.yml`](workflows/deploy-client.yml) | Solo `workflow_call` (riutilizzabile) | Applica i manifest `client/k8s/*`, verifica il rollout, aggiorna `k9-versions`. Chiamato da `build-deploy.yml` e `promote.yml`. |
 | [`deploy-server.yml`](workflows/deploy-server.yml) | Solo `workflow_call` (riutilizzabile) | Gemello di `deploy-client.yml` per `server/k8s/*` (+ `k9-secrets`, `hso.yaml`). |
 | [`tag.yml`](workflows/tag.yml) | Manuale | Promuove lo stato attualmente deployato su `main` a versione reale (senza rebuild): tag Git, ri-tag Docker, GitHub Release. **Non deploya nulla.** |
@@ -430,7 +430,15 @@ questo workflow non crea il cluster, ci si appoggia sopra.
 
 ### `build-deploy.yml`
 
-**Trigger**: push su `main`, o manuale.
+**Trigger**: push su `main`, o manuale con input `force_all` (booleano, default
+`false`).
+
+**`force_all`**: scavalca il diff e tratta entrambi gli scope come "codice +
+manifest cambiati", quindi ribuilda e rideploya tutto. Serve quando lo stato del
+cluster non è più deducibile dalla history dei commit — il caso tipico è un
+namespace ricreato da zero: ConfigMap e Secret applicativi non esistono più, ma
+per il diff "non è cambiato niente" e i job di deploy non girerebbero affatto.
+Come ogni altra run che ribuilda, crea tag `<scope>-main-<data>` nuovi.
 
 **Cosa fa**: per ciascuno scope (client, server) applica i pattern 2/3 — diff
 condizionale, build solo se serve. Sequenza job: `versions` (diff + calcolo tag di
