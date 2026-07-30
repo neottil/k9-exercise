@@ -339,26 +339,38 @@ come unica fonte di informazione.
   richiederlo lui stesso.
 - **Nessun workflow sposta mai un tag Git esistente (niente `-f`/`--force`)**: sia
   `build-deploy.yml` (`register-client-tag`/`register-server-tag`) sia `tag.yml`
-  creano sempre un tag **nuovo**, mai spostano quello vecchio — per due motivi.
-  Primo, tracciabilità: anche un deploy solo-manifest (nessun rebuild, solo
-  `<scope>/k8s/*` cambiato) deve lasciare una propria voce nello storico, non
-  sparire dentro il tag della run precedente — per questo il tag effimero
-  `<scope>-main-*` è sempre nuovo (basato su data/ora, quindi univoco di suo),
-  anche quando l'immagine Docker non cambia. Secondo, un side-effect utile:
-  `GITHUB_TOKEN` non può **forzare** lo spostamento di un ref la cui storia tocca
-  `.github/workflows/` (fallisce con `refusing to allow a GitHub App to create or
-  update workflow ... without 'workflows' permission` — nessuno scope `workflows`
-  è assegnabile al token di default via `permissions:`), ma la creazione di un
-  ref **nuovo** senza `--force` non è soggetta alla stessa restrizione: evitando
-  sempre `--force` non serve nessun PAT aggiuntivo. Per lo stesso motivo,
-  `tag.yml` non sposta mai un tag di versione reale (`<scope>-vX.Y.Z`): se esiste
-  già su un commit diverso da quello da promuovere, si ferma con un `::error::`
-  esplicito (log + riga rossa nel job summary) — serve intervento umano: o si
-  incrementa la versione in `<scope>/package.json` (nuovo tag, nessun conflitto —
-  vale anche per un deploy solo-manifest: se cambi solo i manifest k8s e vuoi
-  poi promuoverlo in produzione, la versione va comunque incrementata), o si
-  cancella manualmente il tag vecchio (`git push origin :refs/tags/<tag> &&
-  git tag -d <tag>`) prima di rilanciare Tag.
+  creano sempre un tag **nuovo**, mai spostano quello vecchio — per tracciabilità:
+  anche un deploy solo-manifest (nessun rebuild, solo `<scope>/k8s/*` cambiato)
+  deve lasciare una propria voce nello storico, non sparire dentro il tag della
+  run precedente — per questo il tag effimero `<scope>-main-*` è sempre nuovo
+  (basato su data/ora, quindi univoco di suo), anche quando l'immagine Docker non
+  cambia. Per lo stesso principio, `tag.yml` non sposta mai un tag di versione
+  reale (`<scope>-vX.Y.Z`): se esiste già su un commit diverso da quello da
+  promuovere, si ferma con un `::error::` esplicito (log + riga rossa nel job
+  summary) — serve intervento umano: o si incrementa la versione in
+  `<scope>/package.json` (nuovo tag, nessun conflitto — vale anche per un deploy
+  solo-manifest: se cambi solo i manifest k8s e vuoi poi promuoverlo in
+  produzione, la versione va comunque incrementata), o si cancella manualmente il
+  tag vecchio (`git push origin :refs/tags/<tag> && git tag -d <tag>`) prima di
+  rilanciare Tag.
+- **`GITHUB_TOKEN` non può pushare un tag Git se `.github/workflows/` nel commit
+  taggato non è identico all'ultimo commit di un branch**: non è una questione di
+  `--force` (un tag **nuovo**, pushato senza `--force`, viene comunque rifiutato)
+  né di "tag nuovo vs tag spostato" — GitHub rifiuta il push (`refusing to allow a
+  GitHub App to create or update workflow ... without 'workflows' permission`, e
+  nessuno scope `workflows` è assegnabile al token di default via `permissions:`)
+  ogni volta che il contenuto di `.github/workflows/` nel commit di destinazione
+  del tag differisce da quello della punta di un branch qualsiasi. `register-
+  client-tag`/`register-server-tag` (in `build-deploy.yml`) non ci sbattono contro
+  perché taggano sempre `HEAD` — cioè un commit che, per costruzione, coincide già
+  con la punta di `main` in quel momento. `tag.yml` invece tagga l'ultimo
+  `<scope>-main-*` **deployato**, che può essere un commit "vecchio": se nel
+  frattempo `main` è avanzato e i file di workflow sono cambiati (comunissimo),
+  il push del tag di versione reale fallisce sempre con `GITHUB_TOKEN`. Per
+  questo `tag.yml` (solo lui) usa un PAT dedicato con scope `workflow`
+  (`WORKFLOW_PAT`, non condiviso col PAT di GHCR — vedi sopra la gotcha sulle
+  immagini private: quel token finisce in un Secret k8s persistito sul cluster,
+  darne anche scope `workflow` esporrebbe la CI/CD a chi legge quel Secret).
 - **Un workflow di deploy con input liberi rischia di deployare qualunque cosa**:
   `promote.yml` accetta `client_version`/`server_version` come stringhe libere —
   senza validazione, un typo o una versione mai taggata potrebbe fallire a metà

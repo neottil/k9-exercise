@@ -335,6 +335,7 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 | `VPS_HOST` | IP del VPS | `infra`, `build-deploy`, `tag` |
 | `VPS_SSH_KEY` | Chiave privata SSH (`~/.ssh/k9_deploy`) — non il `.pub` | `infra`, `build-deploy`, `tag` |
 | `GHCR_PAT` | Personal Access Token GitHub con scope `read:packages` ¹ | `infra`, `build-deploy`, `tag` |
+| `WORKFLOW_PAT` | Personal Access Token GitHub con scope `workflow` (repository secret, non per-environment) ⁵ | `tag` |
 | `MONGODB_URI` | Stringa di connessione MongoDB Atlas | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
 | `SESSION_SECRET` | Stringa random — `openssl rand -hex 32` | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
 | `K9_JWT_SECRET` | Segreto condiviso con WordPress per firmare/verificare il JWT — `openssl rand -base64 32` ⁴ | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
@@ -357,6 +358,8 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 > ³ Gmail richiede un **App Password** (non la password dell'account). Abilitare prima la verifica in due passaggi, poi: Google Account → Sicurezza → Verifica in 2 passaggi → App password.
 >
 > ⁴ Deve coincidere esattamente con `K9_JWT_SECRET` definito in `wp-config.php`. Usare valori diversi per staging e production. Non riutilizzare lo stesso valore di `SESSION_SECRET`.
+>
+> ⁵ Necessario perché `tag.yml` tagga un commit "vecchio" (l'ultimo `<scope>-main-*` deployato, non la punta attuale di `main`): il `GITHUB_TOKEN` di default rifiuta il push di un tag se il contenuto di `.github/workflows/` in quel commit non è identico a quello dell'ultimo commit di un branch — condizione quasi certa una volta che i workflow evolvono nel tempo. Crearlo in: profilo GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic o fine-grained scoped a questo repo) → permesso "Workflows: Read and write" (`workflow` per i classic token). **Non riusare `GHCR_PAT`** per questo: quel token finisce in un Secret Kubernetes persistito sul cluster (per l'`imagePullSecret`), mentre `WORKFLOW_PAT` deve restare confinato ai secret di GitHub Actions — dargli anche scope `workflow` esporrebbe la possibilità di modificare i workflow CI/CD a chiunque legga quel Secret k8s.
 
 #### Variables
 
