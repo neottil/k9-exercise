@@ -108,7 +108,7 @@ const Register = () => {
     >
       <Card sx={{ width: 380, p: 2 }}>
         <CardContent>
-          <Box component="img" src="/logo-intero.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
+          <Box component="img" src="/logo.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
           <Typography variant="h6" color="text.secondary" sx={{ mb: 3, textAlign: "center", fontWeight: "bold" }}>
             K9 Cross Training - Exercise
           </Typography>

@@ -34,10 +34,7 @@ const LoginToken = () => {
     >
       <Card sx={{ width: 360, p: 2 }}>
         <CardContent>
-          <Box component="img" src="/logo-intero.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
-          <Typography variant="h6" color="text.secondary" sx={{ mb: 3, textAlign: "center", fontWeight: "bold" }}>
-            K9 Cross Training - Exercise
-          </Typography>
+          <Box component="img" src="/logo.png" alt="K9-EXERCISE wiki enciclopedia degli esercizi" sx={{ width: 250, mx: "auto", display: "block", mb: 2 }} />
           {sessionExpired && (
             <Alert severity="warning" sx={{ mb: 2 }}>
               Sessione scaduta. Torna sul sito <Link href={loginSiteUrl} rel="noreferrer">
@@ -90,7 +87,7 @@ const LoginForm = () => {
     >
       <Card sx={{ width: 360, p: 2 }}>
         <CardContent>
-          <Box component="img" src="/logo-intero.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
+          <Box component="img" src="/logo.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
           <Typography variant="h6" color="text.secondary" sx={{ mb: 3, textAlign: "center", fontWeight: "bold" }}>
             K9 Cross Training - Exercise
           </Typography>
