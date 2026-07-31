@@ -392,6 +392,28 @@ come unica fonte di informazione.
   dispatch esplicito (`gh workflow run`), che funziona normalmente anche con il
   `GITHUB_TOKEN` della run (usato da `tag.yml` per triggerare
   `cleanup-build-tags.yml`).
+- **La configurazione per-ambiente non va compilata dentro l'artefatto al build**:
+  è forte la tentazione di passare la config del frontend come build-arg `VITE_*`
+  (Vite le compila nel bundle). È sbagliato in un flusso dove si builda **una
+  sola volta** in staging e si promuove **la stessa immagine** in produzione
+  senza rebuild (`docker buildx imagetools create` in `tag.yml`): il bundle
+  resterebbe per sempre sui valori di staging, e la produzione mostrerebbe
+  configurazione altrui — con impatti che vanno dall'estetico
+  (`LOGIN_SITE_URL` sbagliato) al funzionale (`LOGIN_TYPE` che decide se
+  mostrare il form di login o il redirect al sito esterno). Regola: l'immagine è
+  **neutra rispetto all'ambiente**, la config arriva a runtime dall'ambiente in
+  cui gira. Qui: ConfigMap `k9-client-config` montata come file statico servito
+  da nginx su `/config/config.json`, letta all'avvio da
+  `client/src/config/runtime.ts` prima del primo render. Corollario k8s: montarla
+  come **directory**, mai con `subPath`, altrimenti kubelet non propaga più gli
+  aggiornamenti al file dentro il container.
+- **Un URL senza schema in un `href` diventa un path relativo**: un valore di
+  configurazione tipo `www.esempio.it` (senza `https://`) messo in un link
+  produce `https://<dominio-app>/www.esempio.it` invece di puntare al sito
+  esterno. Non è un errore visibile in locale se lì il valore è configurato
+  correttamente con lo schema. Va normalizzato nel codice, in un punto solo
+  (qui: `normalizeUrl` in `client/src/config/runtime.ts`), non lasciato alla
+  disciplina di chi compila le Variables.
 - **Namespace bloccato in `Terminating` dopo un `kubectl delete namespace` manuale,
   e ripetere il delete non serve a nulla**: il namespace non è "in coda", è
   bloccato — una risorsa al suo interno ha un finalizer che non si completa mai

@@ -3,8 +3,6 @@
 
 import { useState } from "react";
 import { Navigate, Link as RouterLink } from "react-router-dom";
-
-const isDisabledMode = import.meta.env.VITE_LOGIN_TYPE === "disabled";
 import {
   Alert,
   Box,
@@ -30,9 +28,11 @@ import {
   PASSWORD_RULE_LABELS,
 } from "../../utils/passwordValidation";
 import ConsentModal from "../ConsentModal";
+import { getConfig } from "../../config/runtime";
 
 const Register = () => {
   const { user, isLoading } = useAuth();
+  const isDisabledMode = getConfig().loginType === "disabled";
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");

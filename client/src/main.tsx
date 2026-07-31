@@ -7,13 +7,21 @@ import { RouterProvider } from "react-router-dom";
 import Router from "./components/Router";
 import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { loadRuntimeConfig } from "./config/runtime";
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <AuthProvider>
-      <NotificationProvider>
-        <RouterProvider router={Router} />
-      </NotificationProvider>
-    </AuthProvider>
-  </StrictMode>
-);
+// La configurazione specifica dell'ambiente è caricata PRIMA di montare React
+// (vedi config/runtime.ts): così i componenti possono leggerla in modo
+// sincrono con getConfig(), senza stati di caricamento intermedi.
+// Non top-level await: richiederebbe un build target ES2022+, mentre così il
+// bundle resta compatibile con il target di default di Vite.
+loadRuntimeConfig().then(() => {
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <AuthProvider>
+        <NotificationProvider>
+          <RouterProvider router={Router} />
+        </NotificationProvider>
+      </AuthProvider>
+    </StrictMode>
+  );
+});

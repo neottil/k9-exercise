@@ -13,12 +13,12 @@ import { useNavigate } from "react-router-dom";
 
 import MainMenu from "./menu";
 import { useAuth } from "../../contexts/AuthContext";
-
-const isAuthDisabled = import.meta.env.VITE_LOGIN_TYPE === "disabled";
+import { getConfig } from "../../config/runtime";
 
 const SiteAppBar = () => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const isAuthDisabled = getConfig().loginType === "disabled";
 
   const handleLogout = async () => {
     await logout();

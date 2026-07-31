@@ -24,6 +24,14 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 80
+          volumeMounts:
+            # Montata come DIRECTORY, non con subPath: con subPath kubelet non
+            # propaga più gli aggiornamenti della ConfigMap al file nel
+            # container. nginx serve la dir come /config/, quindi il client
+            # trova la sua configurazione su /config/config.json.
+            - name: runtime-config
+              mountPath: /usr/share/nginx/html/config
+              readOnly: true
           resources:
             requests:
               cpu: "50m"
@@ -37,3 +45,7 @@ spec:
               port: 80
             initialDelaySeconds: 3
             periodSeconds: 10
+      volumes:
+        - name: runtime-config
+          configMap:
+            name: k9-client-config

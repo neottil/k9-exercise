@@ -9,8 +9,7 @@ import {
   SelectChangeEvent
 } from "@mui/material";
 import LevelSelect from ".";
-
-const isOperationEnabled = import.meta.env.VITE_ENABLE_WITH_OPERATION_FILTER === "true";
+import { getConfig } from "../../config/runtime";
 
 const LevelSelectWithOperation = ({
   value,
@@ -19,6 +18,9 @@ const LevelSelectWithOperation = ({
   onChangeCallback,
   resetCallback
 }: LevelSelectWithOperationProps) => {
+  // Letta qui e non a livello di modulo: la config è risolta a runtime
+  // all'avvio (vedi config/runtime.ts), dopo la valutazione degli import.
+  const isOperationEnabled = getConfig().enableWithOperationFilter;
 
   const onChangeLevelCallback: NumberOnChangeCallback = (name, selected) =>
     onChangeCallback(name, selected, isOperationEnabled ? value.operation : "gte");

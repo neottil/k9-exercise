@@ -81,10 +81,13 @@ k9-exercise/
 ├── client/             # React + Vite (SPA)
 │   ├── src/
 │   │   ├── components/ # Componenti UI (Admin, AppBar, ExerciseTable, Insert, View…)
+│   │   ├── config/
+│   │   │   └── runtime.ts # Config per-ambiente letta a runtime (non nel bundle)
 │   │   └── ...
 │   └── k8s/            # Manifest k8s specifici del client (colocati col codice)
 │       ├── deployment.yaml
 │       ├── service.yaml
+│       ├── configmap.yaml # Config per-ambiente servita su /config/config.json
 │       └── ingress.yaml   # Path "/", porta l'annotation cert-manager (TLS)
 ├── server/             # Express + TypeScript
 │   ├── src/
@@ -368,14 +371,16 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 | `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) | `infra`, `build-deploy`, `tag` |
 | `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject | `build-deploy`, `tag` (render di `client/k8s/ingress.yaml`, `server/k8s/{ingress,hso}.yaml`) |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) | `infra` (render di `k3s/cert-manager/clusterissuer.yaml`) |
-| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Usata dal server a runtime e passata come build-arg `VITE_LOGIN_TYPE` al Dockerfile del client | `build-deploy`, `tag` |
-| `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag baked nel bundle React al build | `build-deploy` (build-client) |
-| `LOGIN_SITE_URL` | `www.k9crosstraining.com` | Url to external site that manage login token | `build-deploy`, `tag` |
+| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Letta a runtime sia dal server (env del Deployment) sia dal client (ConfigMap `k9-client-config`) ⁶ | `build-deploy` / `promote` (deploy-client, deploy-server) |
+| `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag del filtro "con operatività", letto a runtime dal client ⁶ | `build-deploy` / `promote` (deploy-client) |
+| `LOGIN_SITE_URL` | `https://www.k9crosstraining.com` | URL del sito esterno che genera il token di accesso (modalità `token`), letto a runtime dal client ⁶. Includere lo schema `https://` (se manca viene aggiunto automaticamente) | `build-deploy` / `promote` (deploy-client) |
 | `SMTP_HOST` | `smtp.gmail.com` | Host SMTP per le notifiche email | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
 | `SMTP_PORT` | `587` | Porta SMTP | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
 | `SMTP_USER` | `tuagmail@gmail.com` | Indirizzo email mittente | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
 | `NOTIFY_RECIPIENTS` | `a@esempio.com,b@esempio.com` | Destinatari notifiche, separati da virgola | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
 | `MINIO_ROOT_USER` | | Utente root minIO (storage immagini) | `infra` |
+
+> ⁶ **Configurazione del client risolta a runtime, non compilata nel bundle.** L'immagine Docker del client viene costruita **una sola volta** (in staging) e poi promossa in produzione **ri-taggando la stessa immagine senza rebuild** (vedi `tag.yml`). Se queste variabili fossero passate come build-arg `VITE_*`, Vite le compilerebbe nel bundle e la produzione mostrerebbe per sempre i valori di staging. Vengono invece scritte nella ConfigMap `k9-client-config` (`client/k8s/configmap.yaml`) da `deploy-client.yml`, con le Variables dell'ambiente di destinazione; la ConfigMap è montata come file servito da nginx su `/config/config.json` e letta all'avvio da `client/src/config/runtime.ts`, prima del primo render. In sviluppo locale quel file non esiste e si ricade sulle `VITE_*` del `.env` alla root del monorepo.
 
 ---
 
@@ -807,6 +812,8 @@ VITE_LOGIN_TYPE=token          # deve coincidere con LOGIN_TYPE
 # Generare con: openssl rand -base64 32
 K9_JWT_SECRET=stringa-lunga-e-casuale
 ```
+
+> Il doppione `LOGIN_TYPE` / `VITE_LOGIN_TYPE` riguarda **solo lo sviluppo locale**: il server legge `LOGIN_TYPE`, il client legge `VITE_LOGIN_TYPE` dal `.env` tramite Vite. Negli ambienti deployati esiste invece un'unica GitHub Variable `LOGIN_TYPE`, che alimenta sia l'env del Deployment del server sia la ConfigMap `k9-client-config` letta a runtime dal client (vedi nota ⁶ nella tabella delle [Variables](#variables)) — nessun allineamento manuale da mantenere.
 
 | `LOGIN_TYPE` | Comportamento server | Comportamento client |
 |---|---|---|

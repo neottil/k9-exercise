@@ -15,13 +15,14 @@ import {
   Typography,
 } from "@mui/material";
 import { useAuth } from "../../contexts/AuthContext";
-
-const isTokenMode = import.meta.env.VITE_LOGIN_TYPE === "token";
-const isDisabledMode = import.meta.env.VITE_LOGIN_TYPE === "disabled";
-const loginSiteUrl = import.meta.env.VITE_LOGIN_SITE_URL;
+import { getConfig } from "../../config/runtime";
 
 const LoginToken = () => {
   const { sessionExpired } = useAuth();
+  // getConfig() restituisce loginSiteUrl già normalizzato con lo schema: senza
+  // "https://" il browser interpreterebbe l'href come path relativo e il link
+  // punterebbe a https://<dominio-app>/<url-configurato>.
+  const { loginSiteUrl } = getConfig();
   return (
     <Box
       sx={{
@@ -87,10 +88,7 @@ const LoginForm = () => {
     >
       <Card sx={{ width: 360, p: 2 }}>
         <CardContent>
-          <Box component="img" src="/logo.png" alt="Logo" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
-          <Typography variant="h6" color="text.secondary" sx={{ mb: 3, textAlign: "center", fontWeight: "bold" }}>
-            K9 Cross Training - Exercise
-          </Typography>
+          <Box component="img" src="/logo.png" alt="K9 - Exercise" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
           {sessionExpired && !error && (
             <Alert severity="warning" sx={{ mb: 2 }}>
               Sessione scaduta. Effettua nuovamente il login.
@@ -137,6 +135,9 @@ const LoginForm = () => {
 
 const Login = () => {
   const { user, isLoading } = useAuth();
+  const { loginType } = getConfig();
+  const isTokenMode = loginType === "token";
+  const isDisabledMode = loginType === "disabled";
 
   if (isDisabledMode || user) return <Navigate to="/" replace />;
 

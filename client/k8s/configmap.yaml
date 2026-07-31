@@ -1,0 +1,28 @@
+# Configurazione del client risolta a RUNTIME, per ambiente.
+#
+# PERCHÉ ESISTE: l'immagine Docker del client è costruita UNA sola volta (in
+# staging) e poi ri-taggata identica per la produzione (vedi tag.yml/promote.yml:
+# nessun rebuild). Qualunque variabile `VITE_*` compilata nel bundle resterebbe
+# quindi per sempre quella di staging. Questa ConfigMap è invece specifica
+# dell'ambiente: viene montata come file statico e servita da nginx su
+# /config/config.json, che il client legge all'avvio (vedi client/src/config/runtime.ts).
+#
+# ${LOGIN_TYPE}, ${LOGIN_SITE_URL}, ${ENABLE_WITH_OPERATION_FILTER} vengono
+# sostituiti dalla GitHub Action con envsubst, leggendo le Variables
+# dell'environment di destinazione.
+#
+# I valori sono tutti STRINGHE, anche i booleani: envsubst con una variabile
+# non valorizzata produrrebbe JSON non valido (`"chiave": ,`). Il parsing in
+# booleano avviene lato client.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k9-client-config
+  namespace: k9
+data:
+  config.json: |
+    {
+      "loginType": "${LOGIN_TYPE}",
+      "loginSiteUrl": "${LOGIN_SITE_URL}",
+      "enableWithOperationFilter": "${ENABLE_WITH_OPERATION_FILTER}"
+    }

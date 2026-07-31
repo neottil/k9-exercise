@@ -37,7 +37,6 @@ jobs:
           SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/k9-server:${{ inputs.image_tag }}
           DOMAIN: ${{ vars.DOMAIN }}
           LOGIN_TYPE: ${{ vars.LOGIN_TYPE }}
-          LOGIN_SITE_URL: ${{ vars.LOGIN_SITE_URL }}
           SMTP_HOST: ${{ vars.SMTP_HOST }}
           SMTP_PORT: ${{ vars.SMTP_PORT }}
           SMTP_USER: ${{ vars.SMTP_USER }}
