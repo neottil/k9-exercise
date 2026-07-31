@@ -35,6 +35,16 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
+      # Vedi commento analogo in tag.yml: GitHub mostra sempre il selettore di
+      # branch per workflow_dispatch, qui bloccato esplicitamente perché un
+      # deploy in produzione non deve poter partire da una copia del workflow
+      # diversa da quella su main.
+      - name: Rifiuta l'esecuzione da branch diversi da main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Promote va eseguito solo da main (branch selezionato: ${{ github.ref_name }})."
+          exit 1
+
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0

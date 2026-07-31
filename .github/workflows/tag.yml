@@ -41,6 +41,18 @@ jobs:
       errored_client: ${{ steps.promuovi.outputs.errored_client }}
       errored_server: ${{ steps.promuovi.outputs.errored_server }}
     steps:
+      # GitHub mostra sempre il selettore "Use workflow from" per un trigger
+      # workflow_dispatch, qualunque sia il branch indicato qui sotto: non
+      # esiste una direttiva YAML per nasconderlo o vincolarlo. Un lancio da un
+      # branch diverso eseguirebbe quella versione del file (potenzialmente
+      # diversa/manomessa) — questo guard lo blocca subito, prima di qualunque
+      # side-effect (tag Git, push immagini, Release).
+      - name: Rifiuta l'esecuzione da branch diversi da main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Tag va eseguito solo da main (branch selezionato: ${{ github.ref_name }})."
+          exit 1
+
       # Il checkout usa WORKFLOW_PAT (non il GITHUB_TOKEN di default) perché
       # questo job tagga un commit "vecchio" (l'ultimo <scope>-main-* deployato,
       # non necessariamente la punta attuale di main): GitHub blocca un push di
