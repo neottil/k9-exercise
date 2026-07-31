@@ -11,6 +11,9 @@
     "version": "npm version --no-commit-hooks --no-git-tag-version --prefix"
   },
   "devDependencies": {
-    "concurrently": "^10.0.0"
+    "concurrently": "^10.0.0",
+    "mongoose": "^9.6.3",
+    "uuid": "^14.0.0",
+    "xlsx": "^0.18.5"
   }
 }
