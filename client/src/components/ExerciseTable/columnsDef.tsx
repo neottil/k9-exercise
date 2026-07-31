@@ -99,7 +99,9 @@ export const createImagesColumn = (onView: (exercise: Exercise) => void): GridCo
   renderHeader,
   filterable: false,
   sortable: false,
-  minWidth: 90,
+  // Contenuto: solo icona occhio (o niente) → colonna a larghezza fissa, non
+  // deve contendersi spazio con Attrezzi/Descrizione.
+  width: 82,
   renderCell: ({ row }: { row: Exercise }) =>
     row.images?.length ? (
       <IconButton
@@ -146,7 +148,10 @@ const tools: GridColDef = {
   minWidth: 80,
   renderCell: ({ row }: { row: Exercise }) =>
     row.tools?.map((tool) => <Chip key={tool} label={tool} color="primary" sx={{ m: 0.5 }} />),
-  flex: 0.3,
+  // flex aumentato: lo spazio liberato da Difficoltà/Livello/Immagini (ora a
+  // larghezza fissa) va qui, dove i chip più lunghi (es. "Balance disc")
+  // venivano troncati.
+  flex: 0.6,
 };
 
 const setup: GridColDef = {
@@ -190,7 +195,7 @@ const movementPlan: GridColDef = {
   headerName: "Piano di Movimento",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 130,
+  minWidth: 105,
   renderCell: ({ row }: { row: Exercise }) =>
     row.movementPlan?.map((plan) => <Chip key={plan} label={plan} color="primary" sx={{ m: 0.5 }} />),
   flex: 0.1,
@@ -202,7 +207,9 @@ const difficultyLevel: GridColDef = {
   headerClassName: "super-app-theme--header",
   renderHeader,
   renderCell: noTooltip,
-  minWidth: 80,
+  // Contenuto: una sola cifra (0-5) → larghezza fissa, l'header va a capo
+  // grazie a renderHeader (whiteSpace: pre-wrap) quindi non serve spazio extra.
+  width: 76,
 };
 
 export const instructorLevel: GridColDef = {
@@ -210,7 +217,8 @@ export const instructorLevel: GridColDef = {
   headerName: "Livello",
   headerClassName: "super-app-theme--header",
   renderHeader,
-  minWidth: 90,
+  // Contenuto: chip "BSS" o "CTS", mai più lungo di così → larghezza fissa.
+  width: 76,
   renderCell: ({ value }: GridRenderCellParams) =>
     value ? (
       <Chip

@@ -74,7 +74,7 @@ export const StatBars = ({ data, labels, showAll = false }: StatBarsProps) => {
             sx={{
               display: "flex",
               alignItems: "center",
-              gap: 1.5,
+              gap: 0.5,
               mb: 0.75,
               "&:last-child": { mb: 0 },
             }}
