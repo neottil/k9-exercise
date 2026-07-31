@@ -32,6 +32,14 @@ spec:
             - name: runtime-config
               mountPath: /usr/share/nginx/html/config
               readOnly: true
+            # Versioni deployate: la ConfigMap k9-versions è già l'unica fonte
+            # di verità, patchata da deploy-client/deploy-server/infra ognuno
+            # sulla propria chiave. Montandola qui il client la legge senza
+            # passare dal server, e kubelet ne propaga gli aggiornamenti anche
+            # quando a deployare è un altro scope.
+            - name: versions
+              mountPath: /usr/share/nginx/html/versions
+              readOnly: true
           resources:
             requests:
               cpu: "50m"
@@ -49,3 +57,10 @@ spec:
         - name: runtime-config
           configMap:
             name: k9-client-config
+        - name: versions
+          configMap:
+            name: k9-versions
+            # optional: k9-versions è creata da infra.yml. Senza questo flag un
+            # cluster non ancora provisionato bloccherebbe l'avvio del pod;
+            # così al massimo la pagina Info mostra "N/A".
+            optional: true

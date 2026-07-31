@@ -67,14 +67,6 @@ app.use("/api/exercises", requireAuth, exerciseRoutes);
 app.use("/api/admin/notify", notifyRoutes);
 app.use("/api/admin/gc-images", gcImagesRoutes);
 
-app.get("/api/info", (_req, res) => {
-  res.json({
-    serverVersion: process.env.SERVER_VERSION ?? null,
-    clientVersion: process.env.CLIENT_VERSION ?? null,
-    infraVersion:  process.env.INFRA_VERSION  ?? null,
-  });
-});
-
 app.get("/health", (_req, res) => {
   const stateLabel = ["disconnected", "connected", "connecting", "disconnecting"];
   res.json({

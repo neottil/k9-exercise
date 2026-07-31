@@ -11,22 +11,16 @@ import Typography from "@mui/material/Typography";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 
 import { useAuth } from "../../contexts/AuthContext";
-
-interface InfoResponse {
-  serverVersion: string;
-  clientVersion: string | null;
-  infraVersion: string | null;
-}
+import { fetchVersions, type Versions } from "../../config/versions";
 
 const About = () => {
-  const [info, setInfo] = useState<InfoResponse | null>(null);
+  const [versions, setVersions] = useState<Versions | null>(null);
   const { user } = useAuth();
 
+  // fetchVersions non rigetta mai: le versioni non disponibili tornano null e
+  // vengono rese come "N/A".
   useEffect(() => {
-    fetch("/api/info")
-      .then((r) => r.json())
-      .then((data: InfoResponse) => setInfo(data))
-      .catch(() => setInfo({ serverVersion: "N/A", clientVersion: "N/A", infraVersion: "N/A" }));
+    fetchVersions().then(setVersions);
   }, []);
 
   return (
@@ -44,13 +38,13 @@ const About = () => {
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 3, mt: 1, mb: 4, flexWrap: "wrap" }}>
             {[
-              { label: "Frontend", value: info?.clientVersion },
-              { label: "Server",   value: info?.serverVersion },
-              { label: "Infra",    value: info?.infraVersion },
+              { label: "Frontend", value: versions?.client },
+              { label: "Server",   value: versions?.server },
+              { label: "Infra",    value: versions?.infra },
             ].map(({ label, value }) => (
               <Box key={label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Typography color="text.secondary" variant="body2">{label}</Typography>
-                <Chip label={value ? `v${value}` : "…"} size="small" color="primary" />
+                <Chip label={versions ? (value ? `v${value}` : "N/A") : "…"} size="small" color="primary" />
               </Box>
             ))}
           </Box>

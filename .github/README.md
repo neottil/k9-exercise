@@ -407,6 +407,19 @@ come unica fonte di informazione.
   `client/src/config/runtime.ts` prima del primo render. Corollario k8s: montarla
   come **directory**, mai con `subPath`, altrimenti kubelet non propaga più gli
   aggiornamenti al file dentro il container.
+- **Se un dato è già nel cluster, montalo — non ricopiarlo**: le versioni
+  deployate vivono nella ConfigMap `k9-versions`, che ogni workflow di deploy
+  patcha **solo sulla propria chiave** (`deploy-client` → `CLIENT_VERSION`,
+  `deploy-server` → `SERVER_VERSION`, `infra` → `INFRA_VERSION`). La tentazione è
+  renderizzarle in `client/k8s/configmap.yaml` insieme al resto della config: ma
+  `deploy-client` conosce solo la propria versione, quindi le altre due andrebbero
+  rilette e riscritte da lì — e resterebbero comunque stale ogni volta che a
+  deployare è un altro scope. Il pod del client monta invece `k9-versions`
+  direttamente (`/versions/<CHIAVE>`, servita da nginx come testo): nessun valore
+  duplicato, nessun writer concorrente, e — essendo un mount di directory —
+  kubelet propaga gli aggiornamenti anche senza redeploy del client. Il flag
+  `optional: true` sul volume evita che un cluster non ancora provisionato con
+  `infra.yml` blocchi l'avvio del pod.
 - **Un URL senza schema in un `href` diventa un path relativo**: un valore di
   configurazione tipo `www.esempio.it` (senza `https://`) messo in un link
   produce `https://<dominio-app>/www.esempio.it` invece di puntare al sito

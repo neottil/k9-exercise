@@ -82,7 +82,8 @@ k9-exercise/
 │   ├── src/
 │   │   ├── components/ # Componenti UI (Admin, AppBar, ExerciseTable, Insert, View…)
 │   │   ├── config/
-│   │   │   └── runtime.ts # Config per-ambiente letta a runtime (non nel bundle)
+│   │   │   ├── runtime.ts  # Config per-ambiente letta a runtime (non nel bundle)
+│   │   │   └── versions.ts # Versioni deployate lette da /versions/ (ConfigMap k9-versions)
 │   │   └── ...
 │   └── k8s/            # Manifest k8s specifici del client (colocati col codice)
 │       ├── deployment.yaml
@@ -285,7 +286,7 @@ resolve-client-image / resolve-server-image
     ▼
 deploy-client / deploy-server         ←─ chiama deploy-client.yml/deploy-server.yml
     │  (environment: staging) — render manifest, scp, ssh kubectl apply, rollout,
-    │  patch ConfigMap k9-versions
+    │  patch ConfigMap k9-versions (ogni scope solo la propria chiave)
     ▼
 register-client-tag / register-server-tag
     │  crea (sempre nuovo, mai spostato) il tag <scope>-main-<data>
@@ -309,6 +310,16 @@ dello scope. Modificalo manualmente quando decidi cosa deve finire nella
 prossima release, poi lancia `tag.yml` — non serve farlo ad ogni commit, solo
 prima di un rilascio. Il deploy in produzione (`promote.yml`) è un passo
 separato, da eseguire quando decidi di far girare quella versione.
+
+**Dove si vedono le versioni deployate**: nella pagina **Info** dell'app. Il client
+non interroga il backend per ottenerle: la ConfigMap `k9-versions` è montata come
+volume nel pod del client e nginx la serve su `/versions/<CHIAVE>`
+(`CLIENT_VERSION`, `SERVER_VERSION`, `INFRA_VERSION`), letta da
+`client/src/config/versions.ts`. Così la pagina resta consultabile anche quando
+KEDA ha scalato il server a zero, e i valori si aggiornano da soli — kubelet
+propaga le modifiche alla ConfigMap nel volume — anche quando a deployare è uno
+scope diverso dal client. In sviluppo locale quei file non esistono e la pagina
+mostra `N/A`.
 
 ### Aggiornamento dipendenze e package-lock.json
 
