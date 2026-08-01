@@ -159,7 +159,11 @@ router.get("/", async (req: Request, res: Response) => {
     const isCTS = req.user?.instructorLevel === "CTS";
     const levelFilter = isCTS ? {} : { $or: [{ instructorLevel: "BSS" }, { instructorLevel: null }] };
     const filter = { ...mongoFilter, ...levelFilter, state: { $in: [ APPROVED, PENDING_UPDATE ] } };
-    const exercises = await Exercise.find(filter);
+    // Tipologia e variante in ordine alfabetico italiano (collation: case-insensitive,
+    // consapevole degli accenti), difficoltà crescente all'interno della stessa tipologia.
+    const exercises = await Exercise.find(filter)
+      .collation({ locale: "it", strength: 2 })
+      .sort({ type: 1, difficultyLevel: 1, variant: 1 });
     res.json(exercises);
   } catch (err) {
     res.status(500).json({ error: "Errore nel recupero degli esercizi" });
