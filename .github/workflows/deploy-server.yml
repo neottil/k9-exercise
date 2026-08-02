@@ -44,8 +44,7 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq gettext-base
           mkdir -p k8s-rendered
-          export APP_URL="https://${{ vars.DOMAIN }}"
-          envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${APP_URL}' \
+          envsubst '${SERVER_IMAGE} ${LOGIN_TYPE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${DOMAIN}' \
             < server/k8s/deployment.yaml > k8s-rendered/server-deployment.yaml
           cp server/k8s/service.yaml k8s-rendered/server-service.yaml
           envsubst '${DOMAIN}' < server/k8s/hso.yaml     > k8s-rendered/server-hso.yaml

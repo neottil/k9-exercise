@@ -450,7 +450,7 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 | Nome | Valore esempio | Descrizione | Usato da |
 |------|---------------|-------------|----------|
 | `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) | `infra`, `build-deploy`, `tag` |
-| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject | `build-deploy`, `tag` (render di `client/k8s/ingress.yaml`, `server/k8s/{ingress,hso}.yaml`) |
+| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject; letto anche a runtime dal server (env `DOMAIN` del Deployment) per il link nella mail di notifica — lo schema (`http`/`https`) è deciso dal server in base a `NODE_ENV`, non fa parte di questa variabile | `build-deploy`, `tag` (render di `client/k8s/ingress.yaml`, `server/k8s/{ingress,hso,deployment}.yaml`) |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) | `infra` (render di `k3s/cert-manager/clusterissuer.yaml`) |
 | `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Letta a runtime sia dal server (env del Deployment) sia dal client (ConfigMap `k9-client-config`) ⁶ | `build-deploy` / `promote` (deploy-client, deploy-server) |
 | `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag del filtro "con operatività", letto a runtime dal client ⁶ | `build-deploy` / `promote` (deploy-client) |
@@ -696,21 +696,31 @@ POST /api/admin/notify
     │  Authorization: Bearer $API_KEY
     │
     ▼
-Server controlla:
+Server controlla (find, non ancora una scrittura):
   • User  con state=TO_APPROVE     e lastNotifiedAt < oggi
   • Exercise con state=TO_APPROVE  e lastNotifiedAt < oggi
   • Exercise con state=PENDING_UPDATE e lastNotifiedAt < oggi
     │
     ├─ nessun nuovo elemento → risposta { sent: false }, nessuna email
     │
-    └─ elementi nuovi → segna lastNotifiedAt=now su tutti i documenti trovati
-                      → invia email via SMTP ai NOTIFY_RECIPIENTS
+    └─ elementi nuovi → invia email via SMTP ai NOTIFY_RECIPIENTS
+                      → SOLO se l'invio riesce, segna lastNotifiedAt=now
+                        sui documenti trovati
 ```
+
+**Ordine importante**: `lastNotifiedAt` viene aggiornato **dopo** l'invio riuscito, non prima. Se l'invio SMTP fallisce (endpoint risponde 500), nessun documento viene marcato: gli stessi elementi restano eleggibili al prossimo tentativo del CronJob, invece di sparire in silenzio dalla notifica del giorno perché già segnati come "notificati" senza che l'email sia mai partita.
+
+Ogni run logga (con timestamp, utile per riconciliare con `kubectl logs` su un CronJob che gira più volte al giorno):
+```
+[notify] Trovati N elementi da notificare (utenti=…, esercizi nuovi=…, modifiche=…) | 2026-08-02T...
+[notify] Email inviata a … — N elementi in attesa | 2026-08-02T...
+```
+Un errore SMTP (es. `ECONNREFUSED`) produce comunque il primo log (quindi si vede sempre *cosa* c'era da notificare) ma non il secondo, e la risposta è 500 anziché 200.
 
 ### Campo `lastNotifiedAt`
 
 Presente sia su `User` che su `Exercise`. Viene:
-- **Impostato** a `now` dal server quando l'elemento viene incluso in una notifica
+- **Impostato** a `now` dal server solo dopo che l'elemento è stato incluso in una notifica **inviata con successo**
 - **Azzerato** (`$unset`) quando un esercizio torna in stato `APPROVED` (approvazione o rifiuto modifica), in modo che una modifica successiva nella stessa giornata venga re-notificata
 
 ### Schedule
@@ -723,7 +733,7 @@ Per cambiare la frequenza modificare il campo `schedule` in `k3s/notify/cronjob.
 
 Già documentati nella sezione [Secrets e Variables richiesti](#secrets-e-variables-richiesti):
 - Secret: `API_KEY`, `SMTP_PASS`
-- Variable: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `NOTIFY_RECIPIENTS`
+- Variable: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `NOTIFY_RECIPIENTS`, `DOMAIN` (usata anche qui per il link nella mail — vedi nota sulla riga `DOMAIN` della tabella)
 
 ### Test con Bruno
 

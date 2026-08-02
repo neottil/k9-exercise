@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 
 import { createApp } from "./app.js";
 import { ensureBucket } from "./config/minio.js";
+import { logger } from "./utils/logger.js";
 
 // Il .env è alla root del monorepo (due livelli sopra server/src/)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,7 +18,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-  console.error("MONGODB_URI non è configurata. Aggiungila nel file .env alla root del progetto (o impostala come variabile d'ambiente).");
+  logger.error("MONGODB_URI non è configurata. Aggiungila nel file .env alla root del progetto (o impostala come variabile d'ambiente).");
   process.exit(1);
 }
 
@@ -30,27 +31,15 @@ const app = createApp({ mongoUri: MONGODB_URI });
 // ── Event listeners sulla connessione DB ──────────────────────────────────────
 
 mongoose.connection.on("disconnected", () => {
-  console.warn(
-    `[DB] Connessione persa` +
-    ` | host: ${mongoose.connection.host ?? "n/a"}` +
-    ` | ${new Date().toISOString()}`
-  );
+  logger.warn(`[DB] Connessione persa | host: ${mongoose.connection.host ?? "n/a"}`);
 });
 
 mongoose.connection.on("reconnected", () => {
-  console.log(
-    `[DB] Connessione ripristinata` +
-    ` | host: ${mongoose.connection.host ?? "n/a"}` +
-    ` | ${new Date().toISOString()}`
-  );
+  logger.log(`[DB] Connessione ripristinata | host: ${mongoose.connection.host ?? "n/a"}`);
 });
 
 mongoose.connection.on("error", (err) => {
-  console.error(
-    `[DB] Errore sulla connessione — ${err.message}` +
-    ` | readyState: ${mongoose.connection.readyState}` +
-    ` | ${new Date().toISOString()}`
-  );
+  logger.error(`[DB] Errore sulla connessione — ${err.message} | readyState: ${mongoose.connection.readyState}`);
 });
 
 // ── Connessione a MongoDB con retry ───────────────────────────────────────────
@@ -66,18 +55,14 @@ const connectWithRetry = async (): Promise<void> => {
     attempt++;
     try {
       await mongoose.connect(MONGODB_URI);
-      console.log(
-        `[DB] Connesso a MongoDB (tentativo ${attempt})` +
-        ` | ${new Date().toISOString()}`
-      );
+      logger.log(`[DB] Connesso a MongoDB (tentativo ${attempt})`);
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(
+      logger.error(
         `[DB] Connessione fallita (tentativo ${attempt})` +
         ` — nuovo tentativo tra ${RETRY_DELAY_MS / 1000}s` +
-        `\n  errore    : ${msg}` +
-        `\n  timestamp : ${new Date().toISOString()}`
+        `\n  errore    : ${msg}`
       );
       await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     }
@@ -90,7 +75,7 @@ const connectWithRetry = async (): Promise<void> => {
 // grazie al middleware requireDbReady.
 
 app.listen(PORT, () => {
-  console.log(`[SERVER] Avviato sulla porta ${PORT} | ${new Date().toISOString()}`);
+  logger.log(`[SERVER] Avviato sulla porta ${PORT}`);
   connectWithRetry();
   // Crea il bucket immagini se non esiste. Non blocca l'avvio: in caso di
   // errore (minIO non ancora pronto) logga e i singoli upload falliranno

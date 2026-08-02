@@ -9,6 +9,7 @@ import PasswordValidator from "password-validator";
 import User from "../models/User.js";
 import { requireDbReady } from "../middleware/requireDbReady.js";
 import { DEV_USER } from "../config/devUser.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 
@@ -94,7 +95,7 @@ router.post("/login", loginLimiter, requireDbReady, async (req: Request, res: Re
     req.session.user = sessionUser;
     res.json(sessionUser);
   } catch (err) {
-    console.error("[POST /auth/login] errore:", err);
+    logger.error("[POST /auth/login] errore:", err);
     res.status(500).json({ error: "Errore interno" });
   }
 });
@@ -151,7 +152,7 @@ router.post("/register", requireDbReady, async (req: Request, res: Response): Pr
 
     res.status(201).json({ message: "Registrazione completata. Il tuo account è in attesa di approvazione." });
   } catch (err) {
-    console.error("[POST /auth/register] errore:", err);
+    logger.error("[POST /auth/register] errore:", err);
     res.status(500).json({ error: "Errore interno" });
   }
 });
@@ -174,7 +175,7 @@ router.get("/wp-callback", async (req: Request, res: Response): Promise<void> =>
 
   const secret = process.env.K9_JWT_SECRET;
   if (!secret) {
-    console.error("[wp-callback] K9_JWT_SECRET non configurato");
+    logger.error("[wp-callback] K9_JWT_SECRET non configurato");
     res.status(500).send("Configurazione server mancante");
     return;
   }
@@ -205,7 +206,7 @@ router.get("/wp-callback", async (req: Request, res: Response): Promise<void> =>
 
     res.redirect("/");
   } catch (err) {
-    console.error("[wp-callback] token non valido:", err);
+    logger.error("[wp-callback] token non valido:", err);
     res.status(401).send("Token non valido o scaduto");
   }
 });
@@ -229,7 +230,7 @@ router.post("/accept-terms", requireDbReady, async (req: Request, res: Response)
     req.session.firstAccess = false;
     res.json({ ok: true });
   } catch (err) {
-    console.error("[POST /auth/accept-terms] errore:", err);
+    logger.error("[POST /auth/accept-terms] errore:", err);
     res.status(500).json({ error: "Errore interno" });
   }
 });

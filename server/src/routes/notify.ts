@@ -5,6 +5,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import nodemailer from "nodemailer";
 import User from "../models/User.js";
 import Exercise from "../models/Exercise.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
       .filter(Boolean);
 
     if (recipients.length === 0) {
+      logger.error("[notify] NOTIFY_RECIPIENTS non configurato");
       res.status(400).json({ error: "NOTIFY_RECIPIENTS non configurato" });
       return;
     }
@@ -34,21 +36,33 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     startOfToday.setHours(0, 0, 0, 0);
     const now = new Date();
 
-    // Documenti da notificare: in attesa E non ancora notificati oggi
+    // Documenti da notificare: in attesa E non ancora notificati oggi.
     const newFilter = {
       $or: [{ lastNotifiedAt: null }, { lastNotifiedAt: { $lt: startOfToday } }],
     };
 
-    const [usersResult, newExercisesResult, updatedExercisesResult] = await Promise.all([
-      User.updateMany({ state: "TO_APPROVE", ...newFilter }, { $set: { lastNotifiedAt: now } }),
-      Exercise.updateMany({ state: "TO_APPROVE", ...newFilter }, { $set: { lastNotifiedAt: now } }),
-      Exercise.updateMany({ state: "PENDING_UPDATE", ...newFilter }, { $set: { lastNotifiedAt: now } }),
+    // find (non updateMany): bisogna sapere COSA notificare prima di provare
+    // a inviare la mail, e marcare lastNotifiedAt solo DOPO un invio
+    // riuscito (vedi sotto). Con updateMany-prima-di-inviare (comportamento
+    // precedente), un errore SMTP marcava comunque i documenti come "già
+    // notificati oggi" — la mail non partiva mai, ma la run successiva non
+    // li trovava più: la notifica andava persa in silenzio fino al giorno
+    // dopo (o per sempre, se l'errore SMTP persisteva).
+    const [pendingUsers, pendingNewExercises, pendingUpdatedExercises] = await Promise.all([
+      User.find({ state: "TO_APPROVE", ...newFilter }, "_id"),
+      Exercise.find({ state: "TO_APPROVE", ...newFilter }, "_id"),
+      Exercise.find({ state: "PENDING_UPDATE", ...newFilter }, "_id"),
     ]);
 
-    const pendingUsers = usersResult.modifiedCount;
-    const pendingExercises = newExercisesResult.modifiedCount;
-    const pendingUpdates = updatedExercisesResult.modifiedCount;
-    const total = pendingUsers + pendingExercises + pendingUpdates;
+    const usersCount           = pendingUsers.length;
+    const newExercisesCount    = pendingNewExercises.length;
+    const updatedExercisesCount = pendingUpdatedExercises.length;
+    const total = usersCount + newExercisesCount + updatedExercisesCount;
+
+    logger.log(
+      `[notify] Trovati ${total} elementi da notificare` +
+      ` (utenti=${usersCount}, esercizi nuovi=${newExercisesCount}, modifiche=${updatedExercisesCount})`
+    );
 
     if (total === 0) {
       res.json({ users: 0, exercises_new: 0, exercises_update: 0, sent: false });
@@ -56,14 +70,20 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     }
 
     const lines: string[] = [];
-    if (pendingUsers > 0)
-      lines.push(`${pendingUsers} utent${pendingUsers === 1 ? "e" : "i"} in attesa di approvazione`);
-    if (pendingExercises > 0)
-      lines.push(`${pendingExercises} esercizi nuovi in attesa di approvazione`);
-    if (pendingUpdates > 0)
-      lines.push(`${pendingUpdates} modifiche a esercizi in attesa di approvazione`);
+    if (usersCount > 0)
+      lines.push(`${usersCount} utent${usersCount === 1 ? "e" : "i"} in attesa di approvazione`);
+    if (newExercisesCount > 0)
+      lines.push(`${newExercisesCount} esercizi nuovi in attesa di approvazione`);
+    if (updatedExercisesCount > 0)
+      lines.push(`${updatedExercisesCount} modifiche a esercizi in attesa di approvazione`);
 
-    const appUrl = process.env.APP_URL ?? "";
+    // DOMAIN è il solo hostname (es. "app.k9crosstraining.it" oppure
+    // "localhost:5173" in locale): lo schema si decide qui, non in CI, con lo
+    // stesso criterio già usato per il flag "secure" del cookie di sessione
+    // (app.ts) — https in staging/produzione (Traefik termina TLS), http in
+    // locale dove non c'è TLS.
+    const scheme = process.env.NODE_ENV === "production" ? "https" : "http";
+    const appUrl = process.env.DOMAIN ? `${scheme}://${process.env.DOMAIN}` : "";
     const listHtml = lines.map((l) => `<li>${l}</li>`).join("");
     const listText = lines.map((l) => `  • ${l}`).join("\n");
 
@@ -100,10 +120,25 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
       ].join(""),
     });
 
-    console.log(`[notify] Email inviata a ${recipients.join(", ")} — ${total} elementi in attesa`);
-    res.json({ users: pendingUsers, exercises_new: pendingExercises, exercises_update: pendingUpdates, sent: true });
+    logger.log(`[notify] Email inviata a ${recipients.join(", ")} — ${total} elementi in attesa`);
+
+    // Marcati come notificati solo ora che l'invio è confermato riuscito.
+    const ids = <T extends { _id: unknown }>(docs: T[]): T["_id"][] => docs.map((d) => d._id);
+    await Promise.all([
+      usersCount > 0
+        ? User.updateMany({ _id: { $in: ids(pendingUsers) } }, { $set: { lastNotifiedAt: now } })
+        : null,
+      newExercisesCount > 0
+        ? Exercise.updateMany({ _id: { $in: ids(pendingNewExercises) } }, { $set: { lastNotifiedAt: now } })
+        : null,
+      updatedExercisesCount > 0
+        ? Exercise.updateMany({ _id: { $in: ids(pendingUpdatedExercises) } }, { $set: { lastNotifiedAt: now } })
+        : null,
+    ]);
+
+    res.json({ users: usersCount, exercises_new: newExercisesCount, exercises_update: updatedExercisesCount, sent: true });
   } catch (err) {
-    console.error("[POST /api/admin/notify]", err);
+    logger.error("[POST /api/admin/notify]", err);
     res.status(500).json({ error: "Errore interno" });
   }
 });

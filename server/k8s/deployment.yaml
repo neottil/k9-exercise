@@ -66,8 +66,8 @@ spec:
               value: "${SMTP_USER}"
             - name: NOTIFY_RECIPIENTS
               value: "${NOTIFY_RECIPIENTS}"
-            - name: APP_URL
-              value: "${APP_URL}"
+            - name: DOMAIN
+              value: "${DOMAIN}"
             - name: MINIO_ENDPOINT
               value: "minio.k9.svc.cluster.local"
             - name: MINIO_PORT

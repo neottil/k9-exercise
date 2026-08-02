@@ -6,6 +6,7 @@ import Exercise from "../models/Exercise.js";
 import ExerciseChange from "../models/ExerciseChange.js";
 import { listAllObjects, removeImage } from "../config/minio.js";
 import type { ImageMeta } from "../services/exerciseImages.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 
@@ -53,7 +54,7 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
 
     // 3. Sanity cap
     if (orphans.length > MAX_DELETIONS_PER_RUN) {
-      console.error(
+      logger.error(
         `[GC] ${orphans.length} orfani > soglia ${MAX_DELETIONS_PER_RUN}: abort, revisione manuale`
       );
       res.status(409).json({
@@ -68,15 +69,15 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     for (const o of orphans) {
       await removeImage(o.name);
       deleted++;
-      console.log(`[GC] rimosso orfano ${o.name}`);
+      logger.log(`[GC] rimosso orfano ${o.name}`);
     }
 
-    console.log(
+    logger.log(
       `[GC] completato — scansionati=${objects.length} referenziati=${referencedKeys.size} cancellati=${deleted}`
     );
     res.json({ scanned: objects.length, referenced: referencedKeys.size, deleted });
   } catch (err) {
-    console.error("[POST /api/admin/gc-images]", err);
+    logger.error("[POST /api/admin/gc-images]", err);
     res.status(500).json({ error: "Errore nel garbage collection immagini" });
   }
 });

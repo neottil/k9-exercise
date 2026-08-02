@@ -8,6 +8,7 @@ import Exercise from "../models/Exercise.js";
 import ExerciseChange from "../models/ExerciseChange.js";
 import { requireDbReady } from "../middleware/requireDbReady.js";
 import { getImageStream } from "../config/minio.js";
+import { logger } from "../utils/logger.js";
 import {
   MAX_IMAGES,
   validateFiles,
@@ -196,7 +197,7 @@ router.get("/pending", requireAdmin, async (_req: Request, res: Response) => {
     );
     res.json(result);
   } catch (err) {
-    console.error("[GET /exercises/pending]", err);
+    logger.error("[GET /exercises/pending]", err);
     res.status(500).json({ error: "Errore nel recupero delle modifiche in attesa" });
   }
 });
@@ -207,7 +208,7 @@ router.get("/to-approve", requireAdmin, async (_req: Request, res: Response) => 
     const exercises = await Exercise.find({ state: TO_APPROVE });
     res.json(exercises);
   } catch (err) {
-    console.error("[GET /exercises/to-approve]", err);
+    logger.error("[GET /exercises/to-approve]", err);
     res.status(500).json({ error: "Errore nel recupero degli esercizi da approvare" });
   }
 });
@@ -275,12 +276,12 @@ router.get("/:id/images/:imageId", async (req: Request, res: Response) => {
     res.setHeader("Content-Type", image.mimeType || "application/octet-stream");
     res.setHeader("Cache-Control", "private, max-age=86400");
     stream.on("error", (e) => {
-      console.error("[GET /:id/images/:imageId] errore stream:", e);
+      logger.error("[GET /:id/images/:imageId] errore stream:", e);
       if (!res.headersSent) res.status(502).json({ error: "Errore nel recupero dell'immagine" });
     });
     stream.pipe(res);
   } catch (err) {
-    console.error("[GET /:id/images/:imageId]", err);
+    logger.error("[GET /:id/images/:imageId]", err);
     if (!res.headersSent) res.status(500).json({ error: "Errore nel recupero dell'immagine" });
   }
 });
@@ -312,7 +313,7 @@ router.post("/", requireDbReady, upload.array("images", MAX_IMAGES), async (req:
     await exercise.save();
     res.status(201).json(exercise);
   } catch (err) {
-    console.error("[POST /exercises/]", err);
+    logger.error("[POST /exercises/]", err);
     if (err instanceof ImageValidationError) {
       res.status(400).json({ error: err.message });
       return;
@@ -336,21 +337,21 @@ router.post("/", requireDbReady, upload.array("images", MAX_IMAGES), async (req:
  */
 router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (req: Request, res: Response) => {
   const id = req.params.id as string;
-  console.log(`[PUT /:id] id=${id}`);
+  logger.log(`[PUT /:id] id=${id}`);
   try {
     const { data, files } = extractSubmission(req);
     const { id: _id, state: _state, images: clientImages, ...rest } = data;
 
     const exercise = await Exercise.findById(id);
     if (!exercise) {
-      console.warn(`[PUT /:id] esercizio non trovato id=${id}`);
+      logger.warn(`[PUT /:id] esercizio non trovato id=${id}`);
       res.status(404).json({ error: "Esercizio non trovato" });
       return;
     }
 
     const exerciseData = exercise.toJSON() as Record<string, unknown>;
     const currentState = exerciseData.state as string | undefined;
-    console.log(`[PUT /:id] state corrente=${currentState}`);
+    logger.log(`[PUT /:id] state corrente=${currentState}`);
 
     // ── Immagini ────────────────────────────────────────────────────────────
     // Si tengono solo le immagini già esistenti (integrità), si validano e
@@ -376,7 +377,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
 
     // TO_APPROVE o senza stato: aggiornamento diretto
     if (!currentState || currentState === TO_APPROVE) {
-      console.log(`[PUT /:id] aggiornamento diretto (TO_APPROVE / no state)`);
+      logger.log(`[PUT /:id] aggiornamento diretto (TO_APPROVE / no state)`);
       const updated = await Exercise.findByIdAndUpdate(
         id,
         { $set: { ...submittedFields, userUpdate: req.user?.username ?? req.user?.email } },
@@ -388,21 +389,21 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
 
     // APPROVED / PENDING_UPDATE: gestione con change doc e transazione
     const diff = computeDiff(exerciseData, submittedFields);
-    console.log(`[PUT /:id] diff keys=${Object.keys(diff).join(", ") || "(nessuno)"}`);
+    logger.log(`[PUT /:id] diff keys=${Object.keys(diff).join(", ") || "(nessuno)"}`);
 
     const session = await mongoose.startSession();
-    console.log(`[PUT /:id] sessione aperta, avvio transazione`);
+    logger.log(`[PUT /:id] sessione aperta, avvio transazione`);
     try {
       session.startTransaction();
 
       if (currentState === APPROVED) {
         if (Object.keys(diff).length === 0) {
-          console.log(`[PUT /:id] nessuna modifica effettiva, niente da fare`);
+          logger.log(`[PUT /:id] nessuna modifica effettiva, niente da fare`);
           await session.commitTransaction();
           res.json(exercise);
           return;
         }
-        console.log(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
+        logger.log(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
         await ExerciseChange.create(
           [{ exerciseId: id as string, fields: diff, user: req.user?.username ?? req.user?.email, userUpdate: req.user?.username ?? req.user?.email }],
           { session }
@@ -415,7 +416,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
       } else {
         // PENDING_UPDATE
         if (Object.keys(diff).length === 0) {
-          console.log(`[PUT /:id] PENDING_UPDATE → diff vuoto, ripristino APPROVED`);
+          logger.log(`[PUT /:id] PENDING_UPDATE → diff vuoto, ripristino APPROVED`);
           await ExerciseChange.deleteOne({ exerciseId: id }, { session });
           await Exercise.findByIdAndUpdate(
             id,
@@ -423,7 +424,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
             { session }
           );
         } else {
-          console.log(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
+          logger.log(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
           await ExerciseChange.findOneAndUpdate(
             { exerciseId: id },
             { $set: { fields: diff, userUpdate: req.user?.username ?? req.user?.email } },
@@ -438,17 +439,17 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
       }
 
       await session.commitTransaction();
-      console.log(`[PUT /:id] transazione completata con successo`);
+      logger.log(`[PUT /:id] transazione completata con successo`);
       res.json(exercise);
     } catch (txErr) {
-      console.error(`[PUT /:id] errore nella transazione:`, txErr);
+      logger.error(`[PUT /:id] errore nella transazione:`, txErr);
       await session.abortTransaction();
       throw txErr;
     } finally {
       await session.endSession();
     }
   } catch (err) {
-    console.error(`[PUT /:id] errore:`, err);
+    logger.error(`[PUT /:id] errore:`, err);
     if (err instanceof ImageValidationError) {
       res.status(400).json({ error: err.message });
       return;
@@ -468,12 +469,12 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
   try {
     const exercise = await Exercise.findById(id);
     if (!exercise) {
-      console.warn(`[POST /exercises/:id/approve] esercizio non trovato in DB: id=${id}`);
+      logger.warn(`[POST /exercises/:id/approve] esercizio non trovato in DB: id=${id}`);
       res.status(404).json({ error: "Esercizio non trovato" });
       return;
     }
     if (exercise.state !== TO_APPROVE) {
-      console.warn(`[POST /exercises/:id/approve] stato non valido: state=${exercise.state}, id=${id}`);
+      logger.warn(`[POST /exercises/:id/approve] stato non valido: state=${exercise.state}, id=${id}`);
       res.status(409).json({ error: `Impossibile approvare: stato corrente è "${exercise.state}"` });
       return;
     }
@@ -492,7 +493,7 @@ router.post("/:id/approve", requireAdmin, requireDbReady, async (req: Request, r
     });
     res.json({ success: true });
   } catch (err) {
-    console.error("[POST /exercises/:id/approve]", err);
+    logger.error("[POST /exercises/:id/approve]", err);
     if (isDuplicateKeyError(err)) {
       res.status(409).json({ error: `Impossibile approvare: ${DUPLICATE_MESSAGE.toLowerCase()}` });
       return;
@@ -516,7 +517,7 @@ router.post("/:id/reject", requireAdmin, requireDbReady, async (req: Request, re
     });
     res.json({ success: true });
   } catch (err) {
-    console.error("[POST /exercises/:id/reject]", err);
+    logger.error("[POST /exercises/:id/reject]", err);
     res.status(500).json({ error: "Errore nel rifiuto dell'esercizio" });
   }
 });
@@ -563,7 +564,7 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
     await session.commitTransaction();
     res.json({ success: true });
   } catch (err) {
-    console.error("[POST /exercises/:id/approve-change]", err);
+    logger.error("[POST /exercises/:id/approve-change]", err);
     await session.abortTransaction();
     if (isDuplicateKeyError(err)) {
       res.status(409).json({
@@ -594,7 +595,7 @@ router.post("/:id/reject-change", requireAdmin, requireDbReady, async (req: Requ
     await session.commitTransaction();
     res.json({ success: true });
   } catch (err) {
-    console.error("[POST /exercises/:id/reject-change]", err);
+    logger.error("[POST /exercises/:id/reject-change]", err);
     await session.abortTransaction();
     res.status(500).json({ error: "Errore nel rifiuto della modifica" });
   } finally {

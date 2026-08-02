@@ -3,6 +3,7 @@
 
 import { Client } from "minio";
 import type { Readable } from "stream";
+import { logger } from "../utils/logger.js";
 
 // Configurazione da variabili d'ambiente. In locale puntano al minIO del
 // docker-compose; in produzione al Service ClusterIP del pod minIO su k3s
@@ -46,11 +47,11 @@ export const ensureBucket = async (): Promise<void> => {
     const exists = await getClient().bucketExists(bucket);
     if (!exists) {
       await getClient().makeBucket(bucket);
-      console.log(`[minio] bucket "${bucket}" creato`);
+      logger.log(`[minio] bucket "${bucket}" creato`);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[minio] impossibile verificare/creare il bucket "${bucket}": ${msg}`);
+    logger.error(`[minio] impossibile verificare/creare il bucket "${bucket}": ${msg}`);
   }
 };
 
