@@ -248,10 +248,12 @@ versione) e `promote.yml` (la deploya) — vedi sotto.
 
 ### Tag effimeri `<scope>-<branch>-<data>`
 
-Ad ogni push su `main`, per ciascuno scope (`client`, `server`) che ha subito
-modifiche, `build-deploy.yml` crea **sempre un tag nuovo** `<scope>-main-<data>`
-(es. `client-main-20260703_2130`) sul commit appena deployato con successo in
-staging — mai uno spostato. Questo tag serve a due scopi:
+Ad ogni push su `main`, `feature/*` o `fix/*`, per ciascuno scope (`client`,
+`server`) che ha subito modifiche, `build-deploy.yml` crea **sempre un tag
+nuovo** `<scope>-<branch-slug>-<data>` (es. `client-main-20260703_2130`, o
+`client-feature-40-anteprima-20260703_2130` per un push su
+`feature/40-anteprima`) sul commit appena deployato con successo in staging —
+mai uno spostato. Questo tag serve a due scopi:
 - **baseline per il diff** della prossima run su quel branch (cosa è cambiato da
   allora sotto `<scope>/`)
 - **riferimento** che `tag.yml` userà per sapere cosa promuovere
@@ -326,11 +328,21 @@ architetturali completi):
 | Workflow | Trigger | Scopo |
 |---|---|---|
 | `infra.yml` | Manuale | Provisiona/aggiorna l'infrastruttura condivisa (`k3s/`) per un Environment, incluso Headlamp (opzionale, input `install_headlamp`). Da lanciare una tantum per ambiente, prima del primo deploy applicativo. |
-| `build-deploy.yml` | Push su `main`, o manuale (input `force_all`) | Builda le immagini Docker cambiate e le deploya in **staging**, in modo condizionale e indipendente per scope (client/server). Con `force_all` ribuilda e rideploya tutto, ignorando il diff — utile es. dopo aver ricreato il namespace da zero. |
+| `build-deploy.yml` | Push su `main`, `feature/*`, `fix/*`, o manuale (input `force_all`) | Builda le immagini Docker cambiate e le deploya in **staging**, in modo condizionale e indipendente per scope (client/server). Con `force_all` ribuilda e rideploya tutto, ignorando il diff — utile es. dopo aver ricreato il namespace da zero. |
 | `deploy-client.yml` / `deploy-server.yml` | Solo `workflow_call` (riutilizzabile) | Applicano i manifest `<scope>/k8s/*`, verificano il rollout, aggiornano `k9-versions`. Chiamati sia da `build-deploy.yml` (staging) sia da `promote.yml` (produzione) — nessuna logica di deploy duplicata. |
 | `tag.yml` | Manuale | Assegna la versione reale allo stato deployato su `main`, senza rebuild: tag Git, ri-tag Docker, GitHub Release. **Non deploya.** |
 | `promote.yml` | Manuale, input `client_version`/`server_version` | Deploya in **produzione** la versione indicata richiamando `deploy-client.yml`/`deploy-server.yml`. **Non tagga né rilascia.** |
 | `cleanup-build-tags.yml` | Manuale, o automatico dopo `tag.yml` | Ripulisce i tag Git e le immagini Docker dei build superati. |
+
+> **Staging è un solo ambiente condiviso, non uno per branch.** `feature/*`/`fix/*`
+> deployano davvero su staging (deploy automatico intenzionale, per testare senza
+> passare da `main`), ma è lo stesso Deployment/VPS usato da `main` e da qualunque
+> altro branch feature/fix in corso: chi pusha per ultimo sovrascrive quello che
+> c'era prima, a prescindere dal branch. Non c'è isolamento per branch
+> sull'ambiente reale — solo i tag Git (`<scope>-<branch>-<data>`) restano separati
+> per branch. `tag.yml`/`promote.yml` (produzione) continuano a considerare
+> **solo** i tag `<scope>-main-*`: un push da un branch feature non tocca mai,
+> nemmeno indirettamente, cosa può essere promosso in produzione.
 
 > **Riepilogo per-step**: ogni step che decide/calcola qualcosa di rilevante
 > (versioni, se serve un rebuild, quale immagine verrà deployata e perché, esito
@@ -340,10 +352,10 @@ architetturali completi):
 > in [`.github/README.md`](.github/README.md).
 
 ```
-push su main
+push su main / feature/* / fix/*
     │
     ▼
-versions            — per client e server: diff dall'ultimo tag <scope>-main-*
+versions            — per client e server: diff dall'ultimo tag <scope>-<branch>-*
     │                  (solo codice → rebuild; solo <scope>/k8s/ → deploy senza
     │                  rebuild; niente → il job di deploy non gira)
     ▼

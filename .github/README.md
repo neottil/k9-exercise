@@ -465,8 +465,11 @@ questo workflow non crea il cluster, ci si appoggia sopra.
 
 ### `build-deploy.yml`
 
-**Trigger**: push su `main`, o manuale con input `force_all` (booleano, default
-`false`).
+**Trigger**: push su `main`, `feature/*` o `fix/*`, o manuale con input
+`force_all` (booleano, default `false`). Staging resta un ambiente unico e
+condiviso: un push da un branch feature/fix lo sovrascrive esattamente come lo
+sovrascriverebbe un push su `main` — vedi il commento in testa al file YAML e
+la nota in `DEVELOPER_README.md` (sezione CI/CD pipeline).
 
 **`force_all`**: scavalca il diff e tratta entrambi gli scope come "codice +
 manifest cambiati", quindi ribuilda e rideploya tutto. Serve quando lo stato del

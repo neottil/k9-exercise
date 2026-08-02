@@ -12,14 +12,22 @@ name: Build & Deploy
 # deploy-client.yml/deploy-server.yml, condivisi con promote.yml (che li
 # richiama con environment: production). Qui restano solo: analisi diff,
 # build Docker, risoluzione di quale immagine deployare, e il ciclo di vita del
-# tag Git — tutta logica specifica di "cosa succede su un push a main".
+# tag Git — tutta logica specifica di "cosa succede su un push a main/feature/fix".
 #
 # L'infrastruttura condivisa (namespace, minio, secrets comuni, cronjob notify/gc)
 # NON è gestita qui: vedi infra.yml, da eseguire manualmente prima del primo deploy
 # in un ambiente.
+#
+# ATTENZIONE: staging è UN SOLO ambiente condiviso (un solo VPS/cluster). Il
+# trigger include feature/* e fix/* di proposito (deploy automatico per
+# testare in staging senza passare da main), ma questo significa che un push
+# su un branch feature sovrascrive lo stesso Deployment usato da main e da
+# qualunque altro branch feature/fix — non c'è isolamento per branch
+# sull'ambiente reale, solo tag Git separati (vedi job `versions`). Chi pusha
+# per ultimo "vince" su staging, indipendentemente dal branch.
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/*", "fix/*"]
   workflow_dispatch:
     inputs:
       # Scavalca l'analisi del diff: builda e deploya ENTRAMBI gli scope a
