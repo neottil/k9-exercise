@@ -11,11 +11,24 @@ import { inject } from "vitest";
  * Un database per file di test: isola gli indici unique e i dati tra file
  * diversi anche se girano in parallelo, senza pagare il costo di un
  * container per file.
+ *
+ * directConnection=true: il container esegue `rs.initiate()` senza indicare
+ * un host esplicito, quindi il replica set si registra con l'hostname
+ * interno del container (es. il suo ID, tipo "1161d0059d48") — irraggiungibile
+ * da fuori Docker. Senza questo flag il driver Mongo, dopo la connessione
+ * iniziale, fa discovery della topologia e prova a seguire quell'hostname,
+ * fallendo con "getaddrinfo EAI_AGAIN <id container>". directConnection
+ * disabilita la discovery e parla solo con l'host:porta esposti da
+ * Testcontainers — le transazioni funzionano comunque, il nodo resta un
+ * membro di un replica set a tutti gli effetti.
+ * Va nell'URI restituita (non solo passata a mongoose.connect qui sotto):
+ * la stessa URI viene riusata per la connessione separata di connect-mongo
+ * (store delle sessioni in app.ts), che avrebbe lo stesso problema.
  */
 export const connectTestDb = async (): Promise<string> => {
   const baseUri = inject("mongoUri");
   const dbName = `test_${randomUUID().replace(/-/g, "")}`;
-  const uri = `${baseUri}/${dbName}`;
+  const uri = `${baseUri}/${dbName}?directConnection=true`;
   await mongoose.connect(uri);
   return uri;
 };
