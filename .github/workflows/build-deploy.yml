@@ -130,6 +130,39 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Unit + API test del server (vedi server/test/, server/DEVELOPER_README.md
+  # sezione Test). Le API usano un container MongoDB reale via testcontainers
+  # (replica set a singolo nodo, richiesto dalle transazioni delle route di
+  # approvazione) — gira solo su runner con Docker, come ubuntu-latest.
+  # Gira solo se server è cambiato in questa run; build-server dipende da
+  # questo job, quindi un test fallito blocca il deploy del server.
+  test-server:
+    needs: versions
+    if: needs.versions.outputs.has_server == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Riepilogo test server
+        if: always()
+        run: |
+          echo "### Test server" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Esito: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+
   build-client:
     needs: versions
     if: needs.versions.outputs.has_client == 'true'
@@ -172,7 +205,7 @@ jobs:
           echo "- \`ghcr.io/${{ github.repository_owner }}/k9-client:latest\`" >> "$GITHUB_STEP_SUMMARY"
 
   build-server:
-    needs: versions
+    needs: [versions, test-server]
     if: needs.versions.outputs.has_server == 'true'
     runs-on: ubuntu-latest
     environment: staging
@@ -301,12 +334,19 @@ jobs:
           echo "✅ Deploy client completato — tag \`$TAG\` creato." >> "$GITHUB_STEP_SUMMARY"
 
   # Vedi commento gemello in resolve-client-image.
+  # test-server è incluso nei needs (oltre a build-server, che già ne dipende)
+  # perché "skipped" da solo è ambiguo: build-server risulta skipped sia
+  # quando has_server=false (nessun cambio, caso legittimo: riusa l'ultima
+  # immagine) sia quando test-server FALLISCE (GitHub Actions salta i job a
+  # valle di una dipendenza fallita) — nel secondo caso deve fermarsi qui, non
+  # degradare silenziosamente a un deploy con l'immagine precedente.
   resolve-server-image:
-    needs: [versions, build-server]
+    needs: [versions, test-server, build-server]
     if: |
       always() &&
       needs.versions.outputs.deploy_server == 'true' &&
       needs.versions.result == 'success' &&
+      (needs.test-server.result == 'success' || needs.test-server.result == 'skipped') &&
       (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
@@ -415,7 +455,7 @@ jobs:
 
   # Riepilogo finale — gira sempre, anche se qualche step precedente fallisce.
   summary:
-    needs: [versions, build-client, build-server, deploy-client, deploy-server]
+    needs: [versions, test-server, build-client, build-server, deploy-client, deploy-server]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -437,6 +477,7 @@ jobs:
             echo ""
             echo "| Fase | Stato |"
             echo "|------|-------|"
+            echo "| **Test server**   | $(status_icon "${{ needs.test-server.result }}") |"
             echo "| **Build client**  | $(status_icon "${{ needs.build-client.result }}") |"
             echo "| **Build server**  | $(status_icon "${{ needs.build-server.result }}") |"
             echo "| **Deploy client** | $(status_icon "${{ needs.deploy-client.result }}") |"

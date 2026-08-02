@@ -108,10 +108,13 @@ const collectExistingImages = async (
 
 /**
  * Costruisce la query MongoDB dai query param.
- * Ogni filtro attivo (value > 0) diventa un $or che passa sia i null/mancanti
- * sia i valori che soddisfano l'operazione (gte | eq).
+ * Ogni filtro attivo diventa un $or che passa sia i null/mancanti sia i
+ * valori che soddisfano l'operazione (gte | eq). "value === 0" è un no-op
+ * per "gte" (tutti i valori sono >= 0), ma è un filtro attivo e significativo
+ * per "eq" (l'utente vuole esattamente 0) — va quindi passato solo in quel
+ * caso, non scartato a prescindere come gli altri valori <= 0.
  */
-const buildMongoFilter = (query: Request["query"]): object => {
+export const buildMongoFilter = (query: Request["query"]): object => {
   const andConditions: object[] = [];
 
   for (const field of FILTER_FIELDS) {
@@ -119,7 +122,8 @@ const buildMongoFilter = (query: Request["query"]): object => {
     const operation = query[`${field}.operation`] as string | undefined;
     const value = parseFloat(rawValue as string);
 
-    if (isNaN(value) || value <= 0) continue;
+    if (isNaN(value) || value < 0) continue;
+    if (value === 0 && operation !== "eq") continue;
 
     const valueCondition =
       operation === "eq"
@@ -138,7 +142,7 @@ const buildMongoFilter = (query: Request["query"]): object => {
  * Calcola il diff tra i dati originali approvati e i dati inviati dal client.
  * Restituisce solo i campi di contenuto che sono effettivamente cambiati.
  */
-const computeDiff = (
+export const computeDiff = (
   original: Record<string, unknown>,
   submitted: Record<string, unknown>
 ): Record<string, unknown> => {

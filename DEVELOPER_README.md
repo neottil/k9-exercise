@@ -10,13 +10,14 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 1. [Setup locale](#setup-locale)
 2. [Struttura progetto](#struttura-progetto)
 3. [Indici del database](#indici-del-database)
-4. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
-5. [CI/CD pipeline](#cicd-pipeline)
-6. [Infrastruttura in produzione](#infrastruttura-in-produzione)
-7. [Sistema di notifiche](#sistema-di-notifiche)
-8. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
-9. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
-10. [Integrazione con WordPress](#integrazione-con-wordpress)
+4. [Test](#test)
+5. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
+6. [CI/CD pipeline](#cicd-pipeline)
+7. [Infrastruttura in produzione](#infrastruttura-in-produzione)
+8. [Sistema di notifiche](#sistema-di-notifiche)
+9. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
+10. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
+11. [Integrazione con WordPress](#integrazione-con-wordpress)
 
 ---
 
@@ -164,6 +165,75 @@ Gli indici **non** si creano con uno script manuale: sono dichiarati negli schem
 > **Indici `unique` su collection con dati esistenti**: se ci sono già documenti che violano il vincolo (es. `exerciseId` duplicati), la creazione dell'indice fallisce e l'errore viene loggato all'avvio. Bonificare i duplicati prima di introdurre un indice `unique`.
 
 > **Produzione su dataset grandi**: `autoIndex` è comodo ma con collection molto grandi la creazione di un indice all'avvio può essere costosa. Alla scala attuale non è un problema; qualora lo diventasse, disabilitare `autoIndex` nella connessione e creare gli indici in una finestra di manutenzione.
+
+---
+
+## Test
+
+Solo il server ha una suite di test (`server/test/`), runner [Vitest](https://vitest.dev/).
+
+```bash
+cd server
+npm run test          # esegue la suite una volta (usato anche in CI)
+npm run test:watch    # modalità watch, per lo sviluppo
+npm run typecheck:test # type-check di src/ + test/ insieme (tsc -p tsconfig.test.json)
+```
+
+### Requisito: Docker
+
+I test API (`server/test/api/`) avviano un vero container MongoDB via
+[Testcontainers](https://node.testcontainers.org/) (`@testcontainers/mongodb`),
+configurato come replica set a singolo nodo — necessario perché le route di
+approvazione (`approve-change`, `reject-change`, `PUT /:id` su un esercizio
+`APPROVED`) usano transazioni Mongo, che un `mongod` standalone non supporta.
+**Serve Docker installato e in esecuzione.** Senza Docker, `npm run test`
+fallisce all'avvio (il container non parte) — i test API non girano in un
+ambiente senza Docker, inclusa questa entry se stai leggendo da una macchina
+senza Docker Desktop. In compenso, funzionano identici sia in locale (una
+volta installato Docker) sia in CI (GitHub Actions `ubuntu-latest` ha Docker
+di default, nessun setup aggiuntivo richiesto).
+
+I test unitari (`server/test/unit/`) non toccano il DB e girano sempre, anche
+senza Docker.
+
+### Struttura
+
+```
+server/test/
+├── globalSetup.ts       # UN SOLO container Mongo per l'intera run (Vitest globalSetup)
+├── helpers/
+│   ├── db.ts             # connette mongoose a un DB dedicato per file di test, pulizia tra i test
+│   ├── fixtures.ts        # createExercise(), createUser() con password già hashata
+│   └── authClient.ts      # loginAs(app, overrides) — vero login via POST /api/auth/login
+├── unit/                  # requireAuth, requireDbReady, buildMongoFilter, computeDiff
+└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, login
+```
+
+Un solo container Mongo per l'intera suite (avviato una volta in
+`globalSetup.ts`), ma ogni **file** di test si connette a un database Mongo
+dedicato (nome random) sullo stesso container: isolamento tra file senza
+pagare il costo di avviare un container per file. `createApp()` (in
+`server/src/app.ts`) è la stessa factory usata da `index.ts` in produzione,
+parametrizzata sul `mongoUri` — i test non duplicano la configurazione
+dell'app, la riusano con un database diverso.
+
+> **Rate limiter di login**: `POST /api/auth/login` ha un limite di 5
+> tentativi ogni 15 minuti per IP (vedi `server/src/routes/auth.ts`). Vitest
+> isola il registro dei moduli per file di test, quindi il limiter riparte per
+> ogni file — ma non superare le 5 chiamate a `loginAs()`/login falliti nello
+> stesso file. Nei file con più test che condividono un utente/admin, fai
+> login una sola volta in `beforeAll` invece che in ogni `it()` (vedi
+> `exercises.changeFlow.test.ts` per l'esempio).
+
+### CI
+
+`build-deploy.yml` esegue `test-server` prima di `build-server`, solo se lo
+scope server è cambiato in quella run (`has_server`). Un test fallito blocca
+`build-server` (e quindi il deploy) — non degrada silenziosamente a
+riutilizzare l'immagine precedente: vedi il commento su `resolve-server-image`
+nel workflow per il motivo (senza quel controllo esplicito, "build-server
+skipped per test fallito" sarebbe indistinguibile da "build-server skipped
+perché nessun codice è cambiato").
 
 ---
 
