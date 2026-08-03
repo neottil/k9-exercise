@@ -3,6 +3,7 @@
 
 import mongoose from "mongoose";
 import { Request, Response, NextFunction } from "express";
+import { logger } from "../utils/logger.js";
 
 /** Etichette leggibili per mongoose.connection.readyState */
 const STATE_LABEL: Record<number, string> = {
@@ -35,14 +36,12 @@ export const requireDbReady = (req: Request, res: Response, next: NextFunction):
   const port     = conn.port  ?? "n/a";
   const dbName   = conn.name  ?? "n/a";
   const route    = `${req.method} ${req.originalUrl}`;
-  const ts       = new Date().toISOString();
 
-  console.error(
+  logger.error(
     `[DB] Connessione non disponibile — operazione transazionale bloccata\n` +
     `  readyState : ${state} (${label})\n` +
     `  host       : ${host}:${port}/${dbName}\n` +
-    `  route      : ${route}\n` +
-    `  timestamp  : ${ts}`
+    `  route      : ${route}`
   );
 
   res.status(503).json({

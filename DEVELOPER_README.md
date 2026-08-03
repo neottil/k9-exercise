@@ -10,13 +10,14 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 1. [Setup locale](#setup-locale)
 2. [Struttura progetto](#struttura-progetto)
 3. [Indici del database](#indici-del-database)
-4. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
-5. [CI/CD pipeline](#cicd-pipeline)
-6. [Infrastruttura in produzione](#infrastruttura-in-produzione)
-7. [Sistema di notifiche](#sistema-di-notifiche)
-8. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
-9. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
-10. [Integrazione con WordPress](#integrazione-con-wordpress)
+4. [Test](#test)
+5. [Conventional commits e versioning automatico](#conventional-commits-e-versioning-automatico)
+6. [CI/CD pipeline](#cicd-pipeline)
+7. [Infrastruttura in produzione](#infrastruttura-in-produzione)
+8. [Sistema di notifiche](#sistema-di-notifiche)
+9. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
+10. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
+11. [Integrazione con WordPress](#integrazione-con-wordpress)
 
 ---
 
@@ -167,6 +168,75 @@ Gli indici **non** si creano con uno script manuale: sono dichiarati negli schem
 
 ---
 
+## Test
+
+Solo il server ha una suite di test (`server/test/`), runner [Vitest](https://vitest.dev/).
+
+```bash
+cd server
+npm run test          # esegue la suite una volta (usato anche in CI)
+npm run test:watch    # modalità watch, per lo sviluppo
+npm run typecheck:test # type-check di src/ + test/ insieme (tsc -p tsconfig.test.json)
+```
+
+### Requisito: Docker
+
+I test API (`server/test/api/`) avviano un vero container MongoDB via
+[Testcontainers](https://node.testcontainers.org/) (`@testcontainers/mongodb`),
+configurato come replica set a singolo nodo — necessario perché le route di
+approvazione (`approve-change`, `reject-change`, `PUT /:id` su un esercizio
+`APPROVED`) usano transazioni Mongo, che un `mongod` standalone non supporta.
+**Serve Docker installato e in esecuzione.** Senza Docker, `npm run test`
+fallisce all'avvio (il container non parte) — i test API non girano in un
+ambiente senza Docker, inclusa questa entry se stai leggendo da una macchina
+senza Docker Desktop. In compenso, funzionano identici sia in locale (una
+volta installato Docker) sia in CI (GitHub Actions `ubuntu-latest` ha Docker
+di default, nessun setup aggiuntivo richiesto).
+
+I test unitari (`server/test/unit/`) non toccano il DB e girano sempre, anche
+senza Docker.
+
+### Struttura
+
+```
+server/test/
+├── globalSetup.ts       # UN SOLO container Mongo per l'intera run (Vitest globalSetup)
+├── helpers/
+│   ├── db.ts             # connette mongoose a un DB dedicato per file di test, pulizia tra i test
+│   ├── fixtures.ts        # createExercise(), createUser() con password già hashata
+│   └── authClient.ts      # loginAs(app, overrides) — vero login via POST /api/auth/login
+├── unit/                  # requireAuth, requireDbReady, buildMongoFilter, computeDiff
+└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, login
+```
+
+Un solo container Mongo per l'intera suite (avviato una volta in
+`globalSetup.ts`), ma ogni **file** di test si connette a un database Mongo
+dedicato (nome random) sullo stesso container: isolamento tra file senza
+pagare il costo di avviare un container per file. `createApp()` (in
+`server/src/app.ts`) è la stessa factory usata da `index.ts` in produzione,
+parametrizzata sul `mongoUri` — i test non duplicano la configurazione
+dell'app, la riusano con un database diverso.
+
+> **Rate limiter di login**: `POST /api/auth/login` ha un limite di 5
+> tentativi ogni 15 minuti per IP (vedi `server/src/routes/auth.ts`). Vitest
+> isola il registro dei moduli per file di test, quindi il limiter riparte per
+> ogni file — ma non superare le 5 chiamate a `loginAs()`/login falliti nello
+> stesso file. Nei file con più test che condividono un utente/admin, fai
+> login una sola volta in `beforeAll` invece che in ogni `it()` (vedi
+> `exercises.changeFlow.test.ts` per l'esempio).
+
+### CI
+
+`build-deploy.yml` esegue `test-server` prima di `build-server`, solo se lo
+scope server è cambiato in quella run (`has_server`). Un test fallito blocca
+`build-server` (e quindi il deploy) — non degrada silenziosamente a
+riutilizzare l'immagine precedente: vedi il commento su `resolve-server-image`
+nel workflow per il motivo (senza quel controllo esplicito, "build-server
+skipped per test fallito" sarebbe indistinguibile da "build-server skipped
+perché nessun codice è cambiato").
+
+---
+
 ## Versioning e tag Git
 
 Client e server sono due **scope indipendenti**, ognuno con i propri manifest k8s
@@ -178,10 +248,12 @@ versione) e `promote.yml` (la deploya) — vedi sotto.
 
 ### Tag effimeri `<scope>-<branch>-<data>`
 
-Ad ogni push su `main`, per ciascuno scope (`client`, `server`) che ha subito
-modifiche, `build-deploy.yml` crea **sempre un tag nuovo** `<scope>-main-<data>`
-(es. `client-main-20260703_2130`) sul commit appena deployato con successo in
-staging — mai uno spostato. Questo tag serve a due scopi:
+Ad ogni push su `main`, `feature/*` o `fix/*`, per ciascuno scope (`client`,
+`server`) che ha subito modifiche, `build-deploy.yml` crea **sempre un tag
+nuovo** `<scope>-<branch-slug>-<data>` (es. `client-main-20260703_2130`, o
+`client-feature-40-anteprima-20260703_2130` per un push su
+`feature/40-anteprima`) sul commit appena deployato con successo in staging —
+mai uno spostato. Questo tag serve a due scopi:
 - **baseline per il diff** della prossima run su quel branch (cosa è cambiato da
   allora sotto `<scope>/`)
 - **riferimento** che `tag.yml` userà per sapere cosa promuovere
@@ -256,11 +328,21 @@ architetturali completi):
 | Workflow | Trigger | Scopo |
 |---|---|---|
 | `infra.yml` | Manuale | Provisiona/aggiorna l'infrastruttura condivisa (`k3s/`) per un Environment, incluso Headlamp (opzionale, input `install_headlamp`). Da lanciare una tantum per ambiente, prima del primo deploy applicativo. |
-| `build-deploy.yml` | Push su `main`, o manuale (input `force_all`) | Builda le immagini Docker cambiate e le deploya in **staging**, in modo condizionale e indipendente per scope (client/server). Con `force_all` ribuilda e rideploya tutto, ignorando il diff — utile es. dopo aver ricreato il namespace da zero. |
+| `build-deploy.yml` | Push su `main`, `feature/*`, `fix/*`, o manuale (input `force_all`) | Builda le immagini Docker cambiate e le deploya in **staging**, in modo condizionale e indipendente per scope (client/server). Con `force_all` ribuilda e rideploya tutto, ignorando il diff — utile es. dopo aver ricreato il namespace da zero. |
 | `deploy-client.yml` / `deploy-server.yml` | Solo `workflow_call` (riutilizzabile) | Applicano i manifest `<scope>/k8s/*`, verificano il rollout, aggiornano `k9-versions`. Chiamati sia da `build-deploy.yml` (staging) sia da `promote.yml` (produzione) — nessuna logica di deploy duplicata. |
 | `tag.yml` | Manuale | Assegna la versione reale allo stato deployato su `main`, senza rebuild: tag Git, ri-tag Docker, GitHub Release. **Non deploya.** |
 | `promote.yml` | Manuale, input `client_version`/`server_version` | Deploya in **produzione** la versione indicata richiamando `deploy-client.yml`/`deploy-server.yml`. **Non tagga né rilascia.** |
 | `cleanup-build-tags.yml` | Manuale, o automatico dopo `tag.yml` | Ripulisce i tag Git e le immagini Docker dei build superati. |
+
+> **Staging è un solo ambiente condiviso, non uno per branch.** `feature/*`/`fix/*`
+> deployano davvero su staging (deploy automatico intenzionale, per testare senza
+> passare da `main`), ma è lo stesso Deployment/VPS usato da `main` e da qualunque
+> altro branch feature/fix in corso: chi pusha per ultimo sovrascrive quello che
+> c'era prima, a prescindere dal branch. Non c'è isolamento per branch
+> sull'ambiente reale — solo i tag Git (`<scope>-<branch>-<data>`) restano separati
+> per branch. `tag.yml`/`promote.yml` (produzione) continuano a considerare
+> **solo** i tag `<scope>-main-*`: un push da un branch feature non tocca mai,
+> nemmeno indirettamente, cosa può essere promosso in produzione.
 
 > **Riepilogo per-step**: ogni step che decide/calcola qualcosa di rilevante
 > (versioni, se serve un rebuild, quale immagine verrà deployata e perché, esito
@@ -270,10 +352,10 @@ architetturali completi):
 > in [`.github/README.md`](.github/README.md).
 
 ```
-push su main
+push su main / feature/* / fix/*
     │
     ▼
-versions            — per client e server: diff dall'ultimo tag <scope>-main-*
+versions            — per client e server: diff dall'ultimo tag <scope>-<branch>-*
     │                  (solo codice → rebuild; solo <scope>/k8s/ → deploy senza
     │                  rebuild; niente → il job di deploy non gira)
     ▼
@@ -380,7 +462,7 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 | Nome | Valore esempio | Descrizione | Usato da |
 |------|---------------|-------------|----------|
 | `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) | `infra`, `build-deploy`, `tag` |
-| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject | `build-deploy`, `tag` (render di `client/k8s/ingress.yaml`, `server/k8s/{ingress,hso}.yaml`) |
+| `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject; letto anche a runtime dal server (env `DOMAIN` del Deployment) per il link nella mail di notifica — lo schema (`http`/`https`) è deciso dal server in base a `NODE_ENV`, non fa parte di questa variabile | `build-deploy`, `tag` (render di `client/k8s/ingress.yaml`, `server/k8s/{ingress,hso,deployment}.yaml`) |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) | `infra` (render di `k3s/cert-manager/clusterissuer.yaml`) |
 | `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Letta a runtime sia dal server (env del Deployment) sia dal client (ConfigMap `k9-client-config`) ⁶ | `build-deploy` / `promote` (deploy-client, deploy-server) |
 | `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag del filtro "con operatività", letto a runtime dal client ⁶ | `build-deploy` / `promote` (deploy-client) |
@@ -626,21 +708,31 @@ POST /api/admin/notify
     │  Authorization: Bearer $API_KEY
     │
     ▼
-Server controlla:
+Server controlla (find, non ancora una scrittura):
   • User  con state=TO_APPROVE     e lastNotifiedAt < oggi
   • Exercise con state=TO_APPROVE  e lastNotifiedAt < oggi
   • Exercise con state=PENDING_UPDATE e lastNotifiedAt < oggi
     │
     ├─ nessun nuovo elemento → risposta { sent: false }, nessuna email
     │
-    └─ elementi nuovi → segna lastNotifiedAt=now su tutti i documenti trovati
-                      → invia email via SMTP ai NOTIFY_RECIPIENTS
+    └─ elementi nuovi → invia email via SMTP ai NOTIFY_RECIPIENTS
+                      → SOLO se l'invio riesce, segna lastNotifiedAt=now
+                        sui documenti trovati
 ```
+
+**Ordine importante**: `lastNotifiedAt` viene aggiornato **dopo** l'invio riuscito, non prima. Se l'invio SMTP fallisce (endpoint risponde 500), nessun documento viene marcato: gli stessi elementi restano eleggibili al prossimo tentativo del CronJob, invece di sparire in silenzio dalla notifica del giorno perché già segnati come "notificati" senza che l'email sia mai partita.
+
+Ogni run logga (con timestamp, utile per riconciliare con `kubectl logs` su un CronJob che gira più volte al giorno):
+```
+[notify] Trovati N elementi da notificare (utenti=…, esercizi nuovi=…, modifiche=…) | 2026-08-02T...
+[notify] Email inviata a … — N elementi in attesa | 2026-08-02T...
+```
+Un errore SMTP (es. `ECONNREFUSED`) produce comunque il primo log (quindi si vede sempre *cosa* c'era da notificare) ma non il secondo, e la risposta è 500 anziché 200.
 
 ### Campo `lastNotifiedAt`
 
 Presente sia su `User` che su `Exercise`. Viene:
-- **Impostato** a `now` dal server quando l'elemento viene incluso in una notifica
+- **Impostato** a `now` dal server solo dopo che l'elemento è stato incluso in una notifica **inviata con successo**
 - **Azzerato** (`$unset`) quando un esercizio torna in stato `APPROVED` (approvazione o rifiuto modifica), in modo che una modifica successiva nella stessa giornata venga re-notificata
 
 ### Schedule
@@ -653,7 +745,7 @@ Per cambiare la frequenza modificare il campo `schedule` in `k3s/notify/cronjob.
 
 Già documentati nella sezione [Secrets e Variables richiesti](#secrets-e-variables-richiesti):
 - Secret: `API_KEY`, `SMTP_PASS`
-- Variable: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `NOTIFY_RECIPIENTS`
+- Variable: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `NOTIFY_RECIPIENTS`, `DOMAIN` (usata anche qui per il link nella mail — vedi nota sulla riga `DOMAIN` della tabella)
 
 ### Test con Bruno
 

@@ -13,8 +13,8 @@ const USERNAME         = "approver";
 const ROLE             = "admin";                    // "viewer" | "admin"
 const INSTRUCTOR_LEVEL = "CTS";   // "BSS" | "CTS"
 const EXPIRES_SECONDS  = 300;                        // durata del token in secondi (default WP: 300 = 5 min, 86400 = 24h)
-//const BASE_URL      = "http://localhost:5173";    // porta del Vite dev server (proxy verso il backend)
-const BASE_URL         = "https://k9-exercise.lucaneotti.click";
+const BASE_URL      = "http://localhost:5173";    // porta del Vite dev server (proxy verso il backend)
+//const BASE_URL         = "https://k9-exercise.lucaneotti.click";
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createHmac } from "crypto";

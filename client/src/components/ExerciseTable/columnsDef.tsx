@@ -169,7 +169,7 @@ const workingAreas: GridColDef = {
   field: "workingAreas",
   filterable: false,
   sortable: false,
-  headerName: "Aree Di Lavoro",
+  headerName: "Area Target",
   headerClassName: "super-app-theme--header",
   renderHeader,
   minWidth: 180,

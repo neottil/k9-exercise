@@ -4,101 +4,42 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import express from "express";
 import mongoose from "mongoose";
-import cors from "cors";
 import dotenv from "dotenv";
-import session from "express-session";
-import MongoStore from "connect-mongo";
 
-import exerciseRoutes from "./routes/exercises.js";
-import authRoutes from "./routes/auth.js";
-import notifyRoutes from "./routes/notify.js";
-import gcImagesRoutes from "./routes/adminImages.js";
-import { requireAuth } from "./middleware/requireAuth.js";
+import { createApp } from "./app.js";
 import { ensureBucket } from "./config/minio.js";
+import { logger } from "./utils/logger.js";
 
 // Il .env è alla root del monorepo (due livelli sopra server/src/)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
-const app = express();
-
-// Traefik termina TLS e parla HTTP con Express internamente.
-// Senza trust proxy, req.secure = false e express-session salta Set-Cookie
-// quando cookie.secure = true. Con trust proxy = 1, Express legge
-// X-Forwarded-Proto: https da Traefik e req.secure diventa true.
-app.set("trust proxy", 1);
-
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-  console.error("MONGODB_URI non è configurata. Aggiungila nel file .env alla root del progetto (o impostala come variabile d'ambiente).");
+  logger.error("MONGODB_URI non è configurata. Aggiungila nel file .env alla root del progetto (o impostala come variabile d'ambiente).");
   process.exit(1);
 }
 
-// ── Middleware ─────────────────────────────────────────────────────────────────
-
-app.use(cors());
-app.use(express.json());
-
-const SESSION_MAX_AGE = 1000 * 60 * 60 * 2; // 2 ore
-
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "dev-secret-change-in-prod",
-    resave: false,
-    saveUninitialized: false,
-    rolling: true,
-    store: MongoStore.create({ mongoUrl: MONGODB_URI, ttl: SESSION_MAX_AGE / 1000 }),
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: SESSION_MAX_AGE,
-    },
-  })
-);
-
-// ── Route ─────────────────────────────────────────────────────────────────────
-
-app.use("/api/auth", authRoutes);
-app.use("/api/exercises", requireAuth, exerciseRoutes);
-app.use("/api/admin/notify", notifyRoutes);
-app.use("/api/admin/gc-images", gcImagesRoutes);
-
-app.get("/health", (_req, res) => {
-  const stateLabel = ["disconnected", "connected", "connecting", "disconnecting"];
-  res.json({
-    status: "ok",
-    db: stateLabel[mongoose.connection.readyState] ?? "unknown",
-  });
-});
+// Creazione dell'app separata in app.ts (vedi lì): permette ai test di
+// importare createApp() con un mongoUri diverso (es. il container Mongo
+// effimero dei test API) senza avviare un vero server né i retry di
+// connessione qui sotto.
+const app = createApp({ mongoUri: MONGODB_URI });
 
 // ── Event listeners sulla connessione DB ──────────────────────────────────────
 
 mongoose.connection.on("disconnected", () => {
-  console.warn(
-    `[DB] Connessione persa` +
-    ` | host: ${mongoose.connection.host ?? "n/a"}` +
-    ` | ${new Date().toISOString()}`
-  );
+  logger.warn(`[DB] Connessione persa | host: ${mongoose.connection.host ?? "n/a"}`);
 });
 
 mongoose.connection.on("reconnected", () => {
-  console.log(
-    `[DB] Connessione ripristinata` +
-    ` | host: ${mongoose.connection.host ?? "n/a"}` +
-    ` | ${new Date().toISOString()}`
-  );
+  logger.log(`[DB] Connessione ripristinata | host: ${mongoose.connection.host ?? "n/a"}`);
 });
 
 mongoose.connection.on("error", (err) => {
-  console.error(
-    `[DB] Errore sulla connessione — ${err.message}` +
-    ` | readyState: ${mongoose.connection.readyState}` +
-    ` | ${new Date().toISOString()}`
-  );
+  logger.error(`[DB] Errore sulla connessione — ${err.message} | readyState: ${mongoose.connection.readyState}`);
 });
 
 // ── Connessione a MongoDB con retry ───────────────────────────────────────────
@@ -114,18 +55,14 @@ const connectWithRetry = async (): Promise<void> => {
     attempt++;
     try {
       await mongoose.connect(MONGODB_URI);
-      console.log(
-        `[DB] Connesso a MongoDB (tentativo ${attempt})` +
-        ` | ${new Date().toISOString()}`
-      );
+      logger.log(`[DB] Connesso a MongoDB (tentativo ${attempt})`);
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(
+      logger.error(
         `[DB] Connessione fallita (tentativo ${attempt})` +
         ` — nuovo tentativo tra ${RETRY_DELAY_MS / 1000}s` +
-        `\n  errore    : ${msg}` +
-        `\n  timestamp : ${new Date().toISOString()}`
+        `\n  errore    : ${msg}`
       );
       await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     }
@@ -138,7 +75,7 @@ const connectWithRetry = async (): Promise<void> => {
 // grazie al middleware requireDbReady.
 
 app.listen(PORT, () => {
-  console.log(`[SERVER] Avviato sulla porta ${PORT} | ${new Date().toISOString()}`);
+  logger.log(`[SERVER] Avviato sulla porta ${PORT}`);
   connectWithRetry();
   // Crea il bucket immagini se non esiste. Non blocca l'avvio: in caso di
   // errore (minIO non ancora pronto) logga e i singoli upload falliranno

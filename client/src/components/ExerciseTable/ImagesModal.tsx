@@ -22,21 +22,23 @@ export interface ImagesModalProps {
   exerciseId: string;
   images: ExerciseImage[];
   onClose: () => void;
+  /** Immagine su cui aprire il carosello (es. quella su cui si è cliccato). Default: 0. */
+  initialIndex?: number;
 }
 
 // Modale a carosello: all'apertura scarica tutte le immagini dell'esercizio e
 // le tiene in memoria (object URL) finché resta montata; al cleanup le libera.
-const ImagesModal = ({ open, exerciseId, images, onClose }: ImagesModalProps) => {
+const ImagesModal = ({ open, exerciseId, images, onClose, initialIndex = 0 }: ImagesModalProps) => {
   const [urls, setUrls] = useState<(string | null)[]>([]);
   const [loading, setLoading] = useState(false);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(initialIndex);
 
   useEffect(() => {
     if (!open) return;
     let active = true;
     const created: string[] = [];
     setLoading(true);
-    setIndex(0);
+    setIndex(initialIndex);
 
     Promise.all(
       images.map((img) =>
@@ -62,7 +64,7 @@ const ImagesModal = ({ open, exerciseId, images, onClose }: ImagesModalProps) =>
       created.forEach((u) => URL.revokeObjectURL(u));
       setUrls([]);
     };
-  }, [open, exerciseId, images]);
+  }, [open, exerciseId, images, initialIndex]);
 
   const count = images.length;
   const prev = () => setIndex((i) => (i - 1 + count) % count);

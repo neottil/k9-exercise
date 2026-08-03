@@ -30,6 +30,14 @@ import ArrayField from "../ArrayField";
 import { movementPlans, type ExerciseImage } from "../../interfaces/exerciseInterfaces";
 import { exerciseImageUrl } from "../../api/exercises";
 import { capitalize } from "../../utils/stringUtils";
+import ImagesModal from "../ExerciseTable/ImagesModal";
+
+// Immagine + lista di appartenenza su cui aprire il carosello al click (stessa
+// modale a schermo grande usata nella tabella esercizi, vedi ExerciseTable/ImagesModal).
+export interface ImageViewerRequest {
+  images: ExerciseImage[];
+  index: number;
+}
 
 export const BG_CURRENT  = "#ffebee";
 export const BG_PROPOSED = "#e8f5e9";
@@ -74,7 +82,15 @@ export const renderValue = (value: unknown): ReactNode => {
 
 // Anteprime immagini: usa l'endpoint server, che risolve la key sia dalle
 // immagini approvate sia da quelle ancora nel change doc (modifica in attesa).
-const ImagesValue = ({ exerciseId, value }: { exerciseId?: string; value: unknown }) => {
+// Cliccabili: aprono la stessa modale a carosello della tabella esercizi,
+// per vedere l'immagine ingrandita invece della miniatura 64x64.
+const ImagesValue = ({
+  exerciseId, value, onImageClick,
+}: {
+  exerciseId?: string;
+  value: unknown;
+  onImageClick: (request: ImageViewerRequest) => void;
+}) => {
   const list = Array.isArray(value) ? (value as ExerciseImage[]) : [];
   if (list.length === 0)
     return <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>—</Typography>;
@@ -82,13 +98,17 @@ const ImagesValue = ({ exerciseId, value }: { exerciseId?: string; value: unknow
     return renderValue(list.map((img) => img.filename ?? img.id));
   return (
     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, py: 0.5 }}>
-      {list.map((img) => (
+      {list.map((img, i) => (
         <Box
           key={img.id}
           component="img"
           src={exerciseImageUrl(exerciseId, img.id)}
           alt={img.filename ?? ""}
-          sx={{ width: 64, height: 64, objectFit: "cover", borderRadius: 0.5, border: "1px solid", borderColor: "divider" }}
+          onClick={() => onImageClick({ images: list, index: i })}
+          sx={{
+            width: 64, height: 64, objectFit: "cover", borderRadius: 0.5,
+            border: "1px solid", borderColor: "divider", cursor: "pointer",
+          }}
         />
       ))}
     </Box>
@@ -189,15 +209,16 @@ interface ValueCellProps {
   editedValue: unknown;
   onEditedChange: (value: unknown) => void;
   exerciseId?: string;     // serve a costruire gli URL delle anteprime immagini
+  onImageClick: (request: ImageViewerRequest) => void;
 }
 
-const ValueCell = ({ field, currentValue, proposed, isChanged, isEditing, editedValue, onEditedChange, exerciseId }: ValueCellProps) => {
+const ValueCell = ({ field, currentValue, proposed, isChanged, isEditing, editedValue, onEditedChange, exerciseId, onImageClick }: ValueCellProps) => {
   const showCurrent = currentValue !== undefined;
   const editBg = "grey.100";
 
   // Le immagini non sono modificabili in review: si renderizzano come anteprime.
   const renderField = (value: unknown): ReactNode =>
-    field === "images" ? <ImagesValue exerciseId={exerciseId} value={value} /> : renderValue(value);
+    field === "images" ? <ImagesValue exerciseId={exerciseId} value={value} onImageClick={onImageClick} /> : renderValue(value);
 
   if (!isChanged) {
     return <Box sx={{ p: 1, opacity: 0.45 }}>{renderField(showCurrent ? currentValue : proposed)}</Box>;
@@ -324,10 +345,11 @@ interface ImageSubCardsProps {
   showCheckbox: boolean;
   imageSelection: Record<string, boolean>;
   onToggleImage: (imageId: string) => void;
+  onImageClick: (request: ImageViewerRequest) => void;
 }
 
 const ImageSubCards = ({
-  exerciseId, currentImages, proposedImages, showCheckbox, imageSelection, onToggleImage,
+  exerciseId, currentImages, proposedImages, showCheckbox, imageSelection, onToggleImage, onImageClick,
 }: ImageSubCardsProps) => {
   const currentIds  = new Set(currentImages.map((img) => img.id));
   const proposedIds = new Set(proposedImages.map((img) => img.id));
@@ -338,21 +360,22 @@ const ImageSubCards = ({
 
   const thumbSx = {
     width: 72, height: 72, objectFit: "cover" as const,
-    borderRadius: 0.5, border: "1px solid", borderColor: "divider", display: "block",
+    borderRadius: 0.5, border: "1px solid", borderColor: "divider", display: "block", cursor: "pointer",
   };
 
   return (
     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-      {keptImages.map((img) => (
+      {keptImages.map((img, i) => (
         <Box key={img.id} sx={{ opacity: 0.45 }}>
           <Box component="img"
             src={exerciseId ? exerciseImageUrl(exerciseId, img.id) : undefined}
             alt={img.filename ?? ""}
+            onClick={() => onImageClick({ images: keptImages, index: i })}
             sx={thumbSx}
           />
         </Box>
       ))}
-      {removedImages.map((img) => {
+      {removedImages.map((img, i) => {
         const removing = imageSelection[img.id] !== false; // true di default → rimozione applicata
         return (
           <Box key={img.id} sx={{ border: 1, borderColor: "error.main", borderRadius: 0.5, overflow: "hidden" }}>
@@ -364,12 +387,13 @@ const ImageSubCards = ({
             <Box component="img"
               src={exerciseId ? exerciseImageUrl(exerciseId, img.id) : undefined}
               alt={img.filename ?? ""}
+              onClick={() => onImageClick({ images: removedImages, index: i })}
               sx={{ ...thumbSx, opacity: removing ? 0.35 : 1 }}
             />
           </Box>
         );
       })}
-      {addedImages.map((img) => {
+      {addedImages.map((img, i) => {
         const checked = !!imageSelection[img.id];
         return (
           <Box key={img.id} sx={{ border: 1, borderColor: "success.main", borderRadius: 0.5, overflow: "hidden" }}>
@@ -381,6 +405,7 @@ const ImageSubCards = ({
             <Box component="img"
               src={exerciseId ? exerciseImageUrl(exerciseId, img.id) : undefined}
               alt={img.filename ?? ""}
+              onClick={() => onImageClick({ images: addedImages, index: i })}
               sx={{ ...thumbSx, opacity: checked || !showCheckbox ? 1 : 0.35 }}
             />
           </Box>
@@ -426,6 +451,12 @@ const ExerciseReviewTable = ({
   onToggleEditField, onEditedChange, onToggleEditSubField, onEditedSubChange,
 }: ExerciseReviewTableProps) => {
   const showCurrent = original !== undefined;
+
+  // Anteprime piccole e non ingrandibili rendevano difficile valutare le
+  // immagini in review: al click si apre la stessa modale a carosello della
+  // tabella esercizi (ExerciseTable/ImagesModal), sulla lista e sull'indice
+  // su cui si è cliccato.
+  const [imageViewer, setImageViewer] = useState<ImageViewerRequest | null>(null);
 
   // Helper: calcola quali sub-campi area sono effettivamente diversi
   const computeChangedSubs = (areaKey: "workingArea" | "bodyTarget", subLabels: Record<string, string>): Set<string> => {
@@ -530,6 +561,7 @@ const ExerciseReviewTable = ({
                       showCheckbox={showCheckboxes}
                       imageSelection={imageSelection}
                       onToggleImage={(imgId) => onToggleSubField?.("images", imgId)}
+                      onImageClick={setImageViewer}
                     />
                   </TableCell>
                 </TableRow>
@@ -572,6 +604,7 @@ const ExerciseReviewTable = ({
                     editedValue={editedValues[field]}
                     onEditedChange={(v) => onEditedChange(field, v)}
                     exerciseId={exerciseId}
+                    onImageClick={setImageViewer}
                   />
                 </TableCell>
               </TableRow>
@@ -579,6 +612,15 @@ const ExerciseReviewTable = ({
           })}
         </TableBody>
       </Table>
+      {exerciseId && (
+        <ImagesModal
+          open={imageViewer !== null}
+          exerciseId={exerciseId}
+          images={imageViewer?.images ?? []}
+          initialIndex={imageViewer?.index ?? 0}
+          onClose={() => setImageViewer(null)}
+        />
+      )}
     </TableContainer>
   );
 };

@@ -14,7 +14,10 @@ const appendFilterGroup = (
   params: URLSearchParams
 ) => {
   for (const [key, filter] of Object.entries(group) as [string, NumFilterWithOp][]) {
-    if (filter.value > 0) {
+    // value === 0 è un filtro no-op per "gte" (tutti gli esercizi hanno
+    // valore >= 0), ma è un filtro attivo e significativo per "eq" — stessa
+    // regola di isActive in StatBarsFilter (StatBars/index.tsx).
+    if (filter.value > 0 || filter.operation === "eq") {
       params.set(`${prefix}.${key}.value`, String(filter.value));
       params.set(`${prefix}.${key}.operation`, filter.operation);
     }
