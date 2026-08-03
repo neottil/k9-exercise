@@ -225,6 +225,7 @@ router.post("/accept-terms", requireDbReady, async (req: Request, res: Response)
       email: email.toLowerCase(),
       username: username ?? undefined,
       state: "TOKEN_ACCESS",
+      acceptTerms: true,
     });
 
     req.session.firstAccess = false;

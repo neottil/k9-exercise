@@ -3,36 +3,29 @@
 
 import { useState } from "react";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
 import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
-import IconButton from "@mui/material/IconButton";
-import CloseIcon from "@mui/icons-material/Close";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNotification } from "../../contexts/NotificationContext";
 import { describeError } from "../../api/apiFetch";
 
 interface ConsentModalProps {
-  /** Controlla la visibilità quando `closable` è true. Ignorato (sempre aperta) in modalità bloccante. */
   open?: boolean;
-  /**
-   * Se `true`, la modale è puramente informativa: mostra una X per chiuderla,
-   * niente pulsante "Prosegui" e non registra alcun consenso lato server.
-   * Se `false` (default), la modale è bloccante: l'unica via d'uscita è
-   * cliccare "Prosegui", che chiama l'endpoint di accettazione termini.
-   */
-  closable?: boolean;
-  /** Richiesto quando `closable` è true. */
-  onClose?: () => void;
 }
 
-const ConsentModal = ({ open = true, closable = false, onClose }: ConsentModalProps) => {
+const ConsentModal = ({ open = true }: ConsentModalProps) => {
   const { acceptTerms } = useAuth();
   const { showError } = useNotification();
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const handleAccept = async () => {
     setLoading(true);
@@ -48,51 +41,72 @@ const ConsentModal = ({ open = true, closable = false, onClose }: ConsentModalPr
   return (
     <Dialog
       open={open}
-      onClose={closable ? onClose : undefined}
       slotProps={{ paper: { sx: { maxWidth: 480, width: "100%", mx: 2 } } }}
     >
-      <DialogTitle sx={{ fontWeight: "bold", pr: closable ? 6 : 3 }}>
-        Informativa sull'utilizzo dei dati
-        {closable && (
-          <IconButton
-            aria-label="Chiudi"
-            onClick={onClose}
-            size="small"
-            sx={{ position: "absolute", right: 8, top: 8 }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        )}
+      <DialogTitle sx={{ fontWeight: "bold"}}>
+        Benvenuto/a in K9 Exercise
       </DialogTitle>
       <DialogContent>
-        <Typography variant="body1" sx={{ mb: 2 }}>
-          Benvenuto/a in K9 Exercise.
+        <Typography variant="h4" sx={{ mb: 2 }}>
+          Informativa sull'utilizzo dei dati
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {closable ? (
-            "Utilizzando l'applicazione accetti che i dati e le immagini che inserisci siano di proprietà dell'organizzazione e potranno essere utilizzati, modificati o rimossi dagli amministratori."
-          ) : (
-            <>
-              Cliccando <strong>Prosegui</strong> accetti che i dati e le immagini che
-              inserisci nell'applicazione siano di proprietà dell'organizzazione e
-              potranno essere utilizzati, modificati o rimossi dagli amministratori.
-            </>
-          )}
-        </Typography>
+        <>
+          <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+            Condizioni di utilizzo
+          </Typography>
+          <FormControlLabel
+            sx={{ alignItems: "flex-start", mt: 0.5 }}
+            control={
+              <Checkbox
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                sx={{ pt: 0 }}
+              />
+            }
+            label={
+              <Typography variant="body1" color="text.secondary">
+                Dichiaro di aver letto integralmente, compreso e accettato le Condizioni di utilizzo e conferimento dei contenuti, comprese le disposizioni relative ai requisiti di accesso, al Codice etico, al caricamento dei materiali, alla cessione dei diritti sui contenuti e alla sospensione o disattivazione dell’account.
+              </Typography>
+            }
+          />
+          <Link href="/Condizioni_uso_K9_Cross_Training.pdf" download sx={{ display: "block", ml: 4, mb: 2.5 }}>
+            Scarica le Condizioni di utilizzo (PDF)
+          </Link>
+
+          <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+            Informativa privacy
+          </Typography>
+          <FormControlLabel
+            sx={{ alignItems: "flex-start", mt: 0.5 }}
+            control={
+              <Checkbox
+                checked={privacyAccepted}
+                onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                sx={{ pt: 0 }}
+              />
+            }
+            label={
+              <Typography variant="body1" color="text.secondary">
+                Dichiaro di aver letto integralmente e compreso l’Informativa sul trattamento dei dati personali e di aver preso atto delle finalità, delle modalità e delle basi giuridiche del trattamento, dei soggetti ai quali i dati possono essere comunicati e dei diritti che posso esercitare.
+              </Typography>
+            }
+          />
+          <Link href="/Informativa_privacy_K9_Cross_Training.pdf" download sx={{ display: "block", ml: 4 }}>
+            Scarica l'Informativa privacy (PDF)
+          </Link>
+        </>
       </DialogContent>
-      {!closable && (
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button
-            variant="contained"
-            onClick={handleAccept}
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
-            fullWidth
-          >
-            {loading ? "Attendere…" : "Prosegui"}
-          </Button>
-        </DialogActions>
-      )}
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button
+          variant="contained"
+          onClick={handleAccept}
+          disabled={loading || !termsAccepted || !privacyAccepted}
+          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+          fullWidth
+        >
+          {loading ? "Attendere…" : "Accetta e prosegui"}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 };

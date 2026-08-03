@@ -17,6 +17,7 @@ export interface IUser extends Document {
   firstName?: string;
   lastName?: string;
   lastNotifiedAt?: Date;
+  acceptTerms: boolean;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -30,6 +31,7 @@ const UserSchema = new Schema<IUser>(
     firstName: { type: String, trim: true },
     lastName: { type: String, trim: true },
     lastNotifiedAt: { type: Date },
+    acceptTerms: { type: Boolean, default: false },
   },
   { timestamps: true, versionKey: false, collection: "k9_users" }
 );
