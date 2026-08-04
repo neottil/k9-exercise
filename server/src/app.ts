@@ -11,6 +11,7 @@ import exerciseRoutes from "./routes/exercises.js";
 import authRoutes from "./routes/auth.js";
 import notifyRoutes from "./routes/notify.js";
 import gcImagesRoutes from "./routes/adminImages.js";
+import auditRoutes from "./routes/audit.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 
 export interface CreateAppOptions {
@@ -62,6 +63,7 @@ export const createApp = ({ mongoUri }: CreateAppOptions): Express => {
   app.use("/api/exercises", requireAuth, exerciseRoutes);
   app.use("/api/admin/notify", notifyRoutes);
   app.use("/api/admin/gc-images", gcImagesRoutes);
+  app.use("/api/admin/audit", requireAuth, auditRoutes);
 
   app.get("/health", (_req, res) => {
     const stateLabel = ["disconnected", "connected", "connecting", "disconnecting"];

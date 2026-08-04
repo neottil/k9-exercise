@@ -26,3 +26,8 @@ export type NewExercise = Exercise & {
   state: string;
   createdAt?: string;
 };
+
+export interface ExercisesCreatedByUser {
+  user: string;
+  exercisesCreated: number;
+}

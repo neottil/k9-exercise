@@ -8,6 +8,7 @@ import About from "../About";
 import View from "../View";
 import Insert from "../Insert";
 import Admin from "../Admin";
+import Audit from "../Audit";
 import Login from "../Login";
 import Register from "../Register";
 import ProtectedRoute from "./ProtectedRoute";
@@ -54,6 +55,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute requiredRole="admin">
             <Admin />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "audit",
+        element: (
+          <ProtectedRoute requiredRole="admin">
+            <Audit />
           </ProtectedRoute>
         ),
       },
