@@ -41,19 +41,17 @@ cd server && npm install && npm run dev
 cd client && npm install && npm run dev
 ```
 
-### Testare la modalità `LOGIN_TYPE=token`
+### Testare il login
 
-Per simulare localmente il flusso WordPress senza un sito WP reale:
+Il login è sempre e solo tramite token JWT emesso da un sito esterno (WordPress). Per simularlo localmente senza un sito WP reale:
 
 **1. Configurare il `.env`:**
 
 ```env
-LOGIN_TYPE=token
-VITE_LOGIN_TYPE=token
 K9_JWT_SECRET=dev-jwt-secret-change-in-prod
 ```
 
-**2. Avviare server e client** come sopra (il client mostrerà la pagina "accedi da WordPress" al posto del form).
+**2. Avviare server e client** come sopra (il client mostra la pagina "accedi da WordPress").
 
 **3. Generare un token di test** modificando le variabili in cima allo script secondo lo scenario da simulare:
 
@@ -94,7 +92,7 @@ k9-exercise/
 ├── server/             # Express + TypeScript
 │   ├── src/
 │   │   ├── models/     # Schema Mongoose (Exercise, ExerciseChange, User)
-│   │   │               # Exercise e User hanno il campo lastNotifiedAt (Date)
+│   │   │               # Exercise ha il campo lastNotifiedAt (Date)
 │   │   ├── routes/     # API REST: exercises (incl. /to-approve, /approve-new, /reject-new), auth, notify
 │   │   └── middleware/ # requireAuth, requireDbReady
 │   └── k8s/            # Manifest k8s specifici del server (colocati col codice)
@@ -144,7 +142,7 @@ Gli indici **non** si creano con uno script manuale: sono dichiarati negli schem
 | `exercises` | `{ state: 1, lastNotifiedAt: 1 }` | composto | [Exercise.ts](server/src/models/Exercise.ts) | Query admin `GET /pending` e `GET /to-approve` (prefisso `state`) e le `updateMany` del job notify (`state` + range su `lastNotifiedAt`) |
 | `exercises` | `{ type: 1, variant: 1 }` | `unique` parziale | [Exercise.ts](server/src/models/Exercise.ts) | Impedisce due esercizi con stessa tipologia + variante. `partialFilterExpression` su `state ∈ {TO_APPROVE, APPROVED, PENDING_UPDATE}`: i `REJECTED` sono esclusi e non bloccano la ri-creazione dello stesso combo |
 | `exercisechanges` | `{ exerciseId: 1 }` | `unique` | [ExerciseChange.ts](server/src/models/ExerciseChange.ts) | Tutte le lookup sul change doc (`findOne`/`findOneAndUpdate`/`deleteOne` per `exerciseId`) + garanzia 1:1 esercizio↔change |
-| `k9_users` | `{ email: 1 }` | `unique` | [User.ts](server/src/models/User.ts) | Login/registrazione per email (creato implicitamente da `unique: true`) |
+| `k9_users` | `{ email: 1 }` | `unique` | [User.ts](server/src/models/User.ts) | Login per email (creato implicitamente da `unique: true`) |
 | tutte | `{ _id: 1 }` | default | — | Creato automaticamente da MongoDB |
 
 ### Note di progettazione
@@ -203,10 +201,10 @@ server/test/
 ├── globalSetup.ts       # UN SOLO container Mongo per l'intera run (Vitest globalSetup)
 ├── helpers/
 │   ├── db.ts             # connette mongoose a un DB dedicato per file di test, pulizia tra i test
-│   ├── fixtures.ts        # createExercise(), createUser() con password già hashata
-│   └── authClient.ts      # loginAs(app, overrides) — vero login via POST /api/auth/login
+│   ├── fixtures.ts        # createExercise()
+│   └── authClient.ts      # loginAs(app, overrides) — vero login via GET /api/auth/wp-callback (JWT firmato con K9_JWT_SECRET)
 ├── unit/                  # requireAuth, requireDbReady, buildMongoFilter, computeDiff
-└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, login
+└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, auth
 ```
 
 Un solo container Mongo per l'intera suite (avviato una volta in
@@ -216,14 +214,6 @@ pagare il costo di avviare un container per file. `createApp()` (in
 `server/src/app.ts`) è la stessa factory usata da `index.ts` in produzione,
 parametrizzata sul `mongoUri` — i test non duplicano la configurazione
 dell'app, la riusano con un database diverso.
-
-> **Rate limiter di login**: `POST /api/auth/login` ha un limite di 5
-> tentativi ogni 15 minuti per IP (vedi `server/src/routes/auth.ts`). Vitest
-> isola il registro dei moduli per file di test, quindi il limiter riparte per
-> ogni file — ma non superare le 5 chiamate a `loginAs()`/login falliti nello
-> stesso file. Nei file con più test che condividono un utente/admin, fai
-> login una sola volta in `beforeAll` invece che in ogni `it()` (vedi
-> `exercises.changeFlow.test.ts` per l'esempio).
 
 ### CI
 
@@ -464,7 +454,6 @@ I secret sono configurati **per environment** (staging / production) in GitHub �
 | `VPS_USER` | `deploy` | Utente SSH sul VPS (creato da cloud-init) | `infra`, `build-deploy`, `tag` |
 | `DOMAIN` | `k9.tuodominio.com` | Dominio per ingress e KEDA HTTPScaledObject; letto anche a runtime dal server (env `DOMAIN` del Deployment) per il link nella mail di notifica — lo schema (`http`/`https`) è deciso dal server in base a `NODE_ENV`, non fa parte di questa variabile | `build-deploy`, `tag` (render di `client/k8s/ingress.yaml`, `server/k8s/{ingress,hso,deployment}.yaml`) |
 | `LETSENCRYPT_EMAIL` | `tua@email.com` | Email per la registrazione ACME Let's Encrypt (riceve avvisi di scadenza) | `infra` (render di `k3s/cert-manager/clusterissuer.yaml`) |
-| `LOGIN_TYPE` | `form` | Modalità di login: `form` (email+password) \| `token` (redirect JWT da WordPress) \| `disabled` (nessuna autenticazione). Letta a runtime sia dal server (env del Deployment) sia dal client (ConfigMap `k9-client-config`) ⁶ | `build-deploy` / `promote` (deploy-client, deploy-server) |
 | `ENABLE_WITH_OPERATION_FILTER` | `false` | Feature flag del filtro "con operatività", letto a runtime dal client ⁶ | `build-deploy` / `promote` (deploy-client) |
 | `LOGIN_SITE_URL` | `https://www.k9crosstraining.com` | URL del sito esterno che genera il token di accesso (modalità `token`), letto a runtime dal client ⁶. Includere lo schema `https://` (se manca viene aggiunto automaticamente) | `build-deploy` / `promote` (deploy-client) |
 | `SMTP_HOST` | `smtp.gmail.com` | Host SMTP per le notifiche email | `build-deploy` (deploy-server), `tag` (deploy-production-server) |
@@ -709,8 +698,7 @@ POST /api/admin/notify
     │
     ▼
 Server controlla (find, non ancora una scrittura):
-  • User  con state=TO_APPROVE     e lastNotifiedAt < oggi
-  • Exercise con state=TO_APPROVE  e lastNotifiedAt < oggi
+  • Exercise con state=TO_APPROVE     e lastNotifiedAt < oggi
   • Exercise con state=PENDING_UPDATE e lastNotifiedAt < oggi
     │
     ├─ nessun nuovo elemento → risposta { sent: false }, nessuna email
@@ -724,14 +712,14 @@ Server controlla (find, non ancora una scrittura):
 
 Ogni run logga (con timestamp, utile per riconciliare con `kubectl logs` su un CronJob che gira più volte al giorno):
 ```
-[notify] Trovati N elementi da notificare (utenti=…, esercizi nuovi=…, modifiche=…) | 2026-08-02T...
+[notify] Trovati N elementi da notificare (esercizi nuovi=…, modifiche=…) | 2026-08-02T...
 [notify] Email inviata a … — N elementi in attesa | 2026-08-02T...
 ```
 Un errore SMTP (es. `ECONNREFUSED`) produce comunque il primo log (quindi si vede sempre *cosa* c'era da notificare) ma non il secondo, e la risposta è 500 anziché 200.
 
 ### Campo `lastNotifiedAt`
 
-Presente sia su `User` che su `Exercise`. Viene:
+Presente su `Exercise`. Viene:
 - **Impostato** a `now` dal server solo dopo che l'elemento è stato incluso in una notifica **inviata con successo**
 - **Azzerato** (`$unset`) quando un esercizio torna in stato `APPROVED` (approvazione o rifiuto modifica), in modo che una modifica successiva nella stessa giornata venga re-notificata
 
@@ -876,7 +864,7 @@ Apri poi `http://localhost:9001` nel browser.
 
 ## Integrazione con WordPress
 
-Permette di delegare l'autenticazione a WordPress: WP genera un JWT firmato e l'app Node lo valida per creare la sessione. La modalità di login è selezionabile tramite variabile d'ambiente (`LOGIN_TYPE`).
+Permette di delegare l'autenticazione a WordPress: WP genera un JWT firmato e l'app Node lo valida per creare la sessione. È l'unica modalità di login supportata dall'app.
 
 ### Flusso
 
@@ -907,22 +895,10 @@ Il token nell'URL è **usa e getta**: serve solo per l'handshake iniziale (scade
 Nel file `.env` alla root del monorepo:
 
 ```env
-# Modalità di login: "form" (email+password) | "token" (redirect JWT da WordPress)
-LOGIN_TYPE=token
-VITE_LOGIN_TYPE=token          # deve coincidere con LOGIN_TYPE
-
 # Segreto condiviso tra WordPress e app — deve coincidere con wp-config.php
 # Generare con: openssl rand -base64 32
 K9_JWT_SECRET=stringa-lunga-e-casuale
 ```
-
-> Il doppione `LOGIN_TYPE` / `VITE_LOGIN_TYPE` riguarda **solo lo sviluppo locale**: il server legge `LOGIN_TYPE`, il client legge `VITE_LOGIN_TYPE` dal `.env` tramite Vite. Negli ambienti deployati esiste invece un'unica GitHub Variable `LOGIN_TYPE`, che alimenta sia l'env del Deployment del server sia la ConfigMap `k9-client-config` letta a runtime dal client (vedi nota ⁶ nella tabella delle [Variables](#variables)) — nessun allineamento manuale da mantenere.
-
-| `LOGIN_TYPE` | Comportamento server | Comportamento client |
-|---|---|---|
-| `form` (default) | `/login` e `/register` abilitati, `/wp-callback` restituisce 404 | Pagina login con form email+password |
-| `token` | `/wp-callback` abilitato, `/login` e `/register` restituiscono 404 | Pagina login con messaggio "accedi da WordPress" |
-| `disabled` | `/me` restituisce un utente dev, `/login` e `/register` restituiscono 404 | Nessun redirect a `/login`, nessun form mostrato, pulsante logout nascosto |
 
 ---
 
@@ -1131,8 +1107,7 @@ Le seguenti modifiche sono già presenti nel codice:
 
 - `jsonwebtoken` installato come dipendenza del server
 - Route `GET /api/auth/wp-callback` in `server/src/routes/auth.ts`: valida il JWT, crea `req.session.user = { email, role }` e fa redirect a `/`
-- Route `/login` e `/register` restituiscono 404 quando `LOGIN_TYPE=token`
-- La pagina `/login` lato client mostra un messaggio informativo (niente form) quando `VITE_LOGIN_TYPE=token`
+- La pagina `/login` lato client mostra sempre il messaggio informativo "accedi da WordPress" (nessun form email+password)
 
 ---
 
@@ -1170,13 +1145,12 @@ URL di test (apri nel browser con il server in esecuzione):
 http://localhost:3001/api/auth/wp-callback?token=eyJhbGci...
 ```
 
-Aprire l'URL nel browser: se il server è in esecuzione con `LOGIN_TYPE=token` e `K9_JWT_SECRET` configurato, l'app crea la sessione e fa redirect a `/`.
+Aprire l'URL nel browser: se il server è in esecuzione con `K9_JWT_SECRET` configurato, l'app crea la sessione e fa redirect a `/`.
 
 #### 3.2 Verifica manuale
 
 ```bash
-# Avviare il server con la configurazione token
-LOGIN_TYPE=token K9_JWT_SECRET=test-secret node scripts/generate-wp-token.mjs
+K9_JWT_SECRET=test-secret node scripts/generate-wp-token.mjs
 # Copiare l'URL e aprirlo nel browser
 ```
 

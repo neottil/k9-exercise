@@ -4,19 +4,13 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export type UserRole = "viewer" | "admin";
-export type UserState = "TO_APPROVE" | "APPROVED" | "TOKEN_ACCESS";
 export type InstructorLevel = "BSS" | "CTS";
 
 export interface IUser extends Document {
   email: string;
   username?: string;
-  passwordHash?: string;
   role?: UserRole;
-  state: UserState;
   instructorLevel?: InstructorLevel;
-  firstName?: string;
-  lastName?: string;
-  lastNotifiedAt?: Date;
   acceptTerms: boolean;
 }
 
@@ -24,20 +18,15 @@ const UserSchema = new Schema<IUser>(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     username: { type: String, trim: true },
-    passwordHash: { type: String },
     role: { type: String, enum: ["viewer", "admin"] },
-    state: { type: String, enum: ["TO_APPROVE", "APPROVED", "TOKEN_ACCESS"], default: "TO_APPROVE" },
     instructorLevel: { type: String, enum: ["BSS", "CTS"] },
-    firstName: { type: String, trim: true },
-    lastName: { type: String, trim: true },
-    lastNotifiedAt: { type: Date },
     acceptTerms: { type: Boolean, default: false },
   },
   { timestamps: true, versionKey: false, collection: "k9_users" }
 );
 
-// Chiave di identità per gli utenti in modalità token: email+username insieme.
-// Gli utenti form (senza username) restano protetti dall'indice unique su email.
+// Chiave di identità dell'utente: email+username insieme (entrambi presenti
+// nel JWT emesso dal sito esterno).
 UserSchema.index({ email: 1, username: 1 }, { unique: true });
 
 export default mongoose.model<IUser>("User", UserSchema);

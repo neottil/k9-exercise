@@ -398,9 +398,8 @@ come unica fonte di informazione.
   sola volta** in staging e si promuove **la stessa immagine** in produzione
   senza rebuild (`docker buildx imagetools create` in `tag.yml`): il bundle
   resterebbe per sempre sui valori di staging, e la produzione mostrerebbe
-  configurazione altrui — con impatti che vanno dall'estetico
-  (`LOGIN_SITE_URL` sbagliato) al funzionale (`LOGIN_TYPE` che decide se
-  mostrare il form di login o il redirect al sito esterno). Regola: l'immagine è
+  configurazione altrui — es. `LOGIN_SITE_URL` punterebbe al sito esterno di
+  staging invece che a quello reale. Regola: l'immagine è
   **neutra rispetto all'ambiente**, la config arriva a runtime dall'ambiente in
   cui gira. Qui: ConfigMap `k9-client-config` montata come file statico servito
   da nginx su `/config/config.json`, letta all'avvio da

@@ -22,9 +22,7 @@
  */
 
 export interface RuntimeConfig {
-  /** `form` (email+password) | `token` (JWT da sito esterno) | `disabled` */
-  loginType: string;
-  /** URL del sito esterno che genera il token di accesso (modalità `token`) */
+  /** URL del sito esterno che genera il token di accesso */
   loginSiteUrl: string;
   /** Feature flag del filtro "con operatività" */
   enableWithOperationFilter: boolean;
@@ -44,13 +42,11 @@ const normalizeUrl = (raw: unknown): string => {
 };
 
 const fromViteEnv = (): RuntimeConfig => ({
-  loginType: import.meta.env.VITE_LOGIN_TYPE ?? "form",
   loginSiteUrl: normalizeUrl(import.meta.env.VITE_LOGIN_SITE_URL),
   enableWithOperationFilter: import.meta.env.VITE_ENABLE_WITH_OPERATION_FILTER === "true",
 });
 
 const fromJson = (raw: Record<string, unknown>): RuntimeConfig => ({
-  loginType: typeof raw.loginType === "string" && raw.loginType ? raw.loginType : "form",
   loginSiteUrl: normalizeUrl(raw.loginSiteUrl),
   // Stringa e non booleano JSON: la ConfigMap è renderizzata con envsubst, e
   // una variabile non valorizzata produrrebbe JSON non valido (`: ,`).

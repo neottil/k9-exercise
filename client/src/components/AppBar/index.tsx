@@ -13,12 +13,10 @@ import { useNavigate } from "react-router-dom";
 
 import MainMenu from "./menu";
 import { useAuth } from "../../contexts/AuthContext";
-import { getConfig } from "../../config/runtime";
 
 const SiteAppBar = () => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
-  const isAuthDisabled = getConfig().loginType === "disabled";
 
   const handleLogout = async () => {
     await logout();
@@ -57,7 +55,7 @@ const SiteAppBar = () => {
             <Box sx={{ display: { xs: "none", md: "flex" } }}>
               <Tooltip title={`Logout (${user.email})`}>
                 <span>
-                  <IconButton color="inherit" onClick={handleLogout} size="small" disabled={isAuthDisabled}>
+                  <IconButton color="inherit" onClick={handleLogout} size="small">
                     <LogoutIcon />
                   </IconButton>
                 </span>

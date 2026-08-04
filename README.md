@@ -6,7 +6,7 @@
 ## Indice
 
 1. [Introduzione](#1-introduzione)
-2. [Accesso e registrazione](#2-accesso-e-registrazione)
+2. [Accesso](#2-accesso)
 3. [Interfaccia principale](#3-interfaccia-principale)
 4. [Visualizzazione esercizi (Home)](#4-visualizzazione-esercizi-home)
 5. [Filtri di ricerca](#5-filtri-di-ricerca)
@@ -41,70 +41,24 @@ Ogni utente ha un **livello istruttore** che determina quali esercizi può visua
 | **BSS** | Solo esercizi di livello BSS |
 | **CTS** | Tutti gli esercizi (BSS e CTS) |
 
-Il livello viene assegnato al momento del login e dipende dalla modalità di accesso configurata (vedi sezione 2).
+Il livello viene assegnato al momento del login, ricevuto direttamente dal token di accesso (vedi sezione 2).
 
 ---
 
-## 2. Accesso e registrazione
+## 2. Accesso
 
-L'applicazione supporta due modalità di login, configurate dall'amministratore di sistema:
+Il login avviene esclusivamente tramite un sito esterno (es. WordPress) che rilascia un token sicuro. Ruolo, username e livello istruttore (BSS/CTS) vengono trasmessi automaticamente nel token: non è richiesta nessuna azione manuale, né la creazione di un account con email e password.
 
-| Modalità | Descrizione |
-|----------|-------------|
-| **Token** *(consigliata)* | Il login avviene tramite un sito esterno (es. WordPress) che rilascia un token sicuro. Username e livello istruttore vengono trasmessi automaticamente. |
-| **Form** | Login diretto con email e password. Username e livello istruttore non sono disponibili in questa modalità. |
+### 2.1 Login con token
 
-### 2.1 Login con token (modalità WordPress)
+L'utente viene reindirizzato automaticamente dal sito esterno all'applicazione. Il token viene validato e la sessione creata in modo trasparente.
 
-L'utente viene reindirizzato automaticamente dal sito esterno all'applicazione. Non è richiesta nessuna azione manuale: il token viene validato e la sessione creata in modo trasparente.
+> **Sessione scaduta** — Se la sessione è scaduta (dopo 2 ore di inattività), alla riapertura della pagina compare un avviso giallo che invita a tornare sul sito esterno e utilizzare di nuovo il link di accesso.
 
-Ruolo, username e livello istruttore (BSS/CTS) vengono ricevuti direttamente dal token e non richiedono configurazione aggiuntiva.
-
-### 2.2 Login con form
-
-All'apertura dell'applicazione viene mostrata la pagina di login.
-
-```
-┌─────────────────────────────┐
-│        [Logo K9]            │
-│  K9 Cross Training - Exercise│
-│                             │
-│  ┌───────────────────────┐  │
-│  │ Email                 │  │
-│  └───────────────────────┘  │
-│  ┌───────────────────────┐  │
-│  │ Password              │  │
-│  └───────────────────────┘  │
-│                             │
-│  ┌───────────────────────┐  │
-│  │       ACCEDI          │  │
-│  └───────────────────────┘  │
-│                             │
-│  Non hai un account?        │
-│  Registrati                 │
-└─────────────────────────────┘
-```
-
-1. Inserisci la tua **email** e **password**
-2. Clicca **Accedi**
-3. In caso di credenziali errate, viene mostrato un messaggio di errore rosso
-
-> **Sessione scaduta** — Se la sessione è scaduta (dopo 2 ore di inattività), alla riapertura della pagina compare un avviso giallo: *"Sessione scaduta. Effettua nuovamente il login."*
-
-> **Nota**: con la modalità form, username e livello istruttore non sono disponibili. Gli esercizi di livello CTS non saranno visibili a meno che il ruolo non venga configurato manualmente.
-
-### 2.3 Registrazione
-
-Disponibile solo in modalità **form**. Clicca su **Registrati** nella pagina di login per creare un nuovo account. Inserisci email e password, poi conferma.
-
-> I nuovi account vengono creati con ruolo **utente** standard. Il ruolo admin deve essere assegnato manualmente da chi gestisce il database.
-
-### 2.4 Logout
+### 2.2 Logout
 
 - **Desktop**: icona **→ (porta d'uscita)** in alto a destra nella barra di navigazione. Un tooltip mostra l'email dell'utente connesso.
 - **Mobile / tablet**: la voce **Logout** è disponibile in fondo al menu ≡ (hamburger), separata da una riga divisoria.
-
-> In modalità **token** il pulsante di logout è visibile ma disabilitato: la sessione è gestita dal sito esterno.
 
 ---
 
@@ -646,4 +600,4 @@ Per uso commerciale o per integrare il software in un prodotto a pagamento, cont
 
 ---
 
-*Manuale aggiornato al 30/06/2026*
+*Manuale aggiornato al 04/08/2026*

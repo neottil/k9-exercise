@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Luca Neotti
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { Request, Response } from "express";
 import { requireAuth } from "../../src/middleware/requireAuth.js";
 
@@ -13,10 +13,6 @@ const mockRes = () => {
 };
 
 describe("requireAuth", () => {
-  afterEach(() => {
-    delete process.env.LOGIN_TYPE;
-  });
-
   it("risponde 401 se manca la sessione", () => {
     const req = { session: {} } as Request;
     const res = mockRes();
@@ -37,18 +33,6 @@ describe("requireAuth", () => {
     requireAuth(req, res, next);
 
     expect(req.user).toEqual(sessionUser);
-    expect(next).toHaveBeenCalledOnce();
-  });
-
-  it("in modalità disabled inietta l'utente di sviluppo senza richiedere una sessione", () => {
-    process.env.LOGIN_TYPE = "disabled";
-    const req = { session: {} } as Request;
-    const res = mockRes();
-    const next = vi.fn();
-
-    requireAuth(req, res, next);
-
-    expect(req.user?.email).toBe("dev@local");
     expect(next).toHaveBeenCalledOnce();
   });
 });

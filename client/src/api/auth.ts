@@ -13,19 +13,6 @@ export const getMe = async (): Promise<AuthUser | null> => {
   return res.json();
 };
 
-export const login = async (email: string, password: string): Promise<AuthUser> => {
-  const res = await fetch(`${BASE_URL}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error || "Credenziali non valide");
-  }
-  return res.json();
-};
-
 export const logout = async (): Promise<void> => {
   await fetch(`${BASE_URL}/logout`, { method: "POST" });
 };
@@ -33,26 +20,4 @@ export const logout = async (): Promise<void> => {
 export const acceptTerms = async (): Promise<void> => {
   const res = await fetch(`${BASE_URL}/accept-terms`, { method: "POST" });
   if (!res.ok) throw await apiError(res, "Errore durante l'accettazione dei termini");
-};
-
-export interface RegisterPayload {
-  email: string;
-  password: string;
-  username: string;
-  instructorLevel: "BSS" | "CTS";
-  firstName: string;
-  lastName: string;
-}
-
-export const register = async (payload: RegisterPayload): Promise<string> => {
-  const res = await fetch(`${BASE_URL}/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({})) as { message?: string; error?: string };
-  if (!res.ok) {
-    throw new Error(data.error || "Errore durante la registrazione");
-  }
-  return data.message ?? "Registrazione completata.";
 };

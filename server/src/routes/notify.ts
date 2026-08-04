@@ -3,7 +3,6 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import nodemailer from "nodemailer";
-import User from "../models/User.js";
 import Exercise from "../models/Exercise.js";
 import { logger } from "../utils/logger.js";
 
@@ -48,30 +47,26 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     // notificati oggi" — la mail non partiva mai, ma la run successiva non
     // li trovava più: la notifica andava persa in silenzio fino al giorno
     // dopo (o per sempre, se l'errore SMTP persisteva).
-    const [pendingUsers, pendingNewExercises, pendingUpdatedExercises] = await Promise.all([
-      User.find({ state: "TO_APPROVE", ...newFilter }, "_id"),
+    const [pendingNewExercises, pendingUpdatedExercises] = await Promise.all([
       Exercise.find({ state: "TO_APPROVE", ...newFilter }, "_id"),
       Exercise.find({ state: "PENDING_UPDATE", ...newFilter }, "_id"),
     ]);
 
-    const usersCount           = pendingUsers.length;
     const newExercisesCount    = pendingNewExercises.length;
     const updatedExercisesCount = pendingUpdatedExercises.length;
-    const total = usersCount + newExercisesCount + updatedExercisesCount;
+    const total = newExercisesCount + updatedExercisesCount;
 
     logger.log(
       `[notify] Trovati ${total} elementi da notificare` +
-      ` (utenti=${usersCount}, esercizi nuovi=${newExercisesCount}, modifiche=${updatedExercisesCount})`
+      ` (esercizi nuovi=${newExercisesCount}, modifiche=${updatedExercisesCount})`
     );
 
     if (total === 0) {
-      res.json({ users: 0, exercises_new: 0, exercises_update: 0, sent: false });
+      res.json({ exercises_new: 0, exercises_update: 0, sent: false });
       return;
     }
 
     const lines: string[] = [];
-    if (usersCount > 0)
-      lines.push(`${usersCount} utent${usersCount === 1 ? "e" : "i"} in attesa di approvazione`);
     if (newExercisesCount > 0)
       lines.push(`${newExercisesCount} esercizi nuovi in attesa di approvazione`);
     if (updatedExercisesCount > 0)
@@ -125,9 +120,6 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     // Marcati come notificati solo ora che l'invio è confermato riuscito.
     const ids = <T extends { _id: unknown }>(docs: T[]): T["_id"][] => docs.map((d) => d._id);
     await Promise.all([
-      usersCount > 0
-        ? User.updateMany({ _id: { $in: ids(pendingUsers) } }, { $set: { lastNotifiedAt: now } })
-        : null,
       newExercisesCount > 0
         ? Exercise.updateMany({ _id: { $in: ids(pendingNewExercises) } }, { $set: { lastNotifiedAt: now } })
         : null,
@@ -136,7 +128,7 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
         : null,
     ]);
 
-    res.json({ users: usersCount, exercises_new: newExercisesCount, exercises_update: updatedExercisesCount, sent: true });
+    res.json({ exercises_new: newExercisesCount, exercises_update: updatedExercisesCount, sent: true });
   } catch (err) {
     logger.error("[POST /api/admin/notify]", err);
     res.status(500).json({ error: "Errore interno" });

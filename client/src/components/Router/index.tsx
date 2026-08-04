@@ -10,7 +10,6 @@ import Insert from "../Insert";
 import Admin from "../Admin";
 import Audit from "../Audit";
 import Login from "../Login";
-import Register from "../Register";
 import ProtectedRoute from "./ProtectedRoute";
 
 /**
@@ -29,10 +28,6 @@ const router = createBrowserRouter([
   {
     path: "/login",
     element: <Login />,
-  },
-  {
-    path: "/register",
-    element: <Register />,
   },
   {
     path: "/",

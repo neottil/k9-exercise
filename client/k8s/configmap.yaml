@@ -7,9 +7,9 @@
 # dell'ambiente: viene montata come file statico e servita da nginx su
 # /config/config.json, che il client legge all'avvio (vedi client/src/config/runtime.ts).
 #
-# ${LOGIN_TYPE}, ${LOGIN_SITE_URL}, ${ENABLE_WITH_OPERATION_FILTER} vengono
-# sostituiti dalla GitHub Action con envsubst, leggendo le Variables
-# dell'environment di destinazione.
+# ${LOGIN_SITE_URL}, ${ENABLE_WITH_OPERATION_FILTER} vengono sostituiti dalla
+# GitHub Action con envsubst, leggendo le Variables dell'environment di
+# destinazione.
 #
 # I valori sono tutti STRINGHE, anche i booleani: envsubst con una variabile
 # non valorizzata produrrebbe JSON non valido (`"chiave": ,`). Il parsing in
@@ -22,7 +22,6 @@ metadata:
 data:
   config.json: |
     {
-      "loginType": "${LOGIN_TYPE}",
       "loginSiteUrl": "${LOGIN_SITE_URL}",
       "enableWithOperationFilter": "${ENABLE_WITH_OPERATION_FILTER}"
     }

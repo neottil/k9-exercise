@@ -1,18 +1,14 @@
 // Copyright (c) 2026 Luca Neotti
 // Licensed under the Elastic License v2.0 — see LICENSE for details.
 
-import { useState } from "react";
-import { Navigate, Link as RouterLink, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import {
   Alert,
   Box,
-  Button,
   Card,
   CardContent,
   CircularProgress,
   Link,
-  TextField,
-  Typography,
 } from "@mui/material";
 import { useAuth } from "../../contexts/AuthContext";
 import { getConfig } from "../../config/runtime";
@@ -54,92 +50,10 @@ const LoginToken = () => {
   );
 };
 
-const LoginForm = () => {
-  const { login, sessionExpired } = useAuth();
-  const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      await login(email, password);
-      navigate("/", { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Errore durante il login");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        bgcolor: "background.default",
-      }}
-    >
-      <Card sx={{ width: 360, p: 2 }}>
-        <CardContent>
-          <Box component="img" src="/logo.png" alt="K9 - Exercise" sx={{ width: 120, mx: "auto", display: "block", mb: 2 }} />
-          {sessionExpired && !error && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              Sessione scaduta. Effettua nuovamente il login.
-            </Alert>
-          )}
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <TextField
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-              fullWidth
-            />
-            <TextField
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              fullWidth
-            />
-            <Button type="submit" variant="contained" color="success" disabled={submitting} fullWidth>
-              {submitting ? <CircularProgress size={22} color="inherit" /> : "Accedi"}
-            </Button>
-          </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", mt: 2 }}>
-            Non hai un account?{" "}
-            <Link component={RouterLink} to="/register" color="success.main">
-              Registrati
-            </Link>
-          </Typography>
-        </CardContent>
-      </Card>
-    </Box>
-  );
-};
-
 const Login = () => {
   const { user, isLoading } = useAuth();
-  const { loginType } = getConfig();
-  const isTokenMode = loginType === "token";
-  const isDisabledMode = loginType === "disabled";
 
-  if (isDisabledMode || user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/" replace />;
 
   if (isLoading) {
     return (
@@ -149,7 +63,7 @@ const Login = () => {
     );
   }
 
-  return isTokenMode ? <LoginToken /> : <LoginForm />;
+  return <LoginToken />;
 };
 
 export default Login;

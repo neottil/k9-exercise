@@ -38,7 +38,6 @@ jobs:
           # Configurazione risolta a runtime dal client (ConfigMap
           # k9-client-config): NON compilata nel bundle, perché la stessa
           # immagine viene promossa da staging a produzione senza rebuild.
-          LOGIN_TYPE: ${{ vars.LOGIN_TYPE }}
           LOGIN_SITE_URL: ${{ vars.LOGIN_SITE_URL }}
           ENABLE_WITH_OPERATION_FILTER: ${{ vars.ENABLE_WITH_OPERATION_FILTER }}
         run: |
@@ -47,7 +46,7 @@ jobs:
           envsubst '${CLIENT_IMAGE}' < client/k8s/deployment.yaml > k8s-rendered/client-deployment.yaml
           cp client/k8s/service.yaml k8s-rendered/client-service.yaml
           envsubst '${DOMAIN}' < client/k8s/ingress.yaml > k8s-rendered/client-ingress.yaml
-          envsubst '${LOGIN_TYPE} ${LOGIN_SITE_URL} ${ENABLE_WITH_OPERATION_FILTER}' \
+          envsubst '${LOGIN_SITE_URL} ${ENABLE_WITH_OPERATION_FILTER}' \
             < client/k8s/configmap.yaml > k8s-rendered/client-configmap.yaml
 
       - name: Copia manifest client sulla VPS via SSH
