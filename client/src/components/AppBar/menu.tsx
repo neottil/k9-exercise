@@ -11,7 +11,6 @@ import { useMediaQuery, useTheme } from '@mui/material';
 
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import HomeIcon from '@mui/icons-material/Home';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -93,9 +92,6 @@ const MainMenu = () => {
         <MainMenuItem link="/insert" label="Inserisci" IconComponent={AddCircleOutlineIcon} onNavigate={handleNavigate} />
         {user?.role === "admin" && (
           <MainMenuItem link="/admin" label="Admin" IconComponent={AdminPanelSettingsIcon} onNavigate={handleNavigate} />
-        )}
-        {user?.role === "admin" && (
-          <MainMenuItem link="/audit" label="Audit" IconComponent={AssessmentOutlinedIcon} onNavigate={handleNavigate} />
         )}
         <MainMenuItem link="/about" label="Info" IconComponent={InfoOutlinedIcon} onNavigate={handleNavigate} />
         {user && isMobile && (

@@ -22,8 +22,9 @@ import { describeError } from "../../api/apiFetch";
 import { useNotification } from "../../contexts/NotificationContext";
 import type { ExercisesCreatedByUser } from "../../interfaces/adminInterfaces";
 
-const Audit = () => {
+const AuditTab = () => {
   const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [results, setResults] = useState<ExercisesCreatedByUser[] | null>(null);
   const [loading, setLoading] = useState(false);
   const { showError } = useNotification();
@@ -32,7 +33,7 @@ const Audit = () => {
     if (!from) return;
     setLoading(true);
     try {
-      const data = await getExercisesCreatedByUser(from);
+      const data = await getExercisesCreatedByUser(from, to || undefined);
       setResults(data);
     } catch (err) {
       const { message, details } = describeError(err, "Errore nel caricamento della classifica");
@@ -43,9 +44,7 @@ const Audit = () => {
   };
 
   return (
-    <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-      <Typography variant="h5">Audit</Typography>
-
+    <Box sx={{ p: 2, height: "100%", overflow: "auto" }}>
       <Card variant="outlined" sx={{ maxWidth: 480 }}>
         <CardContent>
           <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 2 }}>
@@ -60,6 +59,14 @@ const Audit = () => {
               value={from}
               onChange={(e) => setFrom(e.target.value)}
               slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label="A data"
+              type="date"
+              size="small"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: from || undefined } }}
             />
             <Button variant="contained" onClick={handleLoad} disabled={!from || loading}>
               {loading ? <CircularProgress size={20} color="inherit" /> : "Carica"}
@@ -102,4 +109,4 @@ const Audit = () => {
   );
 };
 
-export default Audit;
+export default AuditTab;

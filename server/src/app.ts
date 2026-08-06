@@ -50,8 +50,9 @@ export const createApp = ({ mongoUri }: CreateAppOptions): Express => {
       return;
     }
     const start = Date.now();
+    logger.debug(`→ ${req.method} ${req.originalUrl}`);
     res.on("finish", () => {
-      logger.debug(`${req.method} ${req.originalUrl} → ${res.statusCode} (${Date.now() - start}ms)`);
+      logger.debug(`← ${req.method} ${req.originalUrl} ← ${res.statusCode} (${Date.now() - start}ms)`);
     });
     next();
   });

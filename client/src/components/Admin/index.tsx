@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Box, Tab, Tabs } from "@mui/material";
 import PendingChangesTab from "./PendingChangesTab";
 import NewExercisesTab from "./NewExercisesTab";
+import AuditTab from "./AuditTab";
 
 const Admin = () => {
   const [tabValue, setTabValue] = useState(0);
@@ -16,11 +17,13 @@ const Admin = () => {
         <Tabs value={tabValue} onChange={(_, v: number) => setTabValue(v)}>
           <Tab label="Modifiche esercizi" />
           <Tab label="Nuovi esercizi" />
+          <Tab label="Audit" />
         </Tabs>
       </Box>
 
       {tabValue === 0 && <PendingChangesTab />}
       {tabValue === 1 && <NewExercisesTab />}
+      {tabValue === 2 && <AuditTab />}
 
     </Box>
   );

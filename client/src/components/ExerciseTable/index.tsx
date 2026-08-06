@@ -107,6 +107,7 @@ const ExerciseTable = ({ rows, loading, error }: ExerciseTableProps) => {
         }}
         rows={rows}
         columns={columns}
+        pageSizeOptions={[10, 25, 50, 100]}
         autosizeOptions={autosizeOptions}
         getRowHeight={getRowHeight}
         getRowSpacing={getRowSpacing}
