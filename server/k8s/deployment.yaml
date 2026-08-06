@@ -1,5 +1,7 @@
-# ${SERVER_IMAGE} viene sostituito dalla GitHub Action con envsubst prima di
-# ogni kubectl apply.
+# ${SERVER_IMAGE}, ${LOG_LEVEL} vengono sostituiti dalla GitHub Action con
+# envsubst prima di ogni kubectl apply.
+# LOG_LEVEL: GitHub Variable, default "info" se assente (impostata dal
+# workflow, non richiede nulla lato repo se si accetta il default).
 # K9_JWT_SECRET: impostare come GitHub Secret → finisce nel k8s secret "k9-secrets".
 # Rollback manuale: kubectl rollout undo deployment/k9-server -n k9
 apiVersion: apps/v1
@@ -30,6 +32,8 @@ spec:
               value: "production"
             - name: PORT
               value: "3001"
+            - name: LOG_LEVEL
+              value: "${LOG_LEVEL}"
             - name: MONGODB_URI
               valueFrom:
                 secretKeyRef:

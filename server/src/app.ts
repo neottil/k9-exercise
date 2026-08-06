@@ -13,6 +13,7 @@ import notifyRoutes from "./routes/notify.js";
 import gcImagesRoutes from "./routes/adminImages.js";
 import auditRoutes from "./routes/audit.js";
 import { requireAuth } from "./middleware/requireAuth.js";
+import { logger } from "./utils/logger.js";
 
 export interface CreateAppOptions {
   /** URI Mongo per lo store delle sessioni (connect-mongo apre una connessione propria). */
@@ -38,6 +39,22 @@ export const createApp = ({ mongoUri }: CreateAppOptions): Express => {
 
   app.use(cors());
   app.use(express.json());
+
+  // Access log per-richiesta (metodo, path, status, durata). No-op a meno di
+  // LOG_LEVEL=debug (mai impostato in produzione, vedi server/k8s/deployment.yaml)
+  // — evita di generare rumore/costo di log inutile lì, resta disponibile per
+  // capire cosa sta chiamando l'app durante lo sviluppo/test in locale e staging.
+  app.use((req, res, next) => {
+    if (process.env.LOG_LEVEL !== "debug") {
+      next();
+      return;
+    }
+    const start = Date.now();
+    res.on("finish", () => {
+      logger.debug(`${req.method} ${req.originalUrl} → ${res.statusCode} (${Date.now() - start}ms)`);
+    });
+    next();
+  });
 
   const SESSION_MAX_AGE = 1000 * 60 * 60 * 2; // 2 ore
 

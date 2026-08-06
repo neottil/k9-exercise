@@ -69,10 +69,10 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     for (const o of orphans) {
       await removeImage(o.name);
       deleted++;
-      logger.log(`[GC] rimosso orfano ${o.name}`);
+      logger.info(`[GC] rimosso orfano ${o.name}`);
     }
 
-    logger.log(
+    logger.info(
       `[GC] completato — scansionati=${objects.length} referenziati=${referencedKeys.size} cancellati=${deleted}`
     );
     res.json({ scanned: objects.length, referenced: referencedKeys.size, deleted });

@@ -56,7 +56,7 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     const updatedExercisesCount = pendingUpdatedExercises.length;
     const total = newExercisesCount + updatedExercisesCount;
 
-    logger.log(
+    logger.info(
       `[notify] Trovati ${total} elementi da notificare` +
       ` (esercizi nuovi=${newExercisesCount}, modifiche=${updatedExercisesCount})`
     );
@@ -72,13 +72,8 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
     if (updatedExercisesCount > 0)
       lines.push(`${updatedExercisesCount} modifiche a esercizi in attesa di approvazione`);
 
-    // DOMAIN è il solo hostname (es. "app.k9crosstraining.it" oppure
-    // "localhost:5173" in locale): lo schema si decide qui, non in CI, con lo
-    // stesso criterio già usato per il flag "secure" del cookie di sessione
-    // (app.ts) — https in staging/produzione (Traefik termina TLS), http in
-    // locale dove non c'è TLS.
     const scheme = process.env.NODE_ENV === "production" ? "https" : "http";
-    const appUrl = process.env.DOMAIN ? `${scheme}://${process.env.DOMAIN}` : "";
+    const appUrl = `${process.env.LOGIN_SITE_URL}?k9_redirect=1`;
     const listHtml = lines.map((l) => `<li>${l}</li>`).join("");
     const listText = lines.map((l) => `  • ${l}`).join("\n");
 
@@ -115,7 +110,7 @@ router.post("/", requireApiKey, async (_req: Request, res: Response): Promise<vo
       ].join(""),
     });
 
-    logger.log(`[notify] Email inviata a ${recipients.join(", ")} — ${total} elementi in attesa`);
+    logger.info(`[notify] Email inviata a ${recipients.join(", ")} — ${total} elementi in attesa`);
 
     // Marcati come notificati solo ora che l'invio è confermato riuscito.
     const ids = <T extends { _id: unknown }>(docs: T[]): T["_id"][] => docs.map((d) => d._id);

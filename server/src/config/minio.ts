@@ -47,7 +47,7 @@ export const ensureBucket = async (): Promise<void> => {
     const exists = await getClient().bucketExists(bucket);
     if (!exists) {
       await getClient().makeBucket(bucket);
-      logger.log(`[minio] bucket "${bucket}" creato`);
+      logger.info(`[minio] bucket "${bucket}" creato`);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

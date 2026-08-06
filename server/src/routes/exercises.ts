@@ -337,7 +337,7 @@ router.post("/", requireDbReady, upload.array("images", MAX_IMAGES), async (req:
  */
 router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (req: Request, res: Response) => {
   const id = req.params.id as string;
-  logger.log(`[PUT /:id] id=${id}`);
+  logger.info(`[PUT /:id] id=${id}`);
   try {
     const { data, files } = extractSubmission(req);
     const { id: _id, state: _state, images: clientImages, ...rest } = data;
@@ -351,7 +351,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
 
     const exerciseData = exercise.toJSON() as Record<string, unknown>;
     const currentState = exerciseData.state as string | undefined;
-    logger.log(`[PUT /:id] state corrente=${currentState}`);
+    logger.info(`[PUT /:id] state corrente=${currentState}`);
 
     // ── Immagini ────────────────────────────────────────────────────────────
     // Si tengono solo le immagini già esistenti (integrità), si validano e
@@ -377,7 +377,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
 
     // TO_APPROVE o senza stato: aggiornamento diretto
     if (!currentState || currentState === TO_APPROVE) {
-      logger.log(`[PUT /:id] aggiornamento diretto (TO_APPROVE / no state)`);
+      logger.info(`[PUT /:id] aggiornamento diretto (TO_APPROVE / no state)`);
       const updated = await Exercise.findByIdAndUpdate(
         id,
         { $set: { ...submittedFields, userUpdate: req.user?.username ?? req.user?.email } },
@@ -389,21 +389,21 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
 
     // APPROVED / PENDING_UPDATE: gestione con change doc e transazione
     const diff = computeDiff(exerciseData, submittedFields);
-    logger.log(`[PUT /:id] diff keys=${Object.keys(diff).join(", ") || "(nessuno)"}`);
+    logger.info(`[PUT /:id] diff keys=${Object.keys(diff).join(", ") || "(nessuno)"}`);
 
     const session = await mongoose.startSession();
-    logger.log(`[PUT /:id] sessione aperta, avvio transazione`);
+    logger.info(`[PUT /:id] sessione aperta, avvio transazione`);
     try {
       session.startTransaction();
 
       if (currentState === APPROVED) {
         if (Object.keys(diff).length === 0) {
-          logger.log(`[PUT /:id] nessuna modifica effettiva, niente da fare`);
+          logger.info(`[PUT /:id] nessuna modifica effettiva, niente da fare`);
           await session.commitTransaction();
           res.json(exercise);
           return;
         }
-        logger.log(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
+        logger.info(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
         await ExerciseChange.create(
           [{ exerciseId: id as string, fields: diff, user: req.user?.username ?? req.user?.email, userUpdate: req.user?.username ?? req.user?.email }],
           { session }
@@ -416,7 +416,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
       } else {
         // PENDING_UPDATE
         if (Object.keys(diff).length === 0) {
-          logger.log(`[PUT /:id] PENDING_UPDATE → diff vuoto, ripristino APPROVED`);
+          logger.info(`[PUT /:id] PENDING_UPDATE → diff vuoto, ripristino APPROVED`);
           await ExerciseChange.deleteOne({ exerciseId: id }, { session });
           await Exercise.findByIdAndUpdate(
             id,
@@ -424,7 +424,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
             { session }
           );
         } else {
-          logger.log(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
+          logger.info(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
           await ExerciseChange.findOneAndUpdate(
             { exerciseId: id },
             { $set: { fields: diff, userUpdate: req.user?.username ?? req.user?.email } },
@@ -439,7 +439,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
       }
 
       await session.commitTransaction();
-      logger.log(`[PUT /:id] transazione completata con successo`);
+      logger.info(`[PUT /:id] transazione completata con successo`);
       res.json(exercise);
     } catch (txErr) {
       logger.error(`[PUT /:id] errore nella transazione:`, txErr);

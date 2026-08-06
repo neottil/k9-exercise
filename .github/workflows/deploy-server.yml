@@ -40,10 +40,13 @@ jobs:
           SMTP_PORT: ${{ vars.SMTP_PORT }}
           SMTP_USER: ${{ vars.SMTP_USER }}
           NOTIFY_RECIPIENTS: ${{ vars.NOTIFY_RECIPIENTS }}
+          # Default "info" se la Variable non è impostata sull'environment
+          # (produzione non la imposta mai; staging/locale la settano a "debug").
+          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'info' }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq gettext-base
           mkdir -p k8s-rendered
-          envsubst '${SERVER_IMAGE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${DOMAIN}' \
+          envsubst '${SERVER_IMAGE} ${LOGIN_SITE_URL} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USER} ${NOTIFY_RECIPIENTS} ${DOMAIN} ${LOG_LEVEL}' \
             < server/k8s/deployment.yaml > k8s-rendered/server-deployment.yaml
           cp server/k8s/service.yaml k8s-rendered/server-service.yaml
           envsubst '${DOMAIN}' < server/k8s/hso.yaml     > k8s-rendered/server-hso.yaml

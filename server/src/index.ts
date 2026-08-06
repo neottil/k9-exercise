@@ -35,7 +35,7 @@ mongoose.connection.on("disconnected", () => {
 });
 
 mongoose.connection.on("reconnected", () => {
-  logger.log(`[DB] Connessione ripristinata | host: ${mongoose.connection.host ?? "n/a"}`);
+  logger.info(`[DB] Connessione ripristinata | host: ${mongoose.connection.host ?? "n/a"}`);
 });
 
 mongoose.connection.on("error", (err) => {
@@ -55,7 +55,7 @@ const connectWithRetry = async (): Promise<void> => {
     attempt++;
     try {
       await mongoose.connect(MONGODB_URI);
-      logger.log(`[DB] Connesso a MongoDB (tentativo ${attempt})`);
+      logger.info(`[DB] Connesso a MongoDB (tentativo ${attempt})`);
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -75,7 +75,7 @@ const connectWithRetry = async (): Promise<void> => {
 // grazie al middleware requireDbReady.
 
 app.listen(PORT, () => {
-  logger.log(`[SERVER] Avviato sulla porta ${PORT}`);
+  logger.info(`[SERVER] Avviato sulla porta ${PORT}`);
   connectWithRetry();
   // Crea il bucket immagini se non esiste. Non blocca l'avvio: in caso di
   // errore (minIO non ancora pronto) logga e i singoli upload falliranno
