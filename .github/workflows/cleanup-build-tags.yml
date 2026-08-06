@@ -52,7 +52,10 @@ on:
           il tag più recente (Git e immagine Docker), elimina solo quelli più
           vecchi. Necessario per ripulire un branch ANCORA ATTIVO (es. main)
           senza rompere il prossimo diff di Build & Deploy. Metti a false solo
-          quando il branch è concluso/mergiato.
+          quando il branch è concluso/mergiato. IGNORATO per il branch "main":
+          il suo tag più recente per scope viene sempre mantenuto, a
+          prescindere da questo input — main è sempre attivo, eliminarlo
+          romperebbe il prossimo diff di Build & Deploy.
         type: boolean
         default: true
       dry_run:
@@ -91,9 +94,9 @@ jobs:
       # il branch richiesto (o tutti, se vuoto), li raggruppa per branch —
       # estraendo lo slug dal nome: tutto tra "<scope>-" e la data finale nel
       # formato fisso "-YYYYMMDD_HHMM" — e per ciascun gruppo, se
-      # preserve_latest=true, tiene da parte il più recente. Scrive su file gli
-      # elenchi "tag Git da eliminare" e "date_tag Docker da mantenere", riusati
-      # dagli step successivi.
+      # preserve_latest=true (oppure se il branch è "main", sempre — vedi sotto),
+      # tiene da parte il più recente. Scrive su file gli elenchi "tag Git da
+      # eliminare" e "date_tag Docker da mantenere", riusati dagli step successivi.
       - name: Calcola cosa mantenere e cosa eliminare
         run: |
           mkdir -p /tmp/cleanup
@@ -127,7 +130,9 @@ jobs:
                 continue
               fi
 
-              if [ "${{ inputs.preserve_latest }}" = "true" ] && [ -z "${SEEN_BRANCH[$BR]:-}" ]; then
+              # main è sempre attivo: il suo tag più recente per scope resta
+              # protetto anche con preserve_latest=false (vedi input sopra).
+              if { [ "${{ inputs.preserve_latest }}" = "true" ] || [ "$BR" = "main" ]; } && [ -z "${SEEN_BRANCH[$BR]:-}" ]; then
                 SEEN_BRANCH[$BR]=1
                 echo "[$SCOPE/$BR] mantengo $tag"
                 echo "$DATE_TAG" >> "/tmp/cleanup/${SCOPE}_keep_datetags.txt"
@@ -185,6 +190,8 @@ jobs:
           for SCOPE in ${{ steps.scopes.outputs.list }}; do
             IMG="${IMAGE[$SCOPE]}"
             KEEP_FILE="/tmp/cleanup/${SCOPE}_keep_datetags.txt"
+            DELETE_DOCKER_FILE="/tmp/cleanup/${SCOPE}_delete_docker.txt"
+            : > "$DELETE_DOCKER_FILE"
 
             echo "=== $IMG ==="
             VERSIONS=$(gh api "/users/$OWNER/packages/container/$IMG/versions?per_page=100" --paginate 2>/dev/null || echo '[]')
@@ -206,6 +213,7 @@ jobs:
               $SKIP && continue
 
               TAGS_INLINE=$(echo "$TAGS" | tr '\n' ' ')
+              echo "$IMG:$TAGS_INLINE" >> "$DELETE_DOCKER_FILE"
               if [ "$DRY_RUN" = "true" ]; then
                 echo "  [dry-run] Eliminerei versione $ID (tag: $TAGS_INLINE)"
               else
@@ -214,3 +222,59 @@ jobs:
               fi
             done
           done
+
+      # Riepilogo leggibile nel summary del workflow: senza questo, l'unico modo
+      # per sapere cosa è stato (o sarebbe stato, in dry-run) eliminato è aprire
+      # i log dello step precedente riga per riga.
+      - name: Riepilogo
+        if: always()
+        run: |
+          {
+            echo "## Cleanup build tags"
+            echo ""
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "> 🔍 **Dry-run**: nessun tag/immagine è stato eliminato davvero, questo è solo un'anteprima."
+            else
+              echo "> 🗑️ Eliminazione **eseguita**."
+            fi
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Scope** | \`${{ inputs.scope || 'client + server' }}\` |"
+            echo "| **Branch** | \`${{ inputs.branch || 'tutti' }}\` |"
+            echo "| **preserve_latest** | \`${{ inputs.preserve_latest }}\` (ignorato per \`main\`, sempre preservato) |"
+            echo ""
+
+            for SCOPE in ${{ steps.scopes.outputs.list }}; do
+              DELETE_GIT="/tmp/cleanup/${SCOPE}_delete_git.txt"
+              DELETE_DOCKER="/tmp/cleanup/${SCOPE}_delete_docker.txt"
+              KEEP="/tmp/cleanup/${SCOPE}_keep_datetags.txt"
+
+              GIT_COUNT=$([ -s "$DELETE_GIT" ] && wc -l < "$DELETE_GIT" || echo 0)
+              DOCKER_COUNT=$([ -s "$DELETE_DOCKER" ] && wc -l < "$DELETE_DOCKER" || echo 0)
+
+              echo "### $SCOPE"
+              echo ""
+              echo "**Tag Git $([ "${{ inputs.dry_run }}" = "true" ] && echo "da eliminare" || echo "eliminati")** ($GIT_COUNT):"
+              if [ -s "$DELETE_GIT" ]; then
+                sed 's/^/- `/; s/$/`/' "$DELETE_GIT"
+              else
+                echo "- _nessuno_"
+              fi
+              echo ""
+              echo "**Immagini Docker $([ "${{ inputs.dry_run }}" = "true" ] && echo "da eliminare" || echo "eliminate")** ($DOCKER_COUNT):"
+              if [ -s "$DELETE_DOCKER" ]; then
+                sed 's/^/- `/; s/$/`/' "$DELETE_DOCKER"
+              else
+                echo "- _nessuna_"
+              fi
+              echo ""
+              echo "**Tag più recenti mantenuti** (baseline per il prossimo diff):"
+              if [ -s "$KEEP" ]; then
+                sed 's/^/- `/; s/$/`/' "$KEEP"
+              else
+                echo "- _nessuno trovato_"
+              fi
+              echo ""
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
