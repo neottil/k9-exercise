@@ -9,13 +9,30 @@ const ExerciseChangeSchema = new Schema(
     fields: { type: Schema.Types.Mixed, required: true },
     user: { type: String },
     userUpdate: { type: String },
-    // PENDING: modifica in attesa di revisione admin (al più una per esercizio,
-    // vedi indice sotto). APPROVED/REJECTED: risolta, mantenuta come storico
-    // invece di essere cancellata — vedi analisi/storico_modifiche_esercizi.md.
-    // Il caso "l'utente annulla la propria modifica tornando ai valori
-    // originali" resta invece un deleteOne vero e proprio (PUT /:id in
-    // exercises.ts): non è mai stata una proposta arrivata a un admin.
-    state: { type: String, enum: ["PENDING", "APPROVED", "REJECTED"], default: "PENDING" },
+    // PENDING    → in attesa di revisione admin (al più una per esercizio, vedi indice sotto)
+    // SUPERSEDED → un ALTRO utente ha proposto una modifica successiva sullo
+    //              stesso esercizio: questa resta come contributo tracciato, ma
+    //              non è più quella attiva
+    // APPROVED / REJECTED → risolta dall'admin, conservata come storico invece
+    //              di essere cancellata
+    //
+    // La catena aperta di un esercizio = la sua PENDING + tutte le sue
+    // SUPERSEDED. Alla risoluzione l'intera catena riceve lo stato finale, così
+    // ogni utente che vi ha contribuito viene conteggiato (o scartato, se
+    // REJECTED) in modo coerente.
+    //
+    // Se qualcuno riporta l'esercizio ai valori originali, l'intera catena
+    // aperta viene invece CANCELLATA (vedi PUT /:id in exercises.ts): la
+    // proposta è stata ritenuta sbagliata e non deve entrare nei conteggi.
+    state: {
+      type: String,
+      enum: ["PENDING", "SUPERSEDED", "APPROVED", "REJECTED"],
+      default: "PENDING",
+    },
+    // Traccia di audit: la change che ha scavalcato questa. La logica di
+    // propagazione non ne dipende (usa exerciseId + state), serve solo a
+    // ricostruire l'ordine della catena a posteriori.
+    supersededBy: { type: Schema.Types.ObjectId },
   },
   {
     timestamps: true,

@@ -20,6 +20,12 @@ export interface PendingItem {
     updatedAt?: string;
   };
   change: ExerciseChangeDoc | null;
+  /**
+   * Tutti gli utenti che hanno contribuito alla proposta in attesa, in ordine
+   * cronologico. Più di uno quando qualcuno ha modificato la proposta di un
+   * altro: `change.user` sarebbe solo l'ultimo.
+   */
+  contributors?: string[];
 }
 
 export type NewExercise = Exercise & {

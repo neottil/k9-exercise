@@ -67,6 +67,18 @@ describe("GET /api/admin/audit/created-by-user", () => {
     expect(res.body).toHaveLength(5);
   });
 
+  it("conta solo gli esercizi approvati", async () => {
+    await createExercise({ user: "alice", type: "A", state: "APPROVED" });
+    // Approvato, ma con una modifica in attesa: resta un esercizio approvato.
+    await createExercise({ user: "alice", type: "B", state: "PENDING_UPDATE" });
+    await createExercise({ user: "alice", type: "C", state: "REJECTED" });
+    await createExercise({ user: "alice", type: "D", state: "TO_APPROVE" });
+
+    const res = await adminAgent.get(`/api/admin/audit/created-by-user${WIDE_RANGE}`);
+
+    expect(res.body).toEqual([{ user: "alice", exercisesCreated: 2 }]);
+  });
+
   it("esclude gli esercizi creati fuori dall'intervallo richiesto", async () => {
     await createExercise({ user: "alice" });
 
@@ -110,7 +122,7 @@ describe("GET /api/admin/audit/changes-by-user", () => {
     expect(res.status).toBe(400);
   });
 
-  it("conta le modifiche proposte attribuendole all'utente proponente", async () => {
+  it("conta le modifiche approvate attribuendole all'utente proponente", async () => {
     const { agent: alice } = await loginAs(app, { username: "alice" });
     const { agent: bob } = await loginAs(app, { username: "bob" });
 
@@ -122,6 +134,12 @@ describe("GET /api/admin/audit/changes-by-user", () => {
     await alice.put(`/api/exercises/${second._id}`).send(putPayloadFrom(second, { description: "da alice" }));
     await bob.put(`/api/exercises/${third._id}`).send(putPayloadFrom(third, { description: "da bob" }));
 
+    for (const ex of [first, second, third]) {
+      await adminAgent
+        .post(`/api/exercises/${ex._id}/approve-change`)
+        .send({ fieldsToApply: { description: "approvata" } });
+    }
+
     const res = await adminAgent.get(`/api/admin/audit/changes-by-user${WIDE_RANGE}`);
 
     expect(res.status).toBe(200);
@@ -131,7 +149,18 @@ describe("GET /api/admin/audit/changes-by-user", () => {
     ]);
   });
 
-  it("continua a contare le modifiche già risolte dall'admin", async () => {
+  it("non conta le modifiche ancora in attesa di revisione", async () => {
+    const { agent: alice } = await loginAs(app, { username: "alice" });
+    const exercise = await createExercise({ state: "APPROVED", description: "originale" });
+
+    await alice.put(`/api/exercises/${exercise._id}`).send(putPayloadFrom(exercise, { description: "modificata" }));
+
+    const res = await adminAgent.get(`/api/admin/audit/changes-by-user${WIDE_RANGE}`);
+
+    expect(res.body).toEqual([]);
+  });
+
+  it("continua a contare le modifiche approvate, non quelle rifiutate", async () => {
     const { agent: alice } = await loginAs(app, { username: "alice" });
 
     const approved = await createExercise({ state: "APPROVED", type: "A", description: "originale" });
@@ -146,10 +175,56 @@ describe("GET /api/admin/audit/changes-by-user", () => {
     await adminAgent.post(`/api/exercises/${rejected._id}/reject-change`).send({});
 
     // È il punto dell'intero lavoro sullo storico: prima le risoluzioni
-    // cancellavano il change doc e queste due proposte sparivano dal conteggio.
+    // cancellavano il change doc e la proposta approvata spariva dal conteggio.
     const res = await adminAgent.get(`/api/admin/audit/changes-by-user${WIDE_RANGE}`);
 
-    expect(res.body).toEqual([{ user: "alice", changesProposed: 2 }]);
+    expect(res.body).toEqual([{ user: "alice", changesProposed: 1 }]);
+  });
+
+  it("conta entrambi gli utenti quando una proposta a due mani viene approvata", async () => {
+    const { agent: alice } = await loginAs(app, { username: "alice" });
+    const { agent: bob } = await loginAs(app, { username: "bob" });
+    const exercise = await createExercise({ state: "APPROVED", description: "originale", setup: "setup originale" });
+
+    await alice.put(`/api/exercises/${exercise._id}`).send(putPayloadFrom(exercise, { description: "da alice" }));
+    // Bob riparte da ciò che vede (la proposta di alice) e aggiunge la sua.
+    await bob
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "da alice", setup: "setup da bob" }));
+
+    await adminAgent
+      .post(`/api/exercises/${exercise._id}/approve-change`)
+      .send({ fieldsToApply: { description: "da alice", setup: "setup da bob" } });
+
+    // La SUPERSEDED di alice è diventata APPROVED con la propagazione: anche
+    // chi non ha messo mano per ultimo viene conteggiato.
+    const res = await adminAgent.get(`/api/admin/audit/changes-by-user${WIDE_RANGE}`);
+
+    expect(res.body).toEqual(
+      expect.arrayContaining([
+        { user: "alice", changesProposed: 1 },
+        { user: "bob", changesProposed: 1 },
+      ])
+    );
+    expect(res.body).toHaveLength(2);
+  });
+
+  it("scarta l'intera catena quando la proposta finale viene rifiutata", async () => {
+    const { agent: alice } = await loginAs(app, { username: "alice" });
+    const { agent: bob } = await loginAs(app, { username: "bob" });
+    const exercise = await createExercise({ state: "APPROVED", description: "originale", setup: "setup originale" });
+
+    await alice.put(`/api/exercises/${exercise._id}`).send(putPayloadFrom(exercise, { description: "da alice" }));
+    await bob
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "da alice", setup: "setup da bob" }));
+
+    await adminAgent.post(`/api/exercises/${exercise._id}/reject-change`).send({});
+
+    // Anche il contributo di alice, su cui bob aveva costruito, esce dai conteggi.
+    const res = await adminAgent.get(`/api/admin/audit/changes-by-user${WIDE_RANGE}`);
+
+    expect(res.body).toEqual([]);
   });
 
   it("non conta le modifiche ritirate dall'utente prima della revisione", async () => {
@@ -164,14 +239,42 @@ describe("GET /api/admin/audit/changes-by-user", () => {
     expect(res.body).toEqual([]);
   });
 
+  it("non conta nessuno della catena se un terzo utente annulla tutto", async () => {
+    const { agent: alice } = await loginAs(app, { username: "alice" });
+    const { agent: bob } = await loginAs(app, { username: "bob" });
+    const { agent: carol } = await loginAs(app, { username: "carol" });
+    const exercise = await createExercise({ state: "APPROVED", description: "originale", setup: "setup originale" });
+
+    await alice.put(`/api/exercises/${exercise._id}`).send(putPayloadFrom(exercise, { description: "da alice" }));
+    await bob
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "da alice", setup: "setup da bob" }));
+    // Carol ritiene la proposta sbagliata e ripristina i valori originali.
+    await carol
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "originale", setup: "setup originale" }));
+
+    const res = await adminAgent.get(`/api/admin/audit/changes-by-user${WIDE_RANGE}`);
+
+    expect(res.body).toEqual([]);
+  });
+
   it("esclude le modifiche proposte fuori dall'intervallo richiesto", async () => {
     const { agent: alice } = await loginAs(app, { username: "alice" });
     const exercise = await createExercise({ state: "APPROVED", description: "originale" });
 
     await alice.put(`/api/exercises/${exercise._id}`).send(putPayloadFrom(exercise, { description: "modificata" }));
+    // Approvata, così a escluderla è davvero il filtro sulle date e non lo stato.
+    await adminAgent
+      .post(`/api/exercises/${exercise._id}/approve-change`)
+      .send({ fieldsToApply: { description: "modificata" } });
 
     const res = await adminAgent.get("/api/admin/audit/changes-by-user?from=2020-01-01&to=2020-12-31");
 
     expect(res.body).toEqual([]);
+
+    // Controprova: nell'intervallo giusto c'è.
+    const inRange = await adminAgent.get(`/api/admin/audit/changes-by-user${WIDE_RANGE}`);
+    expect(inRange.body).toEqual([{ user: "alice", changesProposed: 1 }]);
   });
 });

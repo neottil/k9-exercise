@@ -764,6 +764,22 @@ Entrambi: solo admin, `from` obbligatorio, `to` opzionale e **inclusivo
 dell'intera giornata**, raggruppamento su `createdAt` (data della proposta,
 non della risoluzione), limite alle prime 5 posizioni.
 
+**Contano solo i contributi approvati**: le classifiche misurano ciò che un
+admin ha validato, non ciò che è stato proposto. Restano quindi fuori sia i
+rifiutati sia quelli ancora in attesa di revisione.
+
+> Per gli esercizi "approvato" significa `state ∈ {APPROVED, PENDING_UPDATE}`,
+> non il solo `APPROVED`: `PENDING_UPDATE` è comunque un esercizio approvato,
+> segnala solo che c'è una modifica in attesa (è la stessa coppia di stati che
+> `GET /api/exercises` considera "vivi"). Filtrando il solo `APPROVED`, un
+> esercizio uscirebbe dalla classifica appena qualcuno propone una modifica,
+> per rientrarci alla risoluzione.
+
+> Le change `SUPERSEDED` non hanno bisogno di un filtro dedicato: alla
+> risoluzione ricevono lo stato finale dell'intera catena, quindi quelle di una
+> proposta approvata sono già `APPROVED` e vengono conteggiate — chi ha
+> contribuito viene contato anche se non è stato l'ultimo a metterci mano.
+
 Sia `Exercise.user` sia `ExerciseChange.user` sono scritti **una sola volta**,
 alla creazione, e mai sovrascritti: restano il proponente originale anche se
 un admin modifica i campi in fase di approvazione (quel percorso tocca solo
@@ -779,14 +795,63 @@ Oggi il documento resta e cambia `state`:
 
 | `state` | Quando | Conta nell'audit |
 |---|---|---|
-| `PENDING` | Modifica in attesa di revisione admin | Sì |
+| `PENDING` | Modifica in attesa di revisione admin | No |
+| `SUPERSEDED` | Un **altro** utente ha proposto una modifica successiva sullo stesso esercizio | Solo dopo che la catena è stata approvata (diventa `APPROVED`) |
 | `APPROVED` | `POST /:id/approve-change` | Sì |
-| `REJECTED` | `POST /:id/reject-change` | Sì |
-| *(documento cancellato)* | L'utente riporta i valori a quelli originali prima della revisione (`PUT /:id` con diff vuoto) | No |
+| `REJECTED` | `POST /:id/reject-change` | No |
+| *(documento cancellato)* | Qualcuno riporta i valori a quelli originali prima della revisione (`PUT /:id` con diff vuoto) | No |
 
-L'ultimo caso resta un `deleteOne` vero e proprio: non è né un'approvazione né
-un rifiuto, semplicemente non è mai stata una proposta arrivata a un admin —
-conservarla gonfierebbe le statistiche.
+L'ultimo caso resta una cancellazione vera e propria: non è né un'approvazione
+né un rifiuto, semplicemente nessuna proposta è arrivata a un admin —
+conservarla gonfierebbe le statistiche. La cancellazione riguarda **l'intera
+catena aperta** (vedi sotto), non solo l'ultima proposta.
+
+### Proposte concorrenti: la catena
+
+Il form di modifica carica la vista mergiata (`GET /:id/changes` = esercizio
+approvato + campi della proposta in attesa). Quindi se A propone una modifica,
+B che apre lo stesso esercizio **vede già i valori proposti da A** e, salvando,
+li rinvia insieme ai propri.
+
+Sovrascrivere il documento di A a nome di B falserebbe l'attribuzione. Invece:
+
+```
+A propone         → change#1 { user: A, state: PENDING }
+B modifica        → change#1 { user: A, state: SUPERSEDED, supersededBy: #2 }
+                    change#2 { user: B, state: PENDING }      ← unica proposta attiva
+admin approva     → change#1 e #2 entrambe APPROVED           ← contano entrambi
+admin rifiuta     → change#1 e #2 entrambe REJECTED           ← non conta nessuno
+(finché è aperta) → nessuno conta: l'audit considera solo le APPROVED
+qualcuno annulla  → change#1 e #2 cancellate
+```
+
+Dettagli che rendono il meccanismo corretto:
+
+- **Il diff è sempre calcolato sull'esercizio approvato**, mai sulla vista
+  mergiata (`computeDiff(exerciseData, …)` in `exercises.ts`): la proposta di B
+  contiene quindi automaticamente anche le modifiche di A. Resta una sola
+  proposta attiva, completa.
+- **Si crea una nuova change solo se l'utente è diverso** dal proponente della
+  PENDING. Lo stesso utente che raffina la propria proposta aggiorna il
+  documento esistente, altrimenti verrebbe conteggiato più volte per un unico
+  contributo.
+- **La catena aperta si identifica come `{ exerciseId, state ∈ {PENDING, SUPERSEDED} }`** —
+  non serve navigare `supersededBy`. L'invariante regge perché alla risoluzione
+  l'intera catena riceve lo stato finale: le `SUPERSEDED` di un esercizio
+  appartengono sempre e solo alla catena ancora aperta. `supersededBy` resta
+  solo come traccia per ricostruire l'ordine.
+- **L'ordine delle scritture è vincolato dall'indice**: la vecchia change va
+  marcata `SUPERSEDED` *prima* di creare la nuova, altrimenti esisterebbero due
+  `PENDING` sullo stesso esercizio e l'unique parziale fallirebbe con `E11000`.
+  Per questo l'`_id` della nuova change è generato in anticipo (serve a
+  valorizzare `supersededBy` prima che il documento esista). Tutto in una
+  transazione.
+
+> **Limite noto — approvazione parziale.** L'admin può applicare solo alcuni
+> campi della proposta. La propagazione marca `APPROVED` l'intera catena anche
+> se il campo specifico di un utente è stato scartato: il conteggio è alla
+> granularità della *proposta*, non del singolo campo. È lo stesso livello di
+> approssimazione già presente per le proposte a un solo autore.
 
 > **Indice parziale, non globale.** L'unique su `exerciseId` è scoped a
 > `state: "PENDING"` (vedi [Indici del database](#indici-del-database)): più
@@ -799,6 +864,12 @@ conservarla gonfierebbe le statistiche.
 > `/:id/changes`, stream immagini, `approve-change`): tutti passano
 > `state: "PENDING"`, altrimenti pescherebbero un documento storico al posto
 > di quello attivo.
+
+> **Attenzione alle scritture di massa su `exerciseId`.** Cancellazioni e
+> aggiornamenti che riguardano la catena vanno sempre scoped agli stati aperti
+> (`{ state: { $in: ["PENDING", "SUPERSEDED"] } }`): un `deleteMany({ exerciseId })`
+> nudo distruggerebbe anche lo storico delle catene già risolte sullo stesso
+> esercizio.
 
 ---
 

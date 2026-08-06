@@ -34,9 +34,10 @@ interface RankingCardProps {
   rows: RankingRow[] | null;
 }
 
-// Le classifiche sono limitate alle prime 5 posizioni lato server: va detto
-// esplicitamente, altrimenti 5 righe si leggono come "questi sono tutti gli
-// utenti che hanno contribuito".
+// Due precisazioni necessarie, entrambe invisibili guardando solo la tabella:
+// il server tronca alle prime 5 posizioni (5 righe si leggerebbero come "questi
+// sono tutti gli utenti che hanno contribuito"), e il conteggio considera solo
+// ciò che è stato approvato — proposte in attesa e rifiutate non compaiono.
 const RankingCard = ({ title, countLabel, emptyMessage, rows }: RankingCardProps) => (
   <Card variant="outlined">
     <CardContent>
@@ -44,7 +45,7 @@ const RankingCard = ({ title, countLabel, emptyMessage, rows }: RankingCardProps
         {title}
       </Typography>
       <Typography variant="caption" color="text.secondary">
-        Prime 5 posizioni
+        Prime 5 posizioni · solo contributi approvati
       </Typography>
 
       {rows === null ? (
@@ -135,14 +136,14 @@ const AuditTab = () => {
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, maxWidth: 900 }}>
         <RankingCard
           title="Esercizi creati per utente"
-          countLabel="Esercizi creati"
-          emptyMessage="Nessun esercizio creato nel periodo selezionato."
+          countLabel="Esercizi approvati"
+          emptyMessage="Nessun esercizio approvato nel periodo selezionato."
           rows={created}
         />
         <RankingCard
           title="Modifiche proposte per utente"
-          countLabel="Modifiche proposte"
-          emptyMessage="Nessuna modifica proposta nel periodo selezionato."
+          countLabel="Modifiche approvate"
+          emptyMessage="Nessuna modifica approvata nel periodo selezionato."
           rows={changes}
         />
       </Box>
