@@ -15,9 +15,10 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 6. [CI/CD pipeline](#cicd-pipeline)
 7. [Infrastruttura in produzione](#infrastruttura-in-produzione)
 8. [Sistema di notifiche](#sistema-di-notifiche)
-9. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
-10. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
-11. [Integrazione con WordPress](#integrazione-con-wordpress)
+9. [Storico modifiche e audit](#storico-modifiche-e-audit)
+10. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
+11. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
+12. [Integrazione con WordPress](#integrazione-con-wordpress)
 
 ---
 
@@ -141,7 +142,7 @@ Gli indici **non** si creano con uno script manuale: sono dichiarati negli schem
 |---|---|---|---|---|
 | `exercises` | `{ state: 1, lastNotifiedAt: 1 }` | composto | [Exercise.ts](server/src/models/Exercise.ts) | Query admin `GET /pending` e `GET /to-approve` (prefisso `state`) e le `updateMany` del job notify (`state` + range su `lastNotifiedAt`) |
 | `exercises` | `{ type: 1, variant: 1 }` | `unique` parziale | [Exercise.ts](server/src/models/Exercise.ts) | Impedisce due esercizi con stessa tipologia + variante. `partialFilterExpression` su `state ∈ {TO_APPROVE, APPROVED, PENDING_UPDATE}`: i `REJECTED` sono esclusi e non bloccano la ri-creazione dello stesso combo |
-| `exercisechanges` | `{ exerciseId: 1 }` | `unique` | [ExerciseChange.ts](server/src/models/ExerciseChange.ts) | Tutte le lookup sul change doc (`findOne`/`findOneAndUpdate`/`deleteOne` per `exerciseId`) + garanzia 1:1 esercizio↔change |
+| `exercisechanges` | `{ exerciseId: 1 }` | `unique` parziale | [ExerciseChange.ts](server/src/models/ExerciseChange.ts) | Tutte le lookup sul change doc (`findOne`/`findOneAndUpdate` per `exerciseId`). `partialFilterExpression` su `state: "PENDING"`: garantisce **una sola modifica in attesa** per esercizio, senza impedire che restino i documenti già risolti (storico, vedi sotto) |
 | `k9_users` | `{ email: 1 }` | `unique` | [User.ts](server/src/models/User.ts) | Login per email (creato implicitamente da `unique: true`) |
 | tutte | `{ _id: 1 }` | default | — | Creato automaticamente da MongoDB |
 
@@ -204,7 +205,7 @@ server/test/
 │   ├── fixtures.ts        # createExercise()
 │   └── authClient.ts      # loginAs(app, overrides) — vero login via GET /api/auth/wp-callback (JWT firmato con K9_JWT_SECRET)
 ├── unit/                  # requireAuth, requireDbReady, buildMongoFilter, computeDiff
-└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, auth
+└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, storico modifiche, audit, auth
 ```
 
 Un solo container Mongo per l'intera suite (avviato una volta in
@@ -744,6 +745,60 @@ La collection Bruno in `bruno/` permette di chiamare l'endpoint manualmente:
 2. Seleziona l'ambiente (`development` o `production`)
 3. Inserisci il valore di `notifyApiKey` nella colonna **Secret** dell'ambiente (non viene salvato su disco)
 4. Esegui la request **trigger notify** nel folder `notify/`
+
+---
+
+## Storico modifiche e audit
+
+Il tab **Audit** del pannello admin mostra, per un periodo scelto, i 5 utenti
+che hanno contribuito di più: esercizi creati e modifiche proposte.
+
+### Endpoint
+
+| Endpoint | Sorgente | Campo di attribuzione |
+|---|---|---|
+| `GET /api/admin/audit/created-by-user?from=&to=` | `exercises` | `Exercise.user` |
+| `GET /api/admin/audit/changes-by-user?from=&to=` | `exercisechanges` | `ExerciseChange.user` |
+
+Entrambi: solo admin, `from` obbligatorio, `to` opzionale e **inclusivo
+dell'intera giornata**, raggruppamento su `createdAt` (data della proposta,
+non della risoluzione), limite alle prime 5 posizioni.
+
+Sia `Exercise.user` sia `ExerciseChange.user` sono scritti **una sola volta**,
+alla creazione, e mai sovrascritti: restano il proponente originale anche se
+un admin modifica i campi in fase di approvazione (quel percorso tocca solo
+`userUpdate`). È ciò che rende affidabile l'attribuzione.
+
+### Perché `ExerciseChange` ha uno stato
+
+Per contare le modifiche proposte serve che i change doc **sopravvivano alla
+risoluzione**. Prima `approve-change`/`reject-change` facevano `deleteOne`: una
+volta gestita, la proposta spariva e non era più contabilizzabile.
+
+Oggi il documento resta e cambia `state`:
+
+| `state` | Quando | Conta nell'audit |
+|---|---|---|
+| `PENDING` | Modifica in attesa di revisione admin | Sì |
+| `APPROVED` | `POST /:id/approve-change` | Sì |
+| `REJECTED` | `POST /:id/reject-change` | Sì |
+| *(documento cancellato)* | L'utente riporta i valori a quelli originali prima della revisione (`PUT /:id` con diff vuoto) | No |
+
+L'ultimo caso resta un `deleteOne` vero e proprio: non è né un'approvazione né
+un rifiuto, semplicemente non è mai stata una proposta arrivata a un admin —
+conservarla gonfierebbe le statistiche.
+
+> **Indice parziale, non globale.** L'unique su `exerciseId` è scoped a
+> `state: "PENDING"` (vedi [Indici del database](#indici-del-database)): più
+> documenti storici possono condividere lo stesso `exerciseId`, ma al più uno
+> può essere in attesa. Con un unique globale, la seconda proposta di modifica
+> sullo stesso esercizio fallirebbe con `E11000`.
+
+> **Tutte le lookup filtrano per stato.** `ExerciseChange.findOne({ exerciseId })`
+> compare in 5 punti di `exercises.ts` (immagini pending, `/pending`,
+> `/:id/changes`, stream immagini, `approve-change`): tutti passano
+> `state: "PENDING"`, altrimenti pescherebbero un documento storico al posto
+> di quello attivo.
 
 ---
 

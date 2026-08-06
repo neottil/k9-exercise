@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import type { Express } from "express";
 import { createApp } from "../../src/app.js";
+import ExerciseChange from "../../src/models/ExerciseChange.js";
 import { connectTestDb, disconnectTestDb, clearCollections } from "../helpers/db.js";
 import { createExercise } from "../helpers/fixtures.js";
 import { loginAs } from "../helpers/authClient.js";
@@ -18,10 +19,9 @@ let app: Express;
 let agent: Awaited<ReturnType<typeof loginAs>>["agent"];
 let adminAgent: Awaited<ReturnType<typeof loginAs>>["agent"];
 
-// Login una sola volta per l'intero file (non per singolo test): /api/auth/login
-// è dietro un rate limiter (max 5 tentativi/15min per IP, vedi authClient.ts).
-// I documenti sessione sopravvivono a clearCollections (vedi test/helpers/db.ts),
-// quindi i due agent restano autenticati per tutta la durata del file.
+// Login una sola volta per l'intero file: i documenti sessione sopravvivono a
+// clearCollections (vedi test/helpers/db.ts), quindi i due agent restano
+// autenticati per tutta la durata del file.
 beforeAll(async () => {
   const uri = await connectTestDb();
   app = createApp({ mongoUri: uri });
@@ -89,5 +89,82 @@ describe("Flusso di modifica su esercizio approvato", () => {
     const check = await adminAgent.get(`/api/exercises/${exercise._id}`);
     expect(check.body.state).toBe("APPROVED");
     expect(check.body.description).toBe("originale");
+  });
+});
+
+// Le modifiche risolte non vengono più cancellate ma conservate come storico
+// (vedi ExerciseChange.state) — è ciò che rende possibile la classifica
+// "modifiche proposte per utente" in /api/admin/audit/changes-by-user.
+describe("Storico delle modifiche risolte", () => {
+  it("dopo approve-change il change doc resta come storico, in stato APPROVED", async () => {
+    const exercise = await createExercise({ state: "APPROVED", description: "originale" });
+
+    await agent
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "modificata" }));
+    await adminAgent
+      .post(`/api/exercises/${exercise._id}/approve-change`)
+      .send({ fieldsToApply: { description: "modificata" } });
+
+    const changes = await ExerciseChange.find({ exerciseId: exercise._id });
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.state).toBe("APPROVED");
+    // Il proponente originale resta tracciato: è il dato su cui si basa la
+    // classifica delle modifiche proposte.
+    expect(changes[0]?.user).toBeTruthy();
+  });
+
+  it("dopo reject-change il change doc resta come storico, in stato REJECTED", async () => {
+    const exercise = await createExercise({ state: "APPROVED", description: "originale" });
+
+    await agent
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "modificata" }));
+    await adminAgent.post(`/api/exercises/${exercise._id}/reject-change`).send({});
+
+    const changes = await ExerciseChange.find({ exerciseId: exercise._id });
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.state).toBe("REJECTED");
+  });
+
+  it("una modifica ritirata dall'utente viene cancellata, non conservata", async () => {
+    const exercise = await createExercise({ state: "APPROVED", description: "originale" });
+
+    await agent
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "modificata" }));
+    // L'utente ci ripensa e rimette il valore originale prima che un admin
+    // valuti: non è mai stata una proposta, non deve finire nello storico.
+    await agent
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "originale" }));
+
+    expect(await ExerciseChange.countDocuments({ exerciseId: exercise._id })).toBe(0);
+    const check = await adminAgent.get(`/api/exercises/${exercise._id}`);
+    expect(check.body.state).toBe("APPROVED");
+  });
+
+  it("una modifica risolta non blocca una nuova proposta sullo stesso esercizio", async () => {
+    const exercise = await createExercise({ state: "APPROVED", description: "originale" });
+
+    await agent
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "prima modifica" }));
+    await adminAgent.post(`/api/exercises/${exercise._id}/reject-change`).send({});
+
+    // L'indice unique su exerciseId è parziale (solo su state=PENDING): con un
+    // unique globale questa seconda proposta fallirebbe con E11000.
+    const res = await agent
+      .put(`/api/exercises/${exercise._id}`)
+      .send(putPayloadFrom(exercise, { description: "seconda modifica" }));
+    expect(res.status).toBe(200);
+
+    expect(await ExerciseChange.countDocuments({ exerciseId: exercise._id })).toBe(2);
+    expect(await ExerciseChange.countDocuments({ exerciseId: exercise._id, state: "PENDING" })).toBe(1);
+
+    // Il pannello admin continua a vedere una sola modifica in attesa.
+    const pending = await adminAgent.get("/api/exercises/pending");
+    expect(pending.body).toHaveLength(1);
+    expect(pending.body[0].change.fields.description).toBe("seconda modifica");
   });
 });

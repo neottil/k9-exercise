@@ -41,6 +41,12 @@ const APPROVED       = "APPROVED"       as const;
 const PENDING_UPDATE = "PENDING_UPDATE" as const;
 const REJECTED       = "REJECTED"       as const;
 
+// Stati di ExerciseChange (distinti da quelli di Exercise sopra, anche se
+// alcuni valori coincidono come stringa).
+const CHANGE_PENDING  = "PENDING"  as const;
+const CHANGE_APPROVED = "APPROVED" as const;
+const CHANGE_REJECTED = "REJECTED" as const;
+
 // Rileva l'errore di chiave duplicata MongoDB, sollevato dall'unique index
 // { type, variant } quando si tenta di salvare/applicare un combo già esistente.
 const isDuplicateKeyError = (err: unknown): boolean =>
@@ -101,7 +107,7 @@ const collectExistingImages = async (
 ): Promise<Map<string, ImageMeta>> => {
   const map = new Map<string, ImageMeta>();
   for (const img of (exerciseData.images as ImageMeta[] | undefined) ?? []) map.set(img.id, img);
-  const change = await ExerciseChange.findOne({ exerciseId: id });
+  const change = await ExerciseChange.findOne({ exerciseId: id, state: CHANGE_PENDING });
   const pending = (change?.fields as { images?: ImageMeta[] } | undefined)?.images;
   for (const img of pending ?? []) map.set(img.id, img);
   return map;
@@ -191,7 +197,7 @@ router.get("/pending", requireAdmin, async (_req: Request, res: Response) => {
     const exercises = await Exercise.find({ state: PENDING_UPDATE });
     const result = await Promise.all(
       exercises.map(async (ex) => {
-        const change = await ExerciseChange.findOne({ exerciseId: ex._id });
+        const change = await ExerciseChange.findOne({ exerciseId: ex._id, state: CHANGE_PENDING });
         return { exercise: ex.toJSON(), change: change ? change.toJSON() : null };
       })
     );
@@ -221,7 +227,7 @@ router.get("/:id/changes", async (req: Request, res: Response) => {
       res.status(404).json({ error: "Esercizio non trovato" });
       return;
     }
-    const change = await ExerciseChange.findOne({ exerciseId: req.params.id });
+    const change = await ExerciseChange.findOne({ exerciseId: req.params.id, state: CHANGE_PENDING });
     if (!change) {
       res.json(exercise);
       return;
@@ -262,7 +268,7 @@ router.get("/:id/images/:imageId", async (req: Request, res: Response) => {
     let image = ((exData.images as ImageMeta[] | undefined) ?? []).find((i) => i.id === imageId);
     // Fallback: immagine ancora solo nel change doc (modifica in attesa)
     if (!image) {
-      const change = await ExerciseChange.findOne({ exerciseId: id });
+      const change = await ExerciseChange.findOne({ exerciseId: id, state: CHANGE_PENDING });
       image = (change?.fields as { images?: ImageMeta[] } | undefined)?.images?.find(
         (i) => i.id === imageId
       );
@@ -405,7 +411,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
         }
         logger.info(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
         await ExerciseChange.create(
-          [{ exerciseId: id as string, fields: diff, user: req.user?.username ?? req.user?.email, userUpdate: req.user?.username ?? req.user?.email }],
+          [{ exerciseId: id as string, fields: diff, user: req.user?.username ?? req.user?.email, userUpdate: req.user?.username ?? req.user?.email, state: CHANGE_PENDING }],
           { session }
         );
         await Exercise.findByIdAndUpdate(
@@ -417,7 +423,9 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
         // PENDING_UPDATE
         if (Object.keys(diff).length === 0) {
           logger.info(`[PUT /:id] PENDING_UPDATE → diff vuoto, ripristino APPROVED`);
-          await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+          // Nessuno storico qui: l'utente annulla la propria proposta prima che
+          // un admin la veda, di fatto non è mai stata una modifica proposta.
+          await ExerciseChange.deleteOne({ exerciseId: id, state: CHANGE_PENDING }, { session });
           await Exercise.findByIdAndUpdate(
             id,
             { $set: { state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },
@@ -426,7 +434,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
         } else {
           logger.info(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
           await ExerciseChange.findOneAndUpdate(
-            { exerciseId: id },
+            { exerciseId: id, state: CHANGE_PENDING },
             { $set: { fields: diff, userUpdate: req.user?.username ?? req.user?.email } },
             { session, upsert: true, returnDocument: "after" }
           );
@@ -532,7 +540,7 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
   try {
     session.startTransaction();
 
-    const change = await ExerciseChange.findOne({ exerciseId: id }).session(session);
+    const change = await ExerciseChange.findOne({ exerciseId: id, state: CHANGE_PENDING }).session(session);
     if (!change) {
       await session.abortTransaction();
       res.status(404).json({ error: "Nessuna modifica in attesa per questo esercizio" });
@@ -559,7 +567,14 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
       { $set: { ...toApply, state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },
       { session }
     );
-    await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+    // Risolta: si tiene come storico invece di cancellarla (vedi
+    // analisi/storico_modifiche_esercizi.md) — resta l'unico match possibile
+    // perché al più un documento per esercizio può essere PENDING.
+    await ExerciseChange.updateOne(
+      { exerciseId: id, state: CHANGE_PENDING },
+      { $set: { state: CHANGE_APPROVED } },
+      { session }
+    );
 
     await session.commitTransaction();
     res.json({ success: true });
@@ -585,7 +600,11 @@ router.post("/:id/reject-change", requireAdmin, requireDbReady, async (req: Requ
   try {
     session.startTransaction();
 
-    await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+    await ExerciseChange.updateOne(
+      { exerciseId: id, state: CHANGE_PENDING },
+      { $set: { state: CHANGE_REJECTED } },
+      { session }
+    );
     await Exercise.findByIdAndUpdate(
       id,
       { $set: { state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },

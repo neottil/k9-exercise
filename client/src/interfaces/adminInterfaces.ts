@@ -31,3 +31,8 @@ export interface ExercisesCreatedByUser {
   user: string;
   exercisesCreated: number;
 }
+
+export interface ChangesProposedByUser {
+  user: string;
+  changesProposed: number;
+}
