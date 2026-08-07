@@ -221,9 +221,12 @@ describe("Proposte concorrenti sullo stesso esercizio", () => {
     // Traccia di audit: si può ricostruire chi ha scavalcato chi.
     expect(superseded?.supersededBy?.toString()).toBe(active?._id.toString());
 
-    // L'admin continua a vedere una sola modifica in attesa.
+    // L'admin continua a vedere una sola modifica in attesa, ma con entrambi i
+    // contributori: la catena aperta è il lavoro che sta valutando, non solo
+    // l'ultimo intervento.
     const pending = await adminAgent.get("/api/exercises/pending");
     expect(pending.body).toHaveLength(1);
+    expect(pending.body[0].contributors).toEqual(["tester", "altro-utente"]);
   });
 
   it("l'approvazione propaga lo stato finale a tutta la catena", async () => {

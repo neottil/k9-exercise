@@ -840,6 +840,15 @@ Dettagli che rendono il meccanismo corretto:
   l'intera catena riceve lo stato finale: le `SUPERSEDED` di un esercizio
   appartengono sempre e solo alla catena ancora aperta. `supersededBy` resta
   solo come traccia per ricostruire l'ordine.
+- **`GET /pending` restituisce l'intera catena aperta**, non la sola `PENDING`:
+  oltre a `change` (la proposta attiva) espone `contributors`, l'elenco
+  cronologico e deduplicato degli utenti che ci hanno messo mano. Il pannello
+  admin li mostra tutti — attribuire la modifica al solo ultimo intervenuto
+  nasconderebbe il lavoro di chi l'ha aperta.
+- **Un campo assente dal payload non è una modifica**: `computeDiff` lo salta.
+  Senza quel controllo i campi array (`tools`, `movementPlan`), che Mongoose
+  valorizza a `[]`, differirebbero sempre da `undefined` e produrrebbero un diff
+  non vuoto — impedendo di riconoscere il ritorno ai valori originali.
 - **L'ordine delle scritture è vincolato dall'indice**: la vecchia change va
   marcata `SUPERSEDED` *prima* di creare la nuova, altrimenti esisterebbero due
   `PENDING` sullo stesso esercizio e l'unique parziale fallirebbe con `E11000`.
@@ -860,10 +869,11 @@ Dettagli che rendono il meccanismo corretto:
 > sullo stesso esercizio fallirebbe con `E11000`.
 
 > **Tutte le lookup filtrano per stato.** `ExerciseChange.findOne({ exerciseId })`
-> compare in 5 punti di `exercises.ts` (immagini pending, `/pending`,
-> `/:id/changes`, stream immagini, `approve-change`): tutti passano
-> `state: "PENDING"`, altrimenti pescherebbero un documento storico al posto
-> di quello attivo.
+> compare in più punti di `exercises.ts` (immagini pending, `/:id/changes`,
+> stream immagini, `approve-change`): tutti passano `state: "PENDING"`,
+> altrimenti pescherebbero un documento storico al posto di quello attivo.
+> L'unica lookup che legge più di un documento è quella di `GET /pending`, che
+> filtra sugli stati aperti perché deve ricostruire l'elenco dei contributori.
 
 > **Attenzione alle scritture di massa su `exerciseId`.** Cancellazioni e
 > aggiornamenti che riguardano la catena vanno sempre scoped agli stati aperti

@@ -30,6 +30,14 @@ export const connectTestDb = async (): Promise<string> => {
   const dbName = `test_${randomUUID().replace(/-/g, "")}`;
   const uri = `${baseUri}/${dbName}?directConnection=true`;
   await mongoose.connect(uri);
+  // mongoose.connect() ritorna prima che la costruzione automatica degli indici
+  // sia finita; Model.init() attende quella. Serve perché il database è appena
+  // creato e vuoto: senza attesa, la creazione implicita di una collection da
+  // parte della PRIMA scrittura — che nelle route di modifica avviene dentro
+  // una transazione — corre con la createIndex avviata da Mongoose fuori
+  // transazione, e la transazione muore in WriteConflict (500 sporadico sul
+  // primo test che scrive in una collection).
+  await Promise.all(Object.values(mongoose.models).map((model) => model.init()));
   return uri;
 };
 

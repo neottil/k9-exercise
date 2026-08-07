@@ -153,6 +153,13 @@ export const buildMongoFilter = (query: Request["query"]): object => {
 /**
  * Calcola il diff tra i dati originali approvati e i dati inviati dal client.
  * Restituisce solo i campi di contenuto che sono effettivamente cambiati.
+ *
+ * Un campo assente dal payload non è una modifica: viene saltato. Senza questo
+ * controllo un client che ometta un campo produrrebbe `diff[field] = undefined`
+ * — un diff non vuoto che manda l'esercizio in PENDING_UPDATE senza che nulla
+ * sia cambiato, e che impedisce di riconoscere il ritorno ai valori originali
+ * (i campi array come `tools`/`movementPlan`, che Mongoose valorizza a `[]`,
+ * differirebbero sempre da `undefined`).
  */
 export const computeDiff = (
   original: Record<string, unknown>,
@@ -160,6 +167,7 @@ export const computeDiff = (
 ): Record<string, unknown> => {
   const diff: Record<string, unknown> = {};
   for (const field of CONTENT_FIELDS) {
+    if (!(field in submitted)) continue;
     if (JSON.stringify(original[field]) !== JSON.stringify(submitted[field])) {
       diff[field] = submitted[field];
     }
