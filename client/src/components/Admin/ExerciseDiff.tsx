@@ -18,7 +18,7 @@ interface ExerciseDiffProps {
 }
 
 const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps) => {
-  const { exercise, change } = item;
+  const { exercise, change, contributors } = item;
 
   const [fieldSelection,   setFieldSelection]   = useState<FieldSelection>({});
   const [editingFields,    setEditingFields]    = useState<Record<string, boolean>>({});
@@ -177,6 +177,17 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
     ? new Date(change.updatedAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })
     : "—";
 
+  // Una proposta può essere passata per le mani di più utenti (chi la modifica
+  // riparte da quella di un altro). L'admin sta valutando il lavoro di tutti:
+  // mostrare il solo `change.user` attribuirebbe tutto all'ultimo intervenuto.
+  const authors = contributors?.length
+    ? contributors
+    : [change.userUpdate || change.user].filter((u): u is string => Boolean(u));
+  const authorsLabel =
+    authors.length > 1
+      ? `${authors.slice(0, -1).join(", ")} e ${authors[authors.length - 1]}`
+      : authors[0] || "—";
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
 
@@ -191,9 +202,10 @@ const ExerciseDiff = ({ item, onApprove, onReject, loading }: ExerciseDiffProps)
             )}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Modifica proposta da{" "}
-            <strong>{change.userUpdate || change.user || "—"}</strong>
-            {" "}il {formattedDate}
+            Modifica proposta da <strong>{authorsLabel}</strong>
+            {authors.length > 1
+              ? ` — ultimo aggiornamento il ${formattedDate}`
+              : ` il ${formattedDate}`}
           </Typography>
         </Box>
 

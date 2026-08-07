@@ -41,6 +41,17 @@ const APPROVED       = "APPROVED"       as const;
 const PENDING_UPDATE = "PENDING_UPDATE" as const;
 const REJECTED       = "REJECTED"       as const;
 
+// Stati di ExerciseChange (distinti da quelli di Exercise sopra, anche se
+// alcuni valori coincidono come stringa).
+const CHANGE_PENDING    = "PENDING"    as const;
+const CHANGE_SUPERSEDED = "SUPERSEDED" as const;
+const CHANGE_APPROVED   = "APPROVED"   as const;
+const CHANGE_REJECTED   = "REJECTED"   as const;
+
+// La "catena aperta" di un esercizio: la proposta attiva più tutte quelle che
+// altri utenti hanno scavalcato. Si risolve o si cancella sempre per intero.
+const OPEN_CHAIN_STATES = [CHANGE_PENDING, CHANGE_SUPERSEDED];
+
 // Rileva l'errore di chiave duplicata MongoDB, sollevato dall'unique index
 // { type, variant } quando si tenta di salvare/applicare un combo già esistente.
 const isDuplicateKeyError = (err: unknown): boolean =>
@@ -101,7 +112,7 @@ const collectExistingImages = async (
 ): Promise<Map<string, ImageMeta>> => {
   const map = new Map<string, ImageMeta>();
   for (const img of (exerciseData.images as ImageMeta[] | undefined) ?? []) map.set(img.id, img);
-  const change = await ExerciseChange.findOne({ exerciseId: id });
+  const change = await ExerciseChange.findOne({ exerciseId: id, state: CHANGE_PENDING });
   const pending = (change?.fields as { images?: ImageMeta[] } | undefined)?.images;
   for (const img of pending ?? []) map.set(img.id, img);
   return map;
@@ -142,6 +153,13 @@ export const buildMongoFilter = (query: Request["query"]): object => {
 /**
  * Calcola il diff tra i dati originali approvati e i dati inviati dal client.
  * Restituisce solo i campi di contenuto che sono effettivamente cambiati.
+ *
+ * Un campo assente dal payload non è una modifica: viene saltato. Senza questo
+ * controllo un client che ometta un campo produrrebbe `diff[field] = undefined`
+ * — un diff non vuoto che manda l'esercizio in PENDING_UPDATE senza che nulla
+ * sia cambiato, e che impedisce di riconoscere il ritorno ai valori originali
+ * (i campi array come `tools`/`movementPlan`, che Mongoose valorizza a `[]`,
+ * differirebbero sempre da `undefined`).
  */
 export const computeDiff = (
   original: Record<string, unknown>,
@@ -149,6 +167,7 @@ export const computeDiff = (
 ): Record<string, unknown> => {
   const diff: Record<string, unknown> = {};
   for (const field of CONTENT_FIELDS) {
+    if (!(field in submitted)) continue;
     if (JSON.stringify(original[field]) !== JSON.stringify(submitted[field])) {
       diff[field] = submitted[field];
     }
@@ -191,8 +210,21 @@ router.get("/pending", requireAdmin, async (_req: Request, res: Response) => {
     const exercises = await Exercise.find({ state: PENDING_UPDATE });
     const result = await Promise.all(
       exercises.map(async (ex) => {
-        const change = await ExerciseChange.findOne({ exerciseId: ex._id });
-        return { exercise: ex.toJSON(), change: change ? change.toJSON() : null };
+        // Si legge l'intera catena aperta, non la sola PENDING: quando più
+        // utenti hanno contribuito alla stessa proposta, l'admin deve sapere
+        // di chi è il lavoro che sta valutando — non solo di chi ci ha messo
+        // mano per ultimo.
+        const chain = await ExerciseChange.find({
+          exerciseId: ex._id,
+          state: { $in: OPEN_CHAIN_STATES },
+        }).sort({ createdAt: 1 });
+
+        const change = chain.find((c) => c.state === CHANGE_PENDING) ?? null;
+        const contributors = [
+          ...new Set(chain.map((c) => c.user).filter((u): u is string => Boolean(u))),
+        ];
+
+        return { exercise: ex.toJSON(), change: change ? change.toJSON() : null, contributors };
       })
     );
     res.json(result);
@@ -221,7 +253,7 @@ router.get("/:id/changes", async (req: Request, res: Response) => {
       res.status(404).json({ error: "Esercizio non trovato" });
       return;
     }
-    const change = await ExerciseChange.findOne({ exerciseId: req.params.id });
+    const change = await ExerciseChange.findOne({ exerciseId: req.params.id, state: CHANGE_PENDING });
     if (!change) {
       res.json(exercise);
       return;
@@ -262,7 +294,7 @@ router.get("/:id/images/:imageId", async (req: Request, res: Response) => {
     let image = ((exData.images as ImageMeta[] | undefined) ?? []).find((i) => i.id === imageId);
     // Fallback: immagine ancora solo nel change doc (modifica in attesa)
     if (!image) {
-      const change = await ExerciseChange.findOne({ exerciseId: id });
+      const change = await ExerciseChange.findOne({ exerciseId: id, state: CHANGE_PENDING });
       image = (change?.fields as { images?: ImageMeta[] } | undefined)?.images?.find(
         (i) => i.id === imageId
       );
@@ -405,7 +437,7 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
         }
         logger.info(`[PUT /:id] APPROVED → creo change doc + PENDING_UPDATE`);
         await ExerciseChange.create(
-          [{ exerciseId: id as string, fields: diff, user: req.user?.username ?? req.user?.email, userUpdate: req.user?.username ?? req.user?.email }],
+          [{ exerciseId: id as string, fields: diff, user: req.user?.username ?? req.user?.email, userUpdate: req.user?.username ?? req.user?.email, state: CHANGE_PENDING }],
           { session }
         );
         await Exercise.findByIdAndUpdate(
@@ -415,24 +447,81 @@ router.put("/:id", requireDbReady, upload.array("images", MAX_IMAGES), async (re
         );
       } else {
         // PENDING_UPDATE
+        const currentUser = req.user?.username ?? req.user?.email;
+
         if (Object.keys(diff).length === 0) {
           logger.info(`[PUT /:id] PENDING_UPDATE → diff vuoto, ripristino APPROVED`);
-          await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+          // Qualcuno ha riportato l'esercizio ai valori originali: l'intera
+          // catena aperta viene cancellata, non conservata. Che sia lo stesso
+          // proponente a ripensarci o un altro utente a ritenere sbagliata la
+          // proposta, il risultato è che nessuna modifica va all'admin — non
+          // deve quindi entrare nei conteggi.
+          // Filtro sugli stati aperti (non solo exerciseId): le change già
+          // risolte in passato sullo stesso esercizio sono storico e non vanno
+          // toccate.
+          await ExerciseChange.deleteMany(
+            { exerciseId: id, state: { $in: OPEN_CHAIN_STATES } },
+            { session }
+          );
           await Exercise.findByIdAndUpdate(
             id,
-            { $set: { state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },
+            { $set: { state: APPROVED, userUpdate: currentUser }, $unset: { lastNotifiedAt: "" } },
             { session }
           );
         } else {
-          logger.info(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
-          await ExerciseChange.findOneAndUpdate(
-            { exerciseId: id },
-            { $set: { fields: diff, userUpdate: req.user?.username ?? req.user?.email } },
-            { session, upsert: true, returnDocument: "after" }
-          );
+          const pending = await ExerciseChange.findOne({ exerciseId: id, state: CHANGE_PENDING }).session(session);
+
+          if (pending && pending.user !== currentUser) {
+            // Un utente diverso dal proponente sta modificando la proposta
+            // altrui. Non si sovrascrive `user` sul documento esistente (il
+            // contributo di chi l'ha aperta resta suo): quella change diventa
+            // SUPERSEDED e ne nasce una nuova a nome di chi sta scrivendo ora.
+            // Il diff è comunque calcolato sull'esercizio APPROVATO, quindi la
+            // nuova change contiene già anche le modifiche del proponente
+            // precedente — resta una sola proposta attiva.
+            logger.info(`[PUT /:id] PENDING_UPDATE → change di ${pending.user} scavalcata da ${currentUser}`);
+
+            // _id generato in anticipo perché l'ordine è vincolato: l'indice
+            // unique parziale ammette una sola change PENDING per esercizio,
+            // quindi la vecchia va marcata SUPERSEDED PRIMA di creare la nuova
+            // — e per valorizzare supersededBy serve già conoscerne l'id.
+            const nextId = new mongoose.Types.ObjectId();
+            await ExerciseChange.updateOne(
+              { _id: pending._id },
+              { $set: { state: CHANGE_SUPERSEDED, supersededBy: nextId } },
+              { session }
+            );
+            await ExerciseChange.create(
+              [{
+                _id: nextId,
+                exerciseId: id as string,
+                fields: diff,
+                user: currentUser,
+                userUpdate: currentUser,
+                state: CHANGE_PENDING,
+              }],
+              { session }
+            );
+          } else {
+            // Stesso utente che raffina la propria proposta: un solo documento,
+            // conteggiato una volta sola.
+            logger.info(`[PUT /:id] PENDING_UPDATE → aggiorno change doc`);
+            await ExerciseChange.findOneAndUpdate(
+              { exerciseId: id, state: CHANGE_PENDING },
+              {
+                $set: { fields: diff, userUpdate: currentUser },
+                // Difensivo: se la change non esistesse (esercizio in
+                // PENDING_UPDATE senza proposta attiva), l'upsert la creerebbe
+                // senza `user` e il contributo risulterebbe non attribuito.
+                $setOnInsert: { user: currentUser },
+              },
+              { session, upsert: true, returnDocument: "after" }
+            );
+          }
+
           await Exercise.findByIdAndUpdate(
             id,
-            { $set: { userUpdate: req.user?.username ?? req.user?.email } },
+            { $set: { userUpdate: currentUser } },
             { session }
           );
         }
@@ -532,7 +621,7 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
   try {
     session.startTransaction();
 
-    const change = await ExerciseChange.findOne({ exerciseId: id }).session(session);
+    const change = await ExerciseChange.findOne({ exerciseId: id, state: CHANGE_PENDING }).session(session);
     if (!change) {
       await session.abortTransaction();
       res.status(404).json({ error: "Nessuna modifica in attesa per questo esercizio" });
@@ -559,7 +648,14 @@ router.post("/:id/approve-change", requireAdmin, requireDbReady, async (req: Req
       { $set: { ...toApply, state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },
       { session }
     );
-    await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+    // Risolta: si tiene come storico invece di cancellarla. Lo stato finale va
+    // sull'INTERA catena aperta (la PENDING più le SUPERSEDED), così ogni
+    // utente che ha contribuito alla proposta approvata viene conteggiato.
+    await ExerciseChange.updateMany(
+      { exerciseId: id, state: { $in: OPEN_CHAIN_STATES } },
+      { $set: { state: CHANGE_APPROVED } },
+      { session }
+    );
 
     await session.commitTransaction();
     res.json({ success: true });
@@ -585,7 +681,14 @@ router.post("/:id/reject-change", requireAdmin, requireDbReady, async (req: Requ
   try {
     session.startTransaction();
 
-    await ExerciseChange.deleteOne({ exerciseId: id }, { session });
+    // Rifiuto dell'intera catena aperta: se la proposta finale è respinta lo
+    // sono anche i contributi su cui era costruita, che quindi escono dai
+    // conteggi (l'audit ignora le change REJECTED).
+    await ExerciseChange.updateMany(
+      { exerciseId: id, state: { $in: OPEN_CHAIN_STATES } },
+      { $set: { state: CHANGE_REJECTED } },
+      { session }
+    );
     await Exercise.findByIdAndUpdate(
       id,
       { $set: { state: APPROVED, userUpdate: req.user?.username ?? req.user?.email }, $unset: { lastNotifiedAt: "" } },

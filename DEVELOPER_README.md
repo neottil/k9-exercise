@@ -15,9 +15,10 @@ Per la descrizione del progetto e il setup produzione completo vedere [README.md
 6. [CI/CD pipeline](#cicd-pipeline)
 7. [Infrastruttura in produzione](#infrastruttura-in-produzione)
 8. [Sistema di notifiche](#sistema-di-notifiche)
-9. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
-10. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
-11. [Integrazione con WordPress](#integrazione-con-wordpress)
+9. [Storico modifiche e audit](#storico-modifiche-e-audit)
+10. [Gestione immagini esercizi (minIO)](#gestione-immagini-esercizi-minio)
+11. [Comandi pulizia registry git](#Comandi-pulizia-registry-git)
+12. [Integrazione con WordPress](#integrazione-con-wordpress)
 
 ---
 
@@ -141,7 +142,7 @@ Gli indici **non** si creano con uno script manuale: sono dichiarati negli schem
 |---|---|---|---|---|
 | `exercises` | `{ state: 1, lastNotifiedAt: 1 }` | composto | [Exercise.ts](server/src/models/Exercise.ts) | Query admin `GET /pending` e `GET /to-approve` (prefisso `state`) e le `updateMany` del job notify (`state` + range su `lastNotifiedAt`) |
 | `exercises` | `{ type: 1, variant: 1 }` | `unique` parziale | [Exercise.ts](server/src/models/Exercise.ts) | Impedisce due esercizi con stessa tipologia + variante. `partialFilterExpression` su `state ∈ {TO_APPROVE, APPROVED, PENDING_UPDATE}`: i `REJECTED` sono esclusi e non bloccano la ri-creazione dello stesso combo |
-| `exercisechanges` | `{ exerciseId: 1 }` | `unique` | [ExerciseChange.ts](server/src/models/ExerciseChange.ts) | Tutte le lookup sul change doc (`findOne`/`findOneAndUpdate`/`deleteOne` per `exerciseId`) + garanzia 1:1 esercizio↔change |
+| `exercisechanges` | `{ exerciseId: 1 }` | `unique` parziale | [ExerciseChange.ts](server/src/models/ExerciseChange.ts) | Tutte le lookup sul change doc (`findOne`/`findOneAndUpdate` per `exerciseId`). `partialFilterExpression` su `state: "PENDING"`: garantisce **una sola modifica in attesa** per esercizio, senza impedire che restino i documenti già risolti (storico, vedi sotto) |
 | `k9_users` | `{ email: 1 }` | `unique` | [User.ts](server/src/models/User.ts) | Login per email (creato implicitamente da `unique: true`) |
 | tutte | `{ _id: 1 }` | default | — | Creato automaticamente da MongoDB |
 
@@ -204,7 +205,7 @@ server/test/
 │   ├── fixtures.ts        # createExercise()
 │   └── authClient.ts      # loginAs(app, overrides) — vero login via GET /api/auth/wp-callback (JWT firmato con K9_JWT_SECRET)
 ├── unit/                  # requireAuth, requireDbReady, buildMongoFilter, computeDiff
-└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, auth
+└── api/                   # supertest contro createApp() — liste/filtri, create+409, approve/reject, PUT+transazioni, storico modifiche, audit, auth
 ```
 
 Un solo container Mongo per l'intera suite (avviato una volta in
@@ -744,6 +745,141 @@ La collection Bruno in `bruno/` permette di chiamare l'endpoint manualmente:
 2. Seleziona l'ambiente (`development` o `production`)
 3. Inserisci il valore di `notifyApiKey` nella colonna **Secret** dell'ambiente (non viene salvato su disco)
 4. Esegui la request **trigger notify** nel folder `notify/`
+
+---
+
+## Storico modifiche e audit
+
+Il tab **Audit** del pannello admin mostra, per un periodo scelto, i 5 utenti
+che hanno contribuito di più: esercizi creati e modifiche proposte.
+
+### Endpoint
+
+| Endpoint | Sorgente | Campo di attribuzione |
+|---|---|---|
+| `GET /api/admin/audit/created-by-user?from=&to=` | `exercises` | `Exercise.user` |
+| `GET /api/admin/audit/changes-by-user?from=&to=` | `exercisechanges` | `ExerciseChange.user` |
+
+Entrambi: solo admin, `from` obbligatorio, `to` opzionale e **inclusivo
+dell'intera giornata**, raggruppamento su `createdAt` (data della proposta,
+non della risoluzione), limite alle prime 5 posizioni.
+
+**Contano solo i contributi approvati**: le classifiche misurano ciò che un
+admin ha validato, non ciò che è stato proposto. Restano quindi fuori sia i
+rifiutati sia quelli ancora in attesa di revisione.
+
+> Per gli esercizi "approvato" significa `state ∈ {APPROVED, PENDING_UPDATE}`,
+> non il solo `APPROVED`: `PENDING_UPDATE` è comunque un esercizio approvato,
+> segnala solo che c'è una modifica in attesa (è la stessa coppia di stati che
+> `GET /api/exercises` considera "vivi"). Filtrando il solo `APPROVED`, un
+> esercizio uscirebbe dalla classifica appena qualcuno propone una modifica,
+> per rientrarci alla risoluzione.
+
+> Le change `SUPERSEDED` non hanno bisogno di un filtro dedicato: alla
+> risoluzione ricevono lo stato finale dell'intera catena, quindi quelle di una
+> proposta approvata sono già `APPROVED` e vengono conteggiate — chi ha
+> contribuito viene contato anche se non è stato l'ultimo a metterci mano.
+
+Sia `Exercise.user` sia `ExerciseChange.user` sono scritti **una sola volta**,
+alla creazione, e mai sovrascritti: restano il proponente originale anche se
+un admin modifica i campi in fase di approvazione (quel percorso tocca solo
+`userUpdate`). È ciò che rende affidabile l'attribuzione.
+
+### Perché `ExerciseChange` ha uno stato
+
+Per contare le modifiche proposte serve che i change doc **sopravvivano alla
+risoluzione**. Prima `approve-change`/`reject-change` facevano `deleteOne`: una
+volta gestita, la proposta spariva e non era più contabilizzabile.
+
+Oggi il documento resta e cambia `state`:
+
+| `state` | Quando | Conta nell'audit |
+|---|---|---|
+| `PENDING` | Modifica in attesa di revisione admin | No |
+| `SUPERSEDED` | Un **altro** utente ha proposto una modifica successiva sullo stesso esercizio | Solo dopo che la catena è stata approvata (diventa `APPROVED`) |
+| `APPROVED` | `POST /:id/approve-change` | Sì |
+| `REJECTED` | `POST /:id/reject-change` | No |
+| *(documento cancellato)* | Qualcuno riporta i valori a quelli originali prima della revisione (`PUT /:id` con diff vuoto) | No |
+
+L'ultimo caso resta una cancellazione vera e propria: non è né un'approvazione
+né un rifiuto, semplicemente nessuna proposta è arrivata a un admin —
+conservarla gonfierebbe le statistiche. La cancellazione riguarda **l'intera
+catena aperta** (vedi sotto), non solo l'ultima proposta.
+
+### Proposte concorrenti: la catena
+
+Il form di modifica carica la vista mergiata (`GET /:id/changes` = esercizio
+approvato + campi della proposta in attesa). Quindi se A propone una modifica,
+B che apre lo stesso esercizio **vede già i valori proposti da A** e, salvando,
+li rinvia insieme ai propri.
+
+Sovrascrivere il documento di A a nome di B falserebbe l'attribuzione. Invece:
+
+```
+A propone         → change#1 { user: A, state: PENDING }
+B modifica        → change#1 { user: A, state: SUPERSEDED, supersededBy: #2 }
+                    change#2 { user: B, state: PENDING }      ← unica proposta attiva
+admin approva     → change#1 e #2 entrambe APPROVED           ← contano entrambi
+admin rifiuta     → change#1 e #2 entrambe REJECTED           ← non conta nessuno
+(finché è aperta) → nessuno conta: l'audit considera solo le APPROVED
+qualcuno annulla  → change#1 e #2 cancellate
+```
+
+Dettagli che rendono il meccanismo corretto:
+
+- **Il diff è sempre calcolato sull'esercizio approvato**, mai sulla vista
+  mergiata (`computeDiff(exerciseData, …)` in `exercises.ts`): la proposta di B
+  contiene quindi automaticamente anche le modifiche di A. Resta una sola
+  proposta attiva, completa.
+- **Si crea una nuova change solo se l'utente è diverso** dal proponente della
+  PENDING. Lo stesso utente che raffina la propria proposta aggiorna il
+  documento esistente, altrimenti verrebbe conteggiato più volte per un unico
+  contributo.
+- **La catena aperta si identifica come `{ exerciseId, state ∈ {PENDING, SUPERSEDED} }`** —
+  non serve navigare `supersededBy`. L'invariante regge perché alla risoluzione
+  l'intera catena riceve lo stato finale: le `SUPERSEDED` di un esercizio
+  appartengono sempre e solo alla catena ancora aperta. `supersededBy` resta
+  solo come traccia per ricostruire l'ordine.
+- **`GET /pending` restituisce l'intera catena aperta**, non la sola `PENDING`:
+  oltre a `change` (la proposta attiva) espone `contributors`, l'elenco
+  cronologico e deduplicato degli utenti che ci hanno messo mano. Il pannello
+  admin li mostra tutti — attribuire la modifica al solo ultimo intervenuto
+  nasconderebbe il lavoro di chi l'ha aperta.
+- **Un campo assente dal payload non è una modifica**: `computeDiff` lo salta.
+  Senza quel controllo i campi array (`tools`, `movementPlan`), che Mongoose
+  valorizza a `[]`, differirebbero sempre da `undefined` e produrrebbero un diff
+  non vuoto — impedendo di riconoscere il ritorno ai valori originali.
+- **L'ordine delle scritture è vincolato dall'indice**: la vecchia change va
+  marcata `SUPERSEDED` *prima* di creare la nuova, altrimenti esisterebbero due
+  `PENDING` sullo stesso esercizio e l'unique parziale fallirebbe con `E11000`.
+  Per questo l'`_id` della nuova change è generato in anticipo (serve a
+  valorizzare `supersededBy` prima che il documento esista). Tutto in una
+  transazione.
+
+> **Limite noto — approvazione parziale.** L'admin può applicare solo alcuni
+> campi della proposta. La propagazione marca `APPROVED` l'intera catena anche
+> se il campo specifico di un utente è stato scartato: il conteggio è alla
+> granularità della *proposta*, non del singolo campo. È lo stesso livello di
+> approssimazione già presente per le proposte a un solo autore.
+
+> **Indice parziale, non globale.** L'unique su `exerciseId` è scoped a
+> `state: "PENDING"` (vedi [Indici del database](#indici-del-database)): più
+> documenti storici possono condividere lo stesso `exerciseId`, ma al più uno
+> può essere in attesa. Con un unique globale, la seconda proposta di modifica
+> sullo stesso esercizio fallirebbe con `E11000`.
+
+> **Tutte le lookup filtrano per stato.** `ExerciseChange.findOne({ exerciseId })`
+> compare in più punti di `exercises.ts` (immagini pending, `/:id/changes`,
+> stream immagini, `approve-change`): tutti passano `state: "PENDING"`,
+> altrimenti pescherebbero un documento storico al posto di quello attivo.
+> L'unica lookup che legge più di un documento è quella di `GET /pending`, che
+> filtra sugli stati aperti perché deve ricostruire l'elenco dei contributori.
+
+> **Attenzione alle scritture di massa su `exerciseId`.** Cancellazioni e
+> aggiornamenti che riguardano la catena vanno sempre scoped agli stati aperti
+> (`{ state: { $in: ["PENDING", "SUPERSEDED"] } }`): un `deleteMany({ exerciseId })`
+> nudo distruggerebbe anche lo storico delle catene già risolte sullo stesso
+> esercizio.
 
 ---
 

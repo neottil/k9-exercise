@@ -101,7 +101,12 @@ const PendingChangesTab = () => {
         <>
           {items.map((item) => {
             const isSelected = selected?.exercise.id === item.exercise.id;
-            const modifiedBy = item.change?.userUpdate || item.change?.user;
+            // Più nomi quando la proposta è passata per le mani di più utenti:
+            // `change.user` da solo mostrerebbe l'ultimo, nascondendo chi
+            // l'aveva aperta.
+            const modifiedBy = item.contributors?.length
+              ? item.contributors.join(", ")
+              : item.change?.userUpdate || item.change?.user;
             const modifiedAt = item.change?.updatedAt
               ? new Date(item.change.updatedAt).toLocaleDateString("it-IT")
               : null;
